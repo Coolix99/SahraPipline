@@ -5,6 +5,7 @@ import os
 import git
 import pandas as pd
 from simple_file_checksum import get_checksum
+import re
 
 from config import *
 from IO import *
@@ -113,8 +114,7 @@ def orient_session(im_file):
     df = pd.DataFrame(points_data)
     
     print(df)
-    #print(extract_coordinate(df,'Proximal_pt'))
-    #print(extract_coordinate(df,'Proximal2_pt'))
+
 
     v1=extract_coordinate(df,'Proximal_pt')-extract_coordinate(df,'Distal_pt')
     v1 = v1 / np.linalg.norm(v1)
@@ -124,30 +124,7 @@ def orient_session(im_file):
     n=np.cross(v3,v2)
     n = n / np.linalg.norm(n)
 
-    # viewer = napari.Viewer(ndisplay=3)
-    # im_layer = viewer.add_image(im)
 
-    # points=[np.array((im.shape[0]//2,im.shape[1]//2,im.shape[2]//2))]
-    # points.append(points[0]+100*n)
-    # line = np.array([points])
-    # viewer.add_shapes(line, shape_type='line', edge_color='blue', edge_width=2,name='normal')
-
-    # points=[np.array((im.shape[0]//2,im.shape[1]//2,im.shape[2]//2))]
-    # points.append(points[0]+100*v1)
-    # line = np.array([points])
-    # viewer.add_shapes(line, shape_type='line', edge_color='red', edge_width=2,name='v1')
-
-    # points=[np.array((im.shape[0]//2,im.shape[1]//2,im.shape[2]//2))]
-    # points.append(points[0]+100*v2)
-    # line = np.array([points])
-    # viewer.add_shapes(line, shape_type='line', edge_color='green', edge_width=2,name='v2')
-
-    # points=[np.array((im.shape[0]//2,im.shape[1]//2,im.shape[2]//2))]
-    # points.append(points[0]+100*v3)
-    # line = np.array([points])
-    # viewer.add_shapes(line, shape_type='line', edge_color='white', edge_width=2,name='v3')
-
-    # napari.run()
 
     new_row = pd.DataFrame({'coordinate_px': [n], 'name': ['fin_plane']})
     df = pd.concat([df, new_row], ignore_index=True)
@@ -182,10 +159,32 @@ def evalStatus_orient(image_dir_path,LMcoord_dir_path):
             return False    #skip
     except:
         return res  #corrupted -> do again
-    
+
+def extract_condition(s):
+
+   
+    # Using regular expressions to find 'dev' or 'reg'
+    match = re.search(r'(dev|reg)', s)
+    if match:
+        return match.group(1)
+    else:
+        # If neither 'dev' nor 'reg' is found, raise an error
+        raise ValueError(f"No 'dev' or 'reg' found in string: {s}")
+
+
 def make_orientation():
-    image_folder_list=os.listdir(nuclei_images_path)
-    for image_folder in image_folder_list:
+    time_folder_list= [item for item in os.listdir(vol_path) if os.path.isdir(os.path.join(vol_path, item))]
+    for time_folder in time_folder_list:
+        time_folder_path=os.path.join(vol_path,time_folder)
+        vol_list = os.listdir(time_folder_path)
+        for vol_img in vol_list:
+            if not vol_img[-4:]=='.tif':
+                continue
+            data_name=vol_img[:-4]
+            condition=extract_condition(data_name)
+            print(data_name,condition)
+
+        continue
         print(image_folder)
 
         image_dir_path=os.path.join(nuclei_images_path,image_folder)
