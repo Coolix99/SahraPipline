@@ -507,7 +507,7 @@ def make_Coord():
         repo = git.Repo(gitPath,search_parent_directories=True)
         sha = repo.head.object.hexsha
         MetaData_Coord['git hash']=sha
-        MetaData_Surface['git repo']='Sahrapipline'
+        MetaData_Coord['git repo']='Sahrapipline'
         MetaData_Coord['Coord version']=Coord_version
         MetaData_Coord['Surface file']=Surface_file_name
         MetaData_Coord['scales']=PastMetaData['Orient_MetaData']['scales']
@@ -519,9 +519,8 @@ def make_Coord():
         MetaData_Coord['input Orient checksum']=PastMetaData['Orient_MetaData']['output Orient checksum']
         check_Surface=get_checksum(Surface_file, algorithm="SHA1")
         MetaData_Coord['output Surface checksum']=check_Surface
-
         writeJSON(FlatFin_dir_path,'Coord_MetaData',MetaData_Coord)
-        return
+        
 
 if __name__ == "__main__":
     make_Coord() #construct coord system and curvature

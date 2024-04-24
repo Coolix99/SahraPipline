@@ -10,7 +10,6 @@ from config import *
 from IO import *
 
 
-
 def getIntersections(vol_img,r0,normal,max_value=100,precision=1):
     a = 0
     b = max_value
@@ -103,125 +102,76 @@ def calculate_Thickness(im_file,surf_file,scales):
     # plt.show()
     return mesh
 
-def evalStatus_Thickness(image_dir_path,LMcoord_dir_path):
-    AllMetaData_image=get_JSON(image_dir_path)
-    if not 'vol_image_MetaData' in AllMetaData_image:
-        print('no vol_image_MetaData -> skip')
+def evalStatus_Thickness(FlatFin_dir_path):
+    MetaData=get_JSON(FlatFin_dir_path)
+    if not 'Orient_MetaData' in MetaData:
+        print('no Orient_MetaData')
         return False
 
-    if not isinstance(AllMetaData_image['vol_image_MetaData'],dict):
-        print('vol MetaData not good')
+    if not 'CenterLine_MetaData' in MetaData:
+        print('no CenterLine_MetaData')
         return False
     
-    res={}
-    res['vol_image_MetaData']=AllMetaData_image['vol_image_MetaData']
-
-    AllMetaData_LM=get_JSON(LMcoord_dir_path)
-
-    if not 'Surface_MetaData' in AllMetaData_LM:
-        print('no Surface_MetaData ->skip')
+    if not 'Surface_MetaData' in MetaData:
+        print('no Surface_MetaData')
         return False
-    if not 'Coord_MetaData' in AllMetaData_LM:
-        print('no Coord_MetaData ->skip')
-        return False
-
-    res['CenterLine_MetaData']=AllMetaData_LM['CenterLine_MetaData']
-    res['Orient_MetaData']=AllMetaData_LM['Orient_MetaData']
-    res['nuclei_image_MetaData']=AllMetaData_LM['nuclei_image_MetaData']
-    res['Surface_MetaData']=AllMetaData_LM['Surface_MetaData']
-    res['Coord_MetaData']=AllMetaData_LM['Coord_MetaData']
-    try:
-        if AllMetaData_LM['Orient_MetaData']['Orient version']!=Orient_version:
-            print('wrong version Orient')
-            return False
-        if AllMetaData_LM['CenterLine_MetaData']['CenterLine version']!=CenterLine_version:
-            print('wrong version CL')
-            return False
-        if AllMetaData_LM['Coord_MetaData']['Coord version']!=Coord_version:
-            print('wrong version Coord')
-            return False
-        if AllMetaData_LM['Thickness_MetaData']['Thickness version']!=Thickness_version:
-            print('wrong version Thickness')
-            return res
-        if AllMetaData_LM['Thickness_MetaData']['input Surface checksum']!=AllMetaData_LM['Coord_MetaData']['output Surface checksum']:
-            print('different Input Coord')
-            return res
-        
-        return False #already done
-    except:
-        return res #probably no Coord_MetaData
-
-
-def find_local_maxima(array):
-    # Initial mask with all False
-    max_mask = np.zeros_like(array, dtype=bool)
     
-    # Iterate through each axis
-    for axis in range(3):
-        # Compare with the shifted version of itself along each axis
-        greater_than_prev = array > np.roll(array, 1, axis=axis)
-        greater_than_next = array > np.roll(array, -1, axis=axis)
-        non_zero = array >0
-        # Update the mask where a local maximum is found along the current axis
-        max_mask |= greater_than_prev & greater_than_next & non_zero
-    return max_mask
+    if not 'Coord_MetaData' in MetaData:
+        print('no Coord_MetaData')
+        return False
+    
+    if not 'Thickness_MetaData' in MetaData:
+        return MetaData
+
+    if not MetaData['Thickness_MetaData']['Thickness version']==Thickness_version:
+        return MetaData  
+
+    if not MetaData['Thickness_MetaData']['input Surface checksum']==MetaData['Coord_MetaData']['output Surface checksum']:
+        return MetaData
+
+    return False
 
 def make_Thickness():
-    image_folder_list=os.listdir(vol_images_path)
-    image_folder_list = [item for item in image_folder_list if os.path.isdir(os.path.join(vol_images_path, item))]
-    image_folder_list=['20220611_mAG-zGem_H2a-mcherry_102hpf_LM_B3_analyzed_vol']
-    for image_folder in image_folder_list:
-        print(image_folder)
-        
-        image_dir_path=os.path.join(vol_images_path,image_folder)
-        image_folder=get_name(image_folder)
-        LMcoord_dir_path=os.path.join(LMcoord_path,image_folder+'_LMcoord')
+    FlatFin_folder_list=os.listdir(FlatFin_path)
+    FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
+    for FlatFin_folder in FlatFin_folder_list:
+        print(FlatFin_folder)
+        FlatFin_dir_path=os.path.join(FlatFin_path,FlatFin_folder)
  
-        PastMetaData=evalStatus_Thickness(image_dir_path,LMcoord_dir_path)
+        PastMetaData=evalStatus_Thickness(FlatFin_dir_path)
         if not isinstance(PastMetaData,dict):
             continue
-
-        MetaData_image=PastMetaData['vol_image_MetaData']
-        writeJSON(LMcoord_dir_path,'vol_image_MetaData',MetaData_image)
-        image_file=MetaData_image['vol image file name']
+        data_name=FlatFin_folder[:-len('_FlatFin')]
 
         MetaData_Coord=PastMetaData['Coord_MetaData']
         Surface_file_name=MetaData_Coord['Surface file']
 
-
-        scales=MetaData_image['XYZ size in mum'].copy()
-        if MetaData_image['axes']=='ZYX':
-            scales[0], scales[-1] = scales[-1], scales[0]
+        scales=PastMetaData['CenterLine_MetaData']['scales'].copy()
 
         #actual calculation
-        mesh = calculate_Thickness(os.path.join(image_dir_path,image_file),os.path.join(LMcoord_dir_path,Surface_file_name),scales)
+        mesh = calculate_Thickness(os.path.join(vol_path,str(PastMetaData['Orient_MetaData']['time in hpf'])+'hpf',data_name+'.tif'),os.path.join(FlatFin_dir_path,Surface_file_name),scales)
         
-        Surface_file=os.path.join(LMcoord_dir_path,Surface_file_name)
+        Surface_file=os.path.join(FlatFin_dir_path,Surface_file_name)
         mesh.save(Surface_file)
 
         MetaData_Thickness={}
         repo = git.Repo(gitPath,search_parent_directories=True)
         sha = repo.head.object.hexsha
         MetaData_Thickness['git hash']=sha
-        MetaData_Thickness['git repo']='landmark_coordinate'
+        MetaData_Thickness['git repo']='Sahrapipline'
         MetaData_Thickness['Thickness version']=Thickness_version
         MetaData_Thickness['Surface file']=Surface_file_name
-        MetaData_Thickness['XYZ size in mum']=MetaData_image['XYZ size in mum']
-        MetaData_Thickness['axes']=MetaData_image['axes']
-        MetaData_Thickness['experimentalist']=MetaData_image['experimentalist']
-        MetaData_Thickness['genotype']=MetaData_image['genotype']
-        MetaData_Thickness['is control']=MetaData_image['is control']
-        MetaData_Thickness['time in hpf']=MetaData_image['time in hpf']
+        MetaData_Thickness['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_Thickness['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']
+        MetaData_Thickness['genotype']=PastMetaData['Surface_MetaData']['genotype']
+        MetaData_Thickness['condition']=PastMetaData['Orient_MetaData']['condition']
+        MetaData_Thickness['time in hpf']=PastMetaData['Surface_MetaData']['time in hpf']
         MetaData_Thickness['input Surface checksum']=PastMetaData['Coord_MetaData']['output Surface checksum']
         check_Surface=get_checksum(Surface_file, algorithm="SHA1")
         MetaData_Thickness['output Surface checksum']=check_Surface
-        writeJSON(LMcoord_dir_path,'Thickness_MetaData',MetaData_Thickness)
+        writeJSON(FlatFin_dir_path,'Thickness_MetaData',MetaData_Thickness)
 
-
-def test():   
-    pass
 
 if __name__ == "__main__":
-    #test()
     make_Thickness() 
 
