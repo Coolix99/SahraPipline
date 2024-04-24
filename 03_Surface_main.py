@@ -349,142 +349,83 @@ def construct_Surface(im_file,old_df,center_line_path_3d,scales):
 
     return smooth_cube,df
 
-def evalStatus_Surface(image_dir_path,LMcoord_dir_path):
-    AllMetaData_image=get_JSON(image_dir_path)
-    if not 'vol_image_MetaData' in AllMetaData_image:
-        print('no vol_image_MetaData -> skip')
+def evalStatus_Surface(FlatFin_dir_path):
+    MetaData=get_JSON(FlatFin_dir_path)
+    if not 'Orient_MetaData' in MetaData:
+        print('no Orient_MetaData')
         return False
 
-    if not isinstance(AllMetaData_image['vol_image_MetaData'],dict):
-        print('vol MetaData not good')
+    if not 'CenterLine_MetaData' in MetaData:
+        print('no CenterLine_MetaData')
         return False
     
-    res={}
-    res['vol_image_MetaData']=AllMetaData_image['vol_image_MetaData']
+    if not 'Surface_MetaData' in MetaData:
+        return MetaData
 
-    AllMetaData_LM=get_JSON(LMcoord_dir_path)
-    if not 'Orient_MetaData' in AllMetaData_LM:
-        print('no orientation ->skip')
-        return False
-    if not 'CenterLine_MetaData' in AllMetaData_LM:
-        print('no centerLine ->skip')
-        return False
+    if not MetaData['Surface_MetaData']['Surface version']==Surface_version:
+        return MetaData  
+    
+    if not MetaData['Surface_MetaData']['input CenterLine checksum']==MetaData['CenterLine_MetaData']['output CenterLine checksum']:
+        return MetaData
 
-    res['CenterLine_MetaData']=AllMetaData_LM['CenterLine_MetaData']
-    res['Orient_MetaData']=AllMetaData_LM['Orient_MetaData']
-    res['nuclei_image_MetaData']=AllMetaData_LM['nuclei_image_MetaData']
-    try:
-        if AllMetaData_LM['Orient_MetaData']['Orient version']!=Orient_version:
-            print('wrong version Orient')
-            return False
-        if AllMetaData_LM['CenterLine_MetaData']['CenterLine version']!=CenterLine_version:
-            print('wrong version CL')
-            return False
-        if AllMetaData_LM['Surface_MetaData']['Surface version']!=Surface_version:
-            print('wrong version Surface')
-            return res
-        if AllMetaData_LM['Surface_MetaData']['input CenterLine checksum']!=AllMetaData_LM['CenterLine_MetaData']['output CenterLine checksum']:
-            print('different Input CL')
-            return res
-        return False #already done
-    except:
-        return res #probably no Surface_MetaData
+    return False
 
-def get_name(input_string):
-    if input_string.endswith("_vol"):
-        # Remove the "_vol" suffix and add "_nuclei"
-        modified_string = input_string[:-4] + "_nuclei"
-    else:
-        # If the string does not end with "_vol", simply add "_nuclei"
-        modified_string = input_string + "_nuclei"
-    return  modified_string
 
 def make_Surface():
-    image_folder_list=os.listdir(vol_images_path)
-    image_folder_list = [item for item in image_folder_list if os.path.isdir(os.path.join(vol_images_path, item))]
-    #image_folder_list = ['20221108_90hpf_geminin_control_1_analyzed_vol']
-    for image_folder in image_folder_list:
-        print(image_folder)
-        
-        image_dir_path=os.path.join(vol_images_path,image_folder)
-        image_folder=get_name(image_folder)
-        LMcoord_dir_path=os.path.join(LMcoord_path,image_folder+'_LMcoord')
- 
-        PastMetaData=evalStatus_Surface(image_dir_path,LMcoord_dir_path)
+    FlatFin_folder_list=os.listdir(FlatFin_path)
+    FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
+    for FlatFin_folder in FlatFin_folder_list:
+        print(FlatFin_folder)
+        FlatFin_dir_path=os.path.join(FlatFin_path,FlatFin_folder)
+
+        PastMetaData=evalStatus_Surface(FlatFin_dir_path)
         if not isinstance(PastMetaData,dict):
             continue
+        data_name=FlatFin_folder[:-len('_FlatFin')]
 
-        MetaData_image=PastMetaData['vol_image_MetaData']
-        writeJSON(LMcoord_dir_path,'vol_image_MetaData',MetaData_image)
-        image_file=MetaData_image['vol image file name']
-
-        Orient_file=os.path.join(LMcoord_dir_path,PastMetaData['Orient_MetaData']['Orient file'])
+        Orient_file=os.path.join(FlatFin_dir_path,PastMetaData['Orient_MetaData']['Orient file'])
         Orient_df=pd.read_hdf(Orient_file, key='data')
 
-        CenterLine_file=os.path.join(LMcoord_dir_path,PastMetaData['CenterLine_MetaData']['CenterLine file'])
-        CenterLine_path=np.load(CenterLine_file)
+        CenterLine_file=os.path.join(FlatFin_dir_path,PastMetaData['CenterLine_MetaData']['CenterLine file'])
+        CenterLine=np.load(CenterLine_file)
 
-        scales=MetaData_image['XYZ size in mum'].copy()
-        if MetaData_image['axes']=='ZYX':
-            scales[0], scales[-1] = scales[-1], scales[0]
+        scales=PastMetaData['CenterLine_MetaData']['scales'].copy()
 
         #actual calculation
-        surface,Rip_df=construct_Surface(os.path.join(image_dir_path,image_file),Orient_df,CenterLine_path,scales)
+        print('start surface construct')
+        surface,Rip_df=construct_Surface(os.path.join(vol_path,str(PastMetaData['Orient_MetaData']['time in hpf'])+'hpf',data_name+'.tif'),Orient_df,CenterLine,scales)
         
-        Surface_file_name=image_folder+'_surface.vtk'
-        Surface_file=os.path.join(LMcoord_dir_path,Surface_file_name)
+        Surface_file_name=data_name+'_surface.vtk'
+        Surface_file=os.path.join(FlatFin_dir_path,Surface_file_name)
         surface.save(Surface_file)
 
-        Rip_file_name=image_folder+'_Rip.h5'
-        Rip_file=os.path.join(LMcoord_dir_path,Rip_file_name)
+        Rip_file_name=data_name+'_Rip.h5'
+        Rip_file=os.path.join(FlatFin_dir_path,Rip_file_name)
         Rip_df.to_hdf(Rip_file, key='data', mode='w')
-
+        
         MetaData_Surface={}
         repo = git.Repo(gitPath,search_parent_directories=True)
         sha = repo.head.object.hexsha
         MetaData_Surface['git hash']=sha
-        MetaData_Surface['git repo']='landmark_coordinate'
+        MetaData_Surface['git repo']='Sahrapipline'
         MetaData_Surface['Surface version']=Surface_version
         MetaData_Surface['Surface file']=Surface_file_name
         MetaData_Surface['Rip file']=Rip_file_name
-        MetaData_Surface['XYZ size in mum']=MetaData_image['XYZ size in mum']
-        MetaData_Surface['axes']=MetaData_image['axes']
-        MetaData_Surface['experimentalist']=MetaData_image['experimentalist']
-        MetaData_Surface['is control']=MetaData_image['is control']
-        MetaData_Surface['time in hpf']=MetaData_image['time in hpf']
-        MetaData_Surface['genotype']=MetaData_image['genotype']
+        MetaData_Surface['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_Surface['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']
+        MetaData_Surface['condition']=PastMetaData['Orient_MetaData']['condition']
+        MetaData_Surface['time in hpf']=PastMetaData['Orient_MetaData']['time in hpf']
+        MetaData_Surface['genotype']=PastMetaData['Orient_MetaData']['genotype']
         MetaData_Surface['input CenterLine checksum']=PastMetaData['CenterLine_MetaData']['output CenterLine checksum']
         check_Surface=get_checksum(Surface_file, algorithm="SHA1")
         MetaData_Surface['output Surface checksum']=check_Surface
         check_Rip=get_checksum(Rip_file, algorithm="SHA1")
         MetaData_Surface['output Rip checksum']=check_Rip
-        writeJSON(LMcoord_dir_path,'Surface_MetaData',MetaData_Surface)
+        writeJSON(FlatFin_dir_path,'Surface_MetaData',MetaData_Surface)
 
-    
+        
 
-def test():   
-    # Example usage:
-    path = np.array([[1, 2, 3],
-                    [4, 5, 6],
-                    [7, 8, 9],
-                    [10, 11, 12]])
-    path = np.array([[1, 0, 0],
-                    [4, 0, 0],
-                    [7, 0, 0],
-                    [10, 0, 0]])
-    point=np.array((2,6,8))
-    closest_point, min_distance = closest_points_on_path(path,point)
-    print("Closest point on the path:")
-    print(closest_point)
-    print("Minimal distance between P and closest point:")
-    print(min_distance)
-
-    pos = closest_position_on_path(path,point)
-    print("Position on the path:")
-    print(pos)
-  
 
 if __name__ == "__main__":
-    #test()
     make_Surface() #construct center surface 
 
