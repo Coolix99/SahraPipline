@@ -17,13 +17,9 @@ def extract_coordinate(df, name):
     else:
         return None
 
-def orient_session(im_file):
-    im=getImage(im_file)
-
-    print(1)
+def orient_session(im):
     viewer = napari.Viewer(ndisplay=3)
-    print(2)
-    im_layer = viewer.add_image(im)
+    im_layer = viewer.add_image(im,rendering='iso')
     last_pos=None
     last_viewer_direction=None
     points = []
@@ -124,45 +120,27 @@ def orient_session(im_file):
     n=np.cross(v3,v2)
     n = n / np.linalg.norm(n)
 
-
-
     new_row = pd.DataFrame({'coordinate_px': [n], 'name': ['fin_plane']})
     df = pd.concat([df, new_row], ignore_index=True)
 
     return df
 
-def evalStatus_orient(image_dir_path,LMcoord_dir_path):
+def evalStatus_orient(FlatFin_dir_path):
     """
     checks MetaData to desire wether to evaluate the file or not
     returns a dict of MetaData to be written if we should evaluate the file
     """
-    
-    AllMetaData_image=get_JSON(image_dir_path)
-    if not 'nuclei_image_MetaData' in AllMetaData_image:
-        print('no nuclei MetaData -> skip')
-        return False
 
-    if not isinstance(AllMetaData_image['nuclei_image_MetaData'],dict):
-        print('nuclei MetaData not good')
-        return False
-    
-    res={}
-    res['nuclei_image_MetaData']=AllMetaData_image['nuclei_image_MetaData']
+    MetaData=get_JSON(FlatFin_dir_path)
+    if not 'Orient_MetaData' in MetaData:
+        return MetaData
 
-    AllMetaData_LM=get_JSON(LMcoord_dir_path)
-    if not isinstance(AllMetaData_LM,dict):
-        print('nothing done jet')
-        return res  #do it
-    try:
-        if AllMetaData_LM['Orient_MetaData']['Orient version']==Orient_version:
-            print('already done')
-            return False    #skip
-    except:
-        return res  #corrupted -> do again
+    if not MetaData['Orient_MetaData']['Orient version']==Orient_version:
+        return MetaData  
+
+    return False
 
 def extract_condition(s):
-
-   
     # Using regular expressions to find 'dev' or 'reg'
     match = re.search(r'(dev|reg)', s)
     if match:
@@ -171,59 +149,52 @@ def extract_condition(s):
         # If neither 'dev' nor 'reg' is found, raise an error
         raise ValueError(f"No 'dev' or 'reg' found in string: {s}")
 
-
 def make_orientation():
     time_folder_list= [item for item in os.listdir(vol_path) if os.path.isdir(os.path.join(vol_path, item))]
     for time_folder in time_folder_list:
+        time=int(time_folder[:-len('hpf')])
         time_folder_path=os.path.join(vol_path,time_folder)
         vol_list = os.listdir(time_folder_path)
-        for vol_img in vol_list:
-            if not vol_img[-4:]=='.tif':
+        for vol_img_name in vol_list:
+            if not vol_img_name[-4:]=='.tif':
                 continue
-            data_name=vol_img[:-4]
+            data_name=vol_img_name[:-4]
             condition=extract_condition(data_name)
-            print(data_name,condition)
+            print(data_name,condition,time)
 
+            FlatFin_dir_path=os.path.join(FlatFin_path,data_name+'_FlatFin')
+
+            PastMetaData=evalStatus_orient(FlatFin_dir_path)
+            if not isinstance(PastMetaData,dict):
+                continue
+            make_path(FlatFin_dir_path)
+
+            vol_img,scales=getImage_Meta(os.path.join(time_folder_path,vol_img_name))
+
+            print('start interactive session')
+            Orient_df=orient_session(vol_img)
+            
+            Orient_file_name=data_name+'_Orient.h5'
+            Orient_file=os.path.join(FlatFin_dir_path,Orient_file_name)
+            Orient_df.to_hdf(Orient_file, key='data', mode='w')
+
+            MetaData_Orient={}
+            repo = git.Repo(gitPath,search_parent_directories=True)
+            sha = repo.head.object.hexsha
+            MetaData_Orient['git hash']=sha
+            MetaData_Orient['git repo']='Sahrapipline'
+            MetaData_Orient['Orient version']=Orient_version
+            MetaData_Orient['Orient file']=Orient_file_name
+            MetaData_Orient['scales']=[scales[0],scales[1],scales[2]]
+            MetaData_Orient['condition']=condition
+            MetaData_Orient['time in hpf']=time
+            MetaData_Orient['experimentalist']='Sahra'
+            MetaData_Orient['genotype']='WT'
+            check_Orient=get_checksum(Orient_file, algorithm="SHA1")
+            MetaData_Orient['output Orient checksum']=check_Orient
+            writeJSON(FlatFin_dir_path,'Orient_MetaData',MetaData_Orient)
         continue
-        print(image_folder)
-
-        image_dir_path=os.path.join(nuclei_images_path,image_folder)
-        LMcoord_dir_path=os.path.join(LMcoord_path,image_folder+'_LMcoord')
-
-        PastMetaData=evalStatus_orient(image_dir_path,LMcoord_dir_path)
-        if not isinstance(PastMetaData,dict):
-            continue
-
-        make_path(LMcoord_dir_path)
-        MetaData_image=PastMetaData['nuclei_image_MetaData']
-        writeJSON(LMcoord_dir_path,'nuclei_image_MetaData',MetaData_image)
-
-        image_file=MetaData_image['nuclei image file name']
-
-        #actual calculation
-        print('start interactive session')
-        Orient_df=orient_session(os.path.join(image_dir_path,image_file))
-        
-        Orient_file_name=image_folder+'_Orient.h5'
-        Orient_file=os.path.join(LMcoord_dir_path,Orient_file_name)
-        Orient_df.to_hdf(Orient_file, key='data', mode='w')
-
-        MetaData_Orient={}
-        repo = git.Repo(gitPath,search_parent_directories=True)
-        sha = repo.head.object.hexsha
-        MetaData_Orient['git hash']=sha
-        MetaData_Orient['git repo']='landmark_coordinate'
-        MetaData_Orient['Orient version']=Orient_version
-        MetaData_Orient['Orient file']=Orient_file_name
-        MetaData_Orient['XYZ size in mum']=MetaData_image['XYZ size in mum']
-        MetaData_Orient['axes']=MetaData_image['axes']
-        MetaData_Orient['is control']=MetaData_image['is control']
-        MetaData_Orient['time in hpf']=MetaData_image['time in hpf']
-        MetaData_Orient['experimentalist']=MetaData_image['experimentalist']
-        MetaData_Orient['genotype']=MetaData_image['genotype']
-        check_Orient=get_checksum(Orient_file, algorithm="SHA1")
-        MetaData_Orient['output Orient checksum']=check_Orient
-        writeJSON(LMcoord_dir_path,'Orient_MetaData',MetaData_Orient)
+       
 
 if __name__ == "__main__":
-    make_orientation() #prox-dist axis 
+    make_orientation()

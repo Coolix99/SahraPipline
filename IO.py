@@ -19,6 +19,30 @@ def getImage(file):
             
             return image
 
+def getImage_Meta(file):
+    with tifffile.TiffFile(file) as tif:
+        try:
+            # Retrieve the image data
+            image = tif.asarray()
+            # Retrieve metadata
+            if not tif.series[0].axes=='ZYX':
+                print('unusual axis')
+                return
+          
+            metadata = tif.pages[0].tags  # Access tags from the first page; adjust as necessary
+            metadata_dict = {tag.name: tag.value for tag in metadata.values()}
+   
+            x_scale=metadata_dict['XResolution'][1]/metadata_dict['XResolution'][0]
+            y_scale=metadata_dict['YResolution'][1]/metadata_dict['YResolution'][0]
+            z_scale=tif.imagej_metadata['images']/tif.imagej_metadata['slices']
+            if abs(z_scale-1)>0.001:
+                print('z scale unusual')
+                return
+            return image, np.array((z_scale,y_scale,x_scale))
+        except Exception as e:
+            print(f"Failed to read TIFF file: {e}")
+            return None, None
+
 def saveArr(arr,path):
     np.save(path, arr)
 
