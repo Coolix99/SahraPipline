@@ -151,14 +151,6 @@ def evalStatus_Thickness(image_dir_path,LMcoord_dir_path):
     except:
         return res #probably no Coord_MetaData
 
-def get_name(input_string):
-    if input_string.endswith("_vol"):
-        # Remove the "_vol" suffix and add "_nuclei"
-        modified_string = input_string[:-4] + "_nuclei"
-    else:
-        # If the string does not end with "_vol", simply add "_nuclei"
-        modified_string = input_string + "_nuclei"
-    return  modified_string
 
 def find_local_maxima(array):
     # Initial mask with all False
@@ -173,41 +165,6 @@ def find_local_maxima(array):
         # Update the mask where a local maximum is found along the current axis
         max_mask |= greater_than_prev & greater_than_next & non_zero
     return max_mask
-
-def skelet_test(im_file,surf_file,scales):
-    vol_img=getImage(im_file)
-    mesh=pv.read(surf_file)
-    points_px=mesh.point_data['Coord px']
-
-    from scipy import ndimage
-    from scipy.ndimage import label
-    from skimage import measure, io
-
-    #transform=ndimage.distance_transform_edt(vol_img,sampling=scales)
-    #np.save(r'C:\Users\kotzm\transform.npy',transform)
-    transform=np.load(r'C:\Users\kotzm\transform.npy')
-    maximas=find_local_maxima(transform)
-    print('max')
-    labeled_image = measure.label(maximas, connectivity=2)
-    print('lab')
-    properties = measure.regionprops(labeled_image)
-    largest_component = max(properties, key=lambda prop: prop.area)
-    print('area')
-    largest_component_mask = labeled_image == largest_component.label
-
-
-    viewer = napari.Viewer(ndisplay=3)
-    faces = mesh.faces.reshape(-1, 4)[:, 1:]
-    surface = (points_px, faces)
-    viewer.add_surface(surface)
-    viewer.add_labels(vol_img)
-    viewer.add_labels(maximas)
-    viewer.add_labels(largest_component_mask)
-    viewer.add_image(transform)
-    #viewer.add_labels(blur)
-    #viewer.add_points(points_plot)
-    napari.run()
-
 
 def make_Thickness():
     image_folder_list=os.listdir(vol_images_path)

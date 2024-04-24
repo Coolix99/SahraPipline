@@ -1,16 +1,12 @@
 import numpy as np
 np.random.seed(42)
-import time
-import cv2
-import math
+
 from typing import List
 import napari
-from scipy.interpolate import UnivariateSpline
 import os
 import git
 import pandas as pd
 from simple_file_checksum import get_checksum
-from scipy import ndimage
 from bisect import bisect_right
 import pyvista as pv
 import pymeshfix as mf
@@ -288,79 +284,6 @@ def create_coord_system(surf_file,Orient_file,Rip_file,scales):
     mesh.point_data['direction_2']=direction_2
     return mesh
 
-    #mesh['vectors'] = direction_1*5
-    mesh['scalars'] = coord_1
-    #mesh.set_active_vectors("vectors")
-    p = pv.Plotter()
-    #p.add_mesh(mesh.arrows, lighting=False, scalar_bar_args={'title': "Vector Magnitude"})
-    p.add_mesh(mesh,scalars="scalars", color="grey", ambient=0.6, opacity=0.5, show_edges=False)
-    p.show()
-    return
-   
-    print(ext.shape)
-    ext3D = ext[:,0,np.newaxis] * basisX +  ext[:,1,np.newaxis] * basisY
-    print(ext3D.shape)
-    middle_directions=ext3D[target_inds,:]
-    print(middle_directions.shape)
-    #expand global
-    local_base_rep=[]
-    for i in range(target_inds.shape[0]):
-        ind=target_inds[i]
-        vec=middle_directions[i,:]
-        local_base_rep.append([np.dot(vec,basisX[ind,:]), 
-                                np.dot(vec,basisY[ind,:])])
-    ext = solverHeat.transport_tangent_vectors(target_inds, local_base_rep)
-    direction_1 = ext[:,0,np.newaxis] * basisX +  ext[:,1,np.newaxis] * basisY
-    direction_2 = np.cross(direction_1, mesh.point_normals) 
-    
-    mesh['vectors'] = direction_1
-    glyphs = mesh.glyph(orient='vectors', scale=True, factor=0.1)
-    plotter = pv.Plotter()
-    plotter.add_mesh(mesh, color='white', show_edges=True)  # Add the mesh to the plotter
-    plotter.add_mesh(glyphs, color='red', show_edges=True)  # Add the glyphs (vectors) to the plotter
-    plotter.show()
-    return
-    
-    #calculate mid positions
-    visited[center_ind]=True
-    for target_ind in target_inds:
-        path = mesh.geodesic(center_ind, target_ind).point_data['vtkOriginalPointIds']
-        doIntegration(mesh.points,path,coord_1,coord_2,visited,direction_1,direction_2)
-
-    #calculate entire manifold
-    for i in range(mesh.points.shape[0]):
-        print(i)
-        if visited[i]:
-            continue
-        path = mesh.geodesic(target_ind, i).point_data['vtkOriginalPointIds']
-        doIntegration(mesh.points,path,coord_1,coord_2,visited,direction_1,direction_2)
-
-    #plot
-    mesh.point_data['coord_1']=coord_1
-    mesh.point_data['coord_2']=coord_2
-    
-    mesh.plot(scalars='coord_1')
-
-    mesh.plot(scalars='coord_2')
-    
-    
-    return
-    
-    path_solver = pp3d.EdgeFlipGeodesicSolver(vertices,faces)
-    return
-    
-
-    viewer = napari.Viewer(ndisplay=3)
-
-    surface = (vertices, faces)
-    viewer.add_surface(surface)
-    #viewer.add_shapes(path_pts, shape_type='path', edge_color='green', edge_width=2)
-    # for i in range(len(all_lines_3d)):
-    #     viewer.add_shapes(all_lines_3d[i], shape_type='path', edge_color='green', edge_width=2)
-
-    napari.run()
-
-    return 
 
 def calculateCurvatureTensor(mesh):
     cells = mesh.faces.reshape(-1, 4)[:, 1:]  # This line is adjusted for 'PolyData' objects
@@ -520,41 +443,42 @@ def calculateCurvatureTensor(mesh):
     return
     return
 
-def evalStatus_Coord(LMcoord_path):
-    AllMetaData_coord=get_JSON(LMcoord_path)
-    if not 'Orient_MetaData' in AllMetaData_coord:
-        print('no orient metadta')
+def evalStatus_Coord(FlatFin_dir_path):
+    MetaData=get_JSON(FlatFin_dir_path)
+    if not 'Orient_MetaData' in MetaData:
+        print('no Orient_MetaData')
         return False
-    if not 'CenterLine_MetaData' in AllMetaData_coord:
-        print('no CL metadta')
+
+    if not 'CenterLine_MetaData' in MetaData:
+        print('no CenterLine_MetaData')
         return False
-    if not 'Surface_MetaData' in AllMetaData_coord:
+    
+    if not 'Surface_MetaData' in MetaData:
         print('no Surface_MetaData')
         return False
+    
+    if not 'Coord_MetaData' in MetaData:
+        return MetaData
 
-    try:
-        if AllMetaData_coord['Coord_MetaData']['Coord version']!=Coord_version:
-            print('wrong version Coord')
-            return AllMetaData_coord
-        if AllMetaData_coord['Coord_MetaData']['input Surface checksum']!=AllMetaData_coord['Surface_MetaData']['output Surface checksum']:
-            print('different Input CL')
-            return AllMetaData_coord
-        if AllMetaData_coord['Coord_MetaData']['input Orient checksum']!=AllMetaData_coord['Orient_MetaData']['output Orient checksum']:
-            print('different Input CL')
-            return AllMetaData_coord
-        return False #already done
-    except: 
-        return AllMetaData_coord #probably no Surface_MetaData
+    if not MetaData['Coord_MetaData']['Coord version']==Coord_version:
+        return MetaData  
+    
+    if not MetaData['Coord_MetaData']['input Surface checksum']==MetaData['Surface_MetaData']['output Surface checksum']:
+        return MetaData
+    
+    if not MetaData['Coord_MetaData']['input Orient checksum']==MetaData['Orient_MetaData']['output Orient checksum']:
+        return MetaData
+
+    return False
 
 def make_Coord():
-    LM_folder_list=os.listdir(LMcoord_path)
-    LM_folder_list = [item for item in LM_folder_list if os.path.isdir(os.path.join(LMcoord_path, item))]
-    #LM_folder_list = ['20221108_90hpf_geminin_control_1_analyzed_nuclei_LMcoord']
-    for LM_folder in LM_folder_list:
-        print(LM_folder)
-        LM_dir_path=os.path.join(LMcoord_path,LM_folder)
+    FlatFin_folder_list=os.listdir(FlatFin_path)
+    FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
+    for FlatFin_folder in FlatFin_folder_list:
+        print(FlatFin_folder)
+        FlatFin_dir_path=os.path.join(FlatFin_path,FlatFin_folder)
  
-        PastMetaData=evalStatus_Coord(LM_dir_path)
+        PastMetaData=evalStatus_Coord(FlatFin_dir_path)
         if not isinstance(PastMetaData,dict):
             continue
 
@@ -565,72 +489,49 @@ def make_Coord():
         MetaData_Orient=PastMetaData['Orient_MetaData']
         Orient_file=MetaData_Orient['Orient file']
 
-        scales=MetaData_Surface['XYZ size in mum'].copy()
-        if MetaData_Surface['axes']=='ZYX':
-            scales[0], scales[-1] = scales[-1], scales[0]
+        scales=PastMetaData['CenterLine_MetaData']['scales'].copy() 
 
         #actual calculation
-        mesh = create_coord_system(os.path.join(LM_dir_path,Surface_file_name),os.path.join(LM_dir_path,Orient_file),os.path.join(LM_dir_path,Rip_file),scales)
+        mesh = create_coord_system(os.path.join(FlatFin_dir_path,Surface_file_name),os.path.join(FlatFin_dir_path,Orient_file),os.path.join(FlatFin_dir_path,Rip_file),scales)
         if mesh is None:
             continue
-        #mesh.save(os.path.join(LM_dir_path,Surface_file))
-        #mesh=pv.read(os.path.join(LM_dir_path,Surface_file))
-
-        # mesh['vectors'] = mesh.point_normals*5
-        # mesh.set_active_vectors("vectors")
-        # p = pv.Plotter()
-        # p.add_mesh(mesh.arrows, lighting=False, scalar_bar_args={'title': "Vector Magnitude"})
-        # p.add_mesh(mesh,scalars="coord_1", color="grey", ambient=0.6, opacity=0.5, show_edges=False)
-        # p.show()
-
+       
         res=calculateCurvatureTensor(mesh)
         if res is None:
             continue
         
-        Surface_file=os.path.join(LM_dir_path,Surface_file_name)
+        Surface_file=os.path.join(FlatFin_dir_path,Surface_file_name)
         mesh.save(Surface_file)
 
         MetaData_Coord={}
         repo = git.Repo(gitPath,search_parent_directories=True)
         sha = repo.head.object.hexsha
         MetaData_Coord['git hash']=sha
-        MetaData_Coord['git repo']='landmark_coordinate'
+        MetaData_Surface['git repo']='Sahrapipline'
         MetaData_Coord['Coord version']=Coord_version
         MetaData_Coord['Surface file']=Surface_file_name
-        MetaData_Coord['XYZ size in mum']=PastMetaData['Surface_MetaData']['XYZ size in mum']
-        MetaData_Coord['axes']=PastMetaData['Surface_MetaData']['axes']
-        MetaData_Coord['is control']=PastMetaData['Surface_MetaData']['is control']
+        MetaData_Coord['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_Coord['condition']=PastMetaData['Orient_MetaData']['condition']
         MetaData_Coord['time in hpf']=PastMetaData['Surface_MetaData']['time in hpf']
-        MetaData_Coord['experimentalist']=PastMetaData['Surface_MetaData']['experimentalist']
+        MetaData_Coord['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']
         MetaData_Coord['genotype']=PastMetaData['Surface_MetaData']['genotype']
         MetaData_Coord['input Surface checksum']=PastMetaData['Surface_MetaData']['output Surface checksum']
         MetaData_Coord['input Orient checksum']=PastMetaData['Orient_MetaData']['output Orient checksum']
         check_Surface=get_checksum(Surface_file, algorithm="SHA1")
         MetaData_Coord['output Surface checksum']=check_Surface
 
-        writeJSON(LM_dir_path,'Coord_MetaData',MetaData_Coord)
-
-    
-def test():
-    import numpy as np
-    import potpourri3d as pp3d
-
-    # Example mesh data: vertices and faces
-    vertices = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]])
-    faces = np.array([[0, 1, 2], [0, 2, 3]])
-
-    # Source and target vertices for the geodesic path
-    source_vertex = 1
-    target_vertex = 3
-
-    # Compute the geodesic path
-    path_solver = pp3d.EdgeFlipGeodesicSolver(vertices, faces)
-    path = path_solver.find_geodesic_path(source_vertex, target_vertex)
-
-    print("Geodesic path vertices:", path)
-
+        writeJSON(FlatFin_dir_path,'Coord_MetaData',MetaData_Coord)
+        return
 
 if __name__ == "__main__":
-    #test()
-    make_Coord() #construct center surface 
+    make_Coord() #construct coord system and curvature
 
+ #mesh.save(os.path.join(LM_dir_path,Surface_file))
+#mesh=pv.read(os.path.join(LM_dir_path,Surface_file))
+
+# mesh['vectors'] = mesh.point_normals*5
+# mesh.set_active_vectors("vectors")
+# p = pv.Plotter()
+# p.add_mesh(mesh.arrows, lighting=False, scalar_bar_args={'title': "Vector Magnitude"})
+# p.add_mesh(mesh,scalars="coord_1", color="grey", ambient=0.6, opacity=0.5, show_edges=False)
+# p.show()
