@@ -8,7 +8,6 @@ import os
 import git
 import pandas as pd
 from simple_file_checksum import get_checksum
-from scipy import ndimage
 from bisect import bisect_right
 
 from config import *
@@ -270,105 +269,73 @@ def center_line_session(im_file,old_df):
 
     return center_line_path_3d
 
-def evalStatus_center_line(image_dir_path,LMcoord_dir_path):
+def evalStatus_center_line(FlatFin_dir_path):
     """
     checks MetaData to desire wether to evaluate the file or not
     returns a dict of MetaData to be written if we should evaluate the file
     """
     
-    AllMetaData_image=get_JSON(image_dir_path)
-    if not 'vol_image_MetaData' in AllMetaData_image:
-        print('no vol_image_MetaData -> skip')
+    MetaData=get_JSON(FlatFin_dir_path)
+    if not 'Orient_MetaData' in MetaData:
+        print('no Orient_MetaData')
         return False
 
-    if not isinstance(AllMetaData_image['vol_image_MetaData'],dict):
-        print('vol MetaData not good')
-        return False
+    if not 'CenterLine_MetaData' in MetaData:
+        return MetaData
+
+    if not MetaData['CenterLine_MetaData']['CenterLine version']==CenterLine_version:
+        return MetaData  
     
-    res={}
-    res['vol_image_MetaData']=AllMetaData_image['vol_image_MetaData']
+    if not MetaData['CenterLine_MetaData']['input Orient checksum']==MetaData['Orient_MetaData']['output Orient checksum']:
+        return MetaData
 
-    AllMetaData_LM=get_JSON(LMcoord_dir_path)
-    if not 'Orient_MetaData' in AllMetaData_LM:
-        print('no orientation ->skip')
-        return False
-    
-    res['Orient_MetaData']=AllMetaData_LM['Orient_MetaData']
-    res['nuclei_image_MetaData']=AllMetaData_LM['nuclei_image_MetaData']
-    try:
-        if AllMetaData_LM['Orient_MetaData']['Orient version']!=Orient_version:
-            print('wrong version of Orient')
-            return False
-        if AllMetaData_LM['CenterLine_MetaData']['CenterLine version']!=CenterLine_version:
-            print('wrong version of CenterLine')
-            return res
-        if AllMetaData_LM['CenterLine_MetaData']['input Orient checksum']!=AllMetaData_LM['Orient_MetaData']['output Orient checksum']:
-            print('different Input Orient')
-            return res
-        return False #already done
-    except:
-        return res  #probably no CenterLine_MetaData
+    return False
 
-def get_name(input_string):
-    if input_string.endswith("_vol"):
-        # Remove the "_vol" suffix and add "_nuclei"
-        modified_string = input_string[:-4] + "_nuclei"
-    else:
-        # If the string does not end with "_vol", simply add "_nuclei"
-        modified_string = input_string + "_nuclei"
-    return  modified_string
 
 def make_center_line():
-    image_folder_list=os.listdir(vol_images_path)
-    image_folder_list = [item for item in image_folder_list if os.path.isdir(os.path.join(vol_images_path, item))]
-    for image_folder in image_folder_list:
-        print(image_folder)
-        
-        image_dir_path=os.path.join(vol_images_path,image_folder)
-        image_folder=get_name(image_folder)
-        LMcoord_dir_path=os.path.join(LMcoord_path,image_folder+'_LMcoord')
+    FlatFin_folder_list=os.listdir(FlatFin_path)
+    FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
+    for FlatFin_folder in FlatFin_folder_list:
+        print(FlatFin_folder)
+        FlatFin_dir_path=os.path.join(FlatFin_path,FlatFin_folder)
 
-        PastMetaData=evalStatus_center_line(image_dir_path,LMcoord_dir_path)
+        PastMetaData=evalStatus_center_line(FlatFin_dir_path)
         if not isinstance(PastMetaData,dict):
             continue
+        data_name=FlatFin_folder[:-len('_FlatFin')]
 
-        MetaData_image=PastMetaData['vol_image_MetaData']
-        writeJSON(LMcoord_dir_path,'vol_image_MetaData',MetaData_image)
-        image_file=MetaData_image['vol image file name']
 
-        Orient_file=os.path.join(LMcoord_dir_path,PastMetaData['Orient_MetaData']['Orient file'])
+        Orient_file=os.path.join(FlatFin_dir_path,PastMetaData['Orient_MetaData']['Orient file'])
         Orient_df=pd.read_hdf(Orient_file, key='data')
 
         #actual calculation
         print('start interactive session')
-        center_line_path_3d=center_line_session(os.path.join(image_dir_path,image_file),Orient_df)
+        center_line_path_3d=center_line_session(os.path.join(vol_path,str(PastMetaData['Orient_MetaData']['time in hpf'])+'hpf',data_name+'.tif'),Orient_df)
         if(center_line_path_3d is None):
             continue
         print(center_line_path_3d)
 
-        os.path.join(LMcoord_dir_path)
-
-        CenterLine_file_name=image_folder+'_CenterLine.npy'
-        CenterLine_file=os.path.join(LMcoord_dir_path,CenterLine_file_name)
+        CenterLine_file_name=data_name+'_CenterLine.npy'
+        CenterLine_file=os.path.join(FlatFin_dir_path,CenterLine_file_name)
         saveArr(center_line_path_3d,CenterLine_file)
 
         MetaData_CenterLine={}
         repo = git.Repo(gitPath,search_parent_directories=True)
         sha = repo.head.object.hexsha
         MetaData_CenterLine['git hash']=sha
-        MetaData_CenterLine['git repo']='landmark_coordinate'
+        MetaData_CenterLine['git repo']='Sahrapipline'
         MetaData_CenterLine['CenterLine version']=CenterLine_version
         MetaData_CenterLine['CenterLine file']=CenterLine_file_name
-        MetaData_CenterLine['XYZ size in mum']=MetaData_image['XYZ size in mum']
-        MetaData_CenterLine['axes']=MetaData_image['axes']
-        MetaData_CenterLine['is control']=MetaData_image['is control']
-        MetaData_CenterLine['time in hpf']=MetaData_image['time in hpf']
-        MetaData_CenterLine['experimentalist']=MetaData_image['experimentalist']
-        MetaData_CenterLine['genotype']=MetaData_image['genotype']
+        MetaData_CenterLine['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_CenterLine['condition']=PastMetaData['Orient_MetaData']['condition']
+        MetaData_CenterLine['time in hpf']=PastMetaData['Orient_MetaData']['time in hpf']
+        MetaData_CenterLine['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']
+        MetaData_CenterLine['genotype']=PastMetaData['Orient_MetaData']['genotype']
         MetaData_CenterLine['input Orient checksum']=PastMetaData['Orient_MetaData']['output Orient checksum']
         check_LM=get_checksum(CenterLine_file, algorithm="SHA1")
         MetaData_CenterLine['output CenterLine checksum']=check_LM
-        writeJSON(LMcoord_dir_path,'CenterLine_MetaData',MetaData_CenterLine)
+        writeJSON(FlatFin_dir_path,'CenterLine_MetaData',MetaData_CenterLine)
+
 
 if __name__ == "__main__":
     make_center_line() 
