@@ -2,7 +2,6 @@ from typing import List
 import pyvista as pv
 import numpy as np
 import pandas as pd
-
 import git
 import hashlib
 from simple_file_checksum import get_checksum
@@ -14,60 +13,6 @@ from IO import *
 
 from boundary import getBoundary,path_surrounds_point
 
-def getExample():
-    n = 20
-    x = np.linspace(-200, 200, num=n) + np.random.uniform(-5, 5, size=n)
-    y = np.linspace(-200, 200, num=n) + np.random.uniform(-5, 5, size=n)
-    xx, yy = np.meshgrid(x, y)
-    A, b = 100, 100
-    zz = A * np.exp(-0.5 * ((xx / b) ** 2.0 + (yy / b) ** 2.0))
-
-    # Get the points as a 2D NumPy array (N by 3)
-    points = np.c_[xx.reshape(-1), yy.reshape(-1), zz.reshape(-1)]
-    #points[0:5, :]
-    cloud = pv.PolyData(points)
-    surf = cloud.delaunay_2d()
-    mesh_init=surf
-    indices = getBoundary(surf)
-    sub_manifolds_init:List[sub_manifold]=[sub_manifold_1_closed(surf, 'boundary', indices)]
-
-    ind = np.where((surf.points[:, 0] < -195) & (surf.points[:, 1] > 195))[0][0]
-    sub_manifolds_init.append(sub_manifold_0(surf, 'P1', ind))
-    ind = np.where((surf.points[:, 0] < -195) & (surf.points[:, 1] < -195))[0][0]
-    sub_manifolds_init.append(sub_manifold_0(surf, 'P2', ind))
-    ind = np.where((surf.points[:, 0] > 195) & (surf.points[:, 1] > 195))[0][0]
-    sub_manifolds_init.append(sub_manifold_0(surf, 'P3', ind))
-    ind = np.where((surf.points[:, 0] > 195) & (surf.points[:, 1] < -195))[0][0]
-    sub_manifolds_init.append(sub_manifold_0(surf, 'P4', ind))
-    
-    n = 20
-    x = np.linspace(-250, 200, num=n) + np.random.uniform(-5, 5, size=n)
-    y = np.linspace(-200, 200, num=n) + np.random.uniform(-5, 5, size=n)
-    xx, yy = np.meshgrid(x, y)
-    A, b = 20, 100
-    zz = A * np.exp(-0.5 * ((xx / b) ** 2.0 + (yy / b) ** 2.0))
-
-    # Get the points as a 2D NumPy array (N by 3)
-    points = np.c_[xx.reshape(-1), yy.reshape(-1), zz.reshape(-1)]
-    #points[0:5, :]
-    cloud = pv.PolyData(points)
-    surf = cloud.delaunay_2d()
-    indices = getBoundary(surf)
-    mesh_target=surf
-    sub_manifolds_target:List[sub_manifold]=[sub_manifold_1_closed(surf, 'boundary', indices)]
-    ind = np.where((surf.points[:, 0] < -195) & (surf.points[:, 1] > 195))[0][0]
-    sub_manifolds_target.append(sub_manifold_0(surf, 'P1', ind))
-    ind = np.where((surf.points[:, 0] < -195) & (surf.points[:, 1] < -195))[0][0]
-    sub_manifolds_target.append(sub_manifold_0(surf, 'P2', ind))
-    ind = np.where((surf.points[:, 0] > 195) & (surf.points[:, 1] > 195))[0][0]
-    sub_manifolds_target.append(sub_manifold_0(surf, 'P3', ind))
-    ind = np.where((surf.points[:, 0] > 195) & (surf.points[:, 1] < -195))[0][0]
-    sub_manifolds_target.append(sub_manifold_0(surf, 'P4', ind))
-
-    mesh_init.point_data["deformed"]=mesh_init.points.copy()
-    mesh_init.point_data["displacement"]=mesh_init.point_data["deformed"]-mesh_init.points
-
-    return mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target
 
 def find_transformation_matrix(v1, v2, v3, u1, u2, u3):
     """Find the transformation matrix that maps v vectors to u vectors."""
@@ -96,25 +41,20 @@ def extract_coordinate(df, name):
 def getInput(init_dir_path,target_dir_path):
     init_MetaData=get_JSON(init_dir_path)
     try:
-        init_surface_file_name=init_MetaData['Coord_MetaData']['Surface file']
+        init_surface_file_name=init_MetaData['Thickness_MetaData']['Surface file']
         init_orient_file_name=init_MetaData['Orient_MetaData']['Orient file']
     except:
         return False
     target_MetaData=get_JSON(target_dir_path)
     try:
-        target_surface_file_name=target_MetaData['Coord_MetaData']['Surface file']
+        target_surface_file_name=target_MetaData['Thickness_MetaData']['Surface file']
         target_orient_file_name=target_MetaData['Orient_MetaData']['Orient file']
     except:
         return False
-    scales_init=init_MetaData['Coord_MetaData']['XYZ size in mum'].copy()
-    if init_MetaData['Coord_MetaData']['axes']=='ZYX':
-        scales_init[0], scales_init[-1] = scales_init[-1], scales_init[0]
     
-    scales_target=target_MetaData['Coord_MetaData']['XYZ size in mum'].copy()
-    if target_MetaData['Coord_MetaData']['axes']=='ZYX':
-        scales_target[0], scales_target[-1] = scales_target[-1], scales_target[0]
-
-
+    scales_init=init_MetaData['CenterLine_MetaData']['scales'].copy()
+    scales_target=target_MetaData['CenterLine_MetaData']['scales'].copy()
+   
     init_surface_file=os.path.join(init_dir_path,init_surface_file_name)
     init_orient_file=os.path.join(init_dir_path,init_orient_file_name)
     target_surface_file=os.path.join(target_dir_path,target_surface_file_name)
@@ -186,34 +126,25 @@ def generate_deterministic_folder_name(input1, input2, base_path="."):
     folder_name = f"diffeo_{hash_output}"
     full_path = os.path.join(base_path, folder_name)
 
-    # Check if folder exists and generate a new one if necessary
-    # counter = 1
-    # while os.path.exists(full_path):
-    #     new_combined_input = f"{combined_input}_{counter}".encode('utf-8')
-    #     new_hash_output = hashlib.sha256(new_combined_input).hexdigest()[:10]
-    #     folder_name = f"diffeo_{new_hash_output}"
-    #     full_path = os.path.join(base_path, folder_name)
-    #     counter += 1
-
     return full_path,folder_name
 
 def eval_status(init_dir_path,target_dir_path,diffeo_dir_path):
     init_MetaData=get_JSON(init_dir_path)
-    if not 'Coord_MetaData' in init_MetaData:
-        print('no coord init')
+    if not 'Thickness_MetaData' in init_MetaData:
+        print('no Thickness_MetaData init')
         return False
     target_MetaData=get_JSON(target_dir_path)
-    if not 'Coord_MetaData' in target_MetaData:
-        print('no coord target')
+    if not 'Thickness_MetaData' in target_MetaData:
+        print('no Thickness_MetaData target')
         return False
 
     Diffeo_MetaData=get_JSON(diffeo_dir_path)
     if not 'MetaData_Diffeo' in Diffeo_MetaData:
         return True
 
-    if not Diffeo_MetaData['MetaData_Diffeo']['input init checksum']==init_MetaData['Coord_MetaData']['output Surface checksum']:
+    if not Diffeo_MetaData['MetaData_Diffeo']['input init checksum']==init_MetaData['Thickness_MetaData']['output Surface checksum']:
         return True
-    if not Diffeo_MetaData['MetaData_Diffeo']['input target checksum']==target_MetaData['Coord_MetaData']['output Surface checksum']:
+    if not Diffeo_MetaData['MetaData_Diffeo']['input target checksum']==target_MetaData['Thickness_MetaData']['output Surface checksum']:
         return True
     if not Diffeo_MetaData['MetaData_Diffeo']['Diffeo version']==Diffeo_version:
         return True
@@ -224,8 +155,8 @@ def make_diffeo(f1,f2,group_path):
     init_folder=f1
     target_folder=f2
     #maybe swap
-    init_dir_path=os.path.join(LMcoord_path,init_folder)
-    target_dir_path=os.path.join(LMcoord_path,target_folder)
+    init_dir_path=os.path.join(FlatFin_path,init_folder)
+    target_dir_path=os.path.join(FlatFin_path,target_folder)
     diffeo_dir_path,diffeo_folder=generate_deterministic_folder_name(init_folder,target_folder,group_path)
     make_path(diffeo_dir_path)
     
@@ -233,8 +164,7 @@ def make_diffeo(f1,f2,group_path):
     if not res:
         print('skip')
         return
-
-    #mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target=getExample()
+    
     mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target,init_MetaData,target_MetaData=getInput(init_dir_path,target_dir_path)
     writeJSON(diffeo_dir_path,'init_MetaData',init_MetaData)
     writeJSON(diffeo_dir_path,'target_MetaData',target_MetaData)
@@ -289,8 +219,8 @@ def make_diffeo(f1,f2,group_path):
     MetaData_Diffeo['Diffeo file']=diffeo_file_name
     MetaData_Diffeo['init_folder']=init_folder
     MetaData_Diffeo['target_folder']=target_folder
-    MetaData_Diffeo['input init checksum']=init_MetaData['Coord_MetaData']['output Surface checksum']
-    MetaData_Diffeo['input target checksum']=target_MetaData['Coord_MetaData']['output Surface checksum']
+    MetaData_Diffeo['input init checksum']=init_MetaData['Thickness_MetaData']['output Surface checksum']
+    MetaData_Diffeo['input target checksum']=target_MetaData['Thickness_MetaData']['output Surface checksum']
     check_Diffeo=get_checksum(diffeo_file, algorithm="SHA1")
     MetaData_Diffeo['output Diffeo checksum']=check_Diffeo
     writeJSON(diffeo_dir_path,'MetaData_Diffeo',MetaData_Diffeo)
@@ -362,7 +292,7 @@ def make_diffeo(f1,f2,group_path):
     # polydata.lines = lines
     # p.add_mesh(polydata, color='green', line_width=5, render_lines_as_tubes=True)  
     # p.show()
-    pass
+    
 
 def main():
     SimilarityMST_folder_list=[folder for folder in os.listdir(SimilarityMST_path) if os.path.isdir(os.path.join(SimilarityMST_path, folder))]
@@ -383,65 +313,7 @@ def main():
                 f1=row2['Folder1']
                 f2=row2['Folder2']
                 make_diffeo(f1,f2,group_path)
-        
-    return
+                
 
-import pyvista as pv
-import networkx as nx
-import numpy as np
-
-def getMesh():
-    n = 20
-    x = np.linspace(-200, 200, num=n) + np.random.uniform(-5, 5, size=n)
-    y = np.linspace(-200, 200, num=n) + np.random.uniform(-5, 5, size=n)
-    xx, yy = np.meshgrid(x, y)
-    A, b = 100, 100
-    zz = A * np.exp(-0.5 * ((xx / b) ** 2.0 + (yy / b) ** 2.0))
-
-    # Get the points as a 2D NumPy array (N by 3)
-    points = np.c_[xx.reshape(-1), yy.reshape(-1), zz.reshape(-1)]
-    points[0:5, :]
-    cloud = pv.PolyData(points)
-    surf = cloud.delaunay_2d()
-    return surf
-
-def is_edge_ignored(edge, edges_to_ignore):
-    # Check if either direct or reversed edge is in the list
-    for ignore_edge in edges_to_ignore:
-        if np.array_equal(edge, ignore_edge) or np.array_equal(edge[::-1], ignore_edge):
-            return True
-    return False
-
-def find_shared_edge(edges_1,edges_2):
-    return list(set(edges_1) & set(edges_2))
-
-def test():
-    # Assuming `mesh` is your PyVista mesh and `edges_to_ignore` is a Nx2 numpy array of vertex indices
-    mesh = getMesh()
-    from find_diffeo import pyvista_mesh_to_networkx
-    K = pyvista_mesh_to_networkx(mesh)
-    shortest_path = nx.shortest_path(K, source=0, target=50, weight='weight')
-    #print(shortest_path)
-    edges_to_ignore = [[shortest_path[i], shortest_path[i+1]] for i in range(len(shortest_path)-1)]
-    print(edges_to_ignore)
-
-    # Create an empty graph
-    G = nx.Graph()
-    
-    # Iterate through each cell in the mesh
-    for ind in range(mesh.n_cells):
-        G.add_node(ind)  # Add each cell as a node
-        neighbors = mesh.cell_neighbors(ind, 'edges')
-        # Iterate through neighbors to check for ignored edges
-        for neighbor in neighbors:
-            # Find the vertices that define the shared edge between ind and neighbor
-            # This is a placeholder: you'll need to adapt this part to accurately identify shared edges between cells
-            shared_edge = find_shared_edge(mesh.get_cell(ind).point_ids,mesh.get_cell(neighbor).point_ids)
-            
-            # Check if this edge should be ignored
-            if not is_edge_ignored(shared_edge, edges_to_ignore):
-                G.add_edge(ind, neighbor)
-    return
 if __name__ == "__main__":
-    #test()
     main()

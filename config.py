@@ -29,6 +29,7 @@ FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
 
 #Part II
 SimilarityMST_path=os.path.join(Output_path,'for_curv_thick','Diffeo','SimilarityMST')
+ElementaryDiffeos_path=os.path.join(Output_path,'for_curv_thick','Diffeo','ElementaryDiffeos')
 
 """versions"""
 #Part I
@@ -37,3 +38,6 @@ CenterLine_version = 1
 Surface_version = 1
 Thickness_version = 1
 Coord_version = 1
+
+#Part II
+Diffeo_version = 1
