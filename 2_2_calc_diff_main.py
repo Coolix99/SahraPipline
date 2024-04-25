@@ -298,7 +298,6 @@ def main():
     SimilarityMST_folder_list=[folder for folder in os.listdir(SimilarityMST_path) if os.path.isdir(os.path.join(SimilarityMST_path, folder))]
     for S_folder in SimilarityMST_folder_list:
         print(S_folder)
-        make_path(os.path.join(ElementaryDiffeos_path,S_folder))
         filename = os.path.join(SimilarityMST_path,S_folder,"alldf.h5")
         alldf = pd.read_hdf(filename)
         print(alldf)
@@ -306,13 +305,11 @@ def main():
             print(row)
             file_name=row['file name']
             MST_df = pd.read_hdf(os.path.join(SimilarityMST_path,S_folder,file_name))
-            group_path=os.path.join(ElementaryDiffeos_path,S_folder,file_name[:-len('.h5')])
-            make_path(group_path)
             for index2, row2 in MST_df.iterrows():
                 print(row2)
                 f1=row2['Folder1']
                 f2=row2['Folder2']
-                make_diffeo(f1,f2,group_path)
+                make_diffeo(f1,f2,ElementaryDiffeos_path)
                 
 
 if __name__ == "__main__":

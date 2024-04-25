@@ -1,0 +1,33 @@
+import pandas as pd
+
+from config import *
+from IO import *
+
+def make_Hist():
+    pass
+
+def make_Hists(relevant_conditions,diffeos_df):
+    relevant_conditions.sort()
+    combined_string = '_'.join(relevant_conditions)
+    MST_path_dir=os.path.join(SimilarityMST_path,combined_string)
+    #print(os.listdir(MST_path_dir))
+    all_sim_dfs=pd.read_hdf(os.path.join(MST_path_dir,'alldf.h5'))
+    for index, row in all_sim_dfs.iterrows():
+            print(row)
+            file_name=row['file name']
+            sim_df=pd.read_hdf(os.path.join(MST_path_dir,file_name))
+            make_Hist(sim_df,diffeos_df)
+            
+
+def main():
+    diffeos_df = pd.read_hdf(os.path.join(ElementaryDiffeos_path,'alldf.h5'))
+    print(diffeos_df)
+    make_Hists(['time in hpf','condition'],diffeos_df)
+    
+    return
+    make_Hists(['condition'],diffeos_df)
+    make_Hists(['time in hpf'],diffeos_df)
+    pass
+
+if __name__ == "__main__":
+    main()
