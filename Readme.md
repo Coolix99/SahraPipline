@@ -10,7 +10,9 @@ Part I: create surface from (thick) volume
 Part II: find diffeomorphisms and master results
 2_1_similarity_main.py: calculates minimal spanning tree of surface morphology
 2_2_calc_diff_main.py: calculates elementary diffeos between two surfaces
-histogram
+2_3_collect_diffeos_main: sums up all calculated diffeos
+2_4_doHist: uses Diffeos to create Hists
+todo:coordinatesystem
 plot
 
 Part III: cellpose on surface

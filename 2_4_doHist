@@ -273,8 +273,8 @@ def make_Hists(relevant_conditions,diffeos_df):
 def main():
     diffeos_df = pd.read_hdf(os.path.join(ElementaryDiffeos_path,'alldf.h5'))
     
-    #make_Hists(['time in hpf','condition'],diffeos_df)
-    #make_Hists(['condition'],diffeos_df)
+    make_Hists(['time in hpf','condition'],diffeos_df)
+    make_Hists(['condition'],diffeos_df)
     make_Hists(['time in hpf'],diffeos_df)
     return
     
