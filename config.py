@@ -27,6 +27,9 @@ Output_path=os.path.join(Sahra_path,'for_sahra')
 vol_path=os.path.join(Input_path,'for_curv_thick')
 FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
 
+#Part II
+SimilarityMST_path=os.path.join(Output_path,'for_curv_thick','Diffeo','SimilarityMST')
+
 """versions"""
 #Part I
 Orient_version = 1

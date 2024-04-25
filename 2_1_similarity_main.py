@@ -35,7 +35,7 @@ def getMST(df):
 
     meshes=[]
     for row in df.itertuples():
-        meshes.append(pv.read(os.path.join(Surface_path,row.folder_name,row.file_name)))
+        meshes.append(pv.read(os.path.join(FlatFin_path,row.folder_name,row.file_name)))
 
     #calculate features
     features_list = [calculate_mesh_features(mesh) for mesh in meshes]
@@ -95,20 +95,22 @@ def getMST(df):
 
 def make_sim_MSTs(relevant_conditions):
     relevant_conditions.sort()
-    surface_folder_list=[folder for folder in os.listdir(Surface_path) if os.path.isdir(os.path.join(Surface_path, folder))]
+    FlatFin_folder_list=os.listdir(FlatFin_path)
+    FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
     data_list = []
-    for surface_folder in surface_folder_list:
-        surface_dir_path=os.path.join(Surface_path,surface_folder)
-        MetaData=get_JSON(surface_dir_path)
-        if not 'Coord_MetaData' in MetaData:
+    for FlatFin_folder in FlatFin_folder_list:
+        print(FlatFin_folder)
+        FlatFin_dir_path=os.path.join(FlatFin_path,FlatFin_folder)
+        MetaData=get_JSON(FlatFin_dir_path)
+        if not 'Thickness_MetaData' in MetaData:
             continue
-        MetaData=MetaData['Coord_MetaData']
-        print(surface_folder)
+        MetaData=MetaData['Thickness_MetaData']
+
         data_list.append({
-            'folder_name':surface_folder,
+            'folder_name':FlatFin_folder,
             'file_name': MetaData['Surface file'],
-            'hpf': MetaData['time in hpf'],
-            'control': MetaData['is control'],
+            'condition': MetaData['condition'],
+            'time in hpf': MetaData['time in hpf'],
             'genotype': MetaData['genotype'],
             'experimentalist': MetaData['experimentalist']
         })
@@ -134,51 +136,15 @@ def make_sim_MSTs(relevant_conditions):
     print(df)
     df.to_hdf(os.path.join(MST_path_dir,'alldf.h5'), key='data', mode='w')
     return
-    print(df)
-    df = df[df['experimentalist'] == 'Heewon']
-    df = df[df['hpf'] == 72]
     
     
 
 def main():
-    make_sim_MSTs(['experimentalist', 'hpf','control','genotype'])
-
-
-
-    return
-
-
-    plt.figure(figsize=(8,6))
-    scatter = plt.scatter(pca_df['principal_component_1'], pca_df['principal_component_2'], alpha=0.5)
-    for i, row in enumerate(df.itertuples()):
-        plt.annotate(row.file_name, (pca_df['principal_component_1'][i], pca_df['principal_component_2'][i]))
-    plt.title('2D Visualization of Meshes Using PCA')
-    plt.xlabel('Principal Component 1')
-    plt.ylabel('Principal Component 2')
-    plt.show()
+    make_sim_MSTs(['time in hpf','condition'])
+    make_sim_MSTs(['condition'])
+    make_sim_MSTs(['time in hpf'])
 
     return
-    print(feature_df)
-    # t-SNE
-    tsne = TSNE(n_components=2, perplexity=5, learning_rate=200)
-    tsne_results = tsne.fit_transform(feature_df)
-
-    # Extract the 2D coordinates
-    feature_df['tsne-2d-one'] = tsne_results[:,0]
-    feature_df['tsne-2d-two'] = tsne_results[:,1]
-
-
-    plt.figure(figsize=(8,6))
-    scatter = plt.scatter(feature_df['tsne-2d-one'], feature_df['tsne-2d-two'], alpha=0.5)
-
-    for i, row in enumerate(df.itertuples()):
-        plt.annotate(row.file_name, (feature_df['tsne-2d-one'][i], feature_df['tsne-2d-two'][i]))
-
-    plt.title('2D Visualization of Meshes')
-    plt.xlabel('TSNE Dimension 1')
-    plt.ylabel('TSNE Dimension 2')
-    plt.show()
 
 if __name__ == "__main__":
-
     main()

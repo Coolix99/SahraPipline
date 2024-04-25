@@ -8,8 +8,8 @@ Part I: create surface from (thick) volume
 1_6_plot_main: show results
 
 Part II: find diffeomorphisms and master results
-similarity
-diffeos
+2_1_similarity_main.py: calculates minimal spanning tree of surface morphology
+2_2_calc_diff_main.py: calculates elementary diffeos between two surfaces
 histogram
 plot
 
