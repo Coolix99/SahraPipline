@@ -211,8 +211,7 @@ def remove_cells_by_angle(mesh, view_direction, angle_threshold=120):
 
 def evalStatus_mesh(res_path):
     MetaData=get_JSON(res_path)
-    if 'Mesh_MetaData' in MetaData:
-        print('no Mesh_MetaData')
+    if not 'Mesh_MetaData' in MetaData:
         return MetaData
 
     if not MetaData['Mesh_MetaData']['Mesh version']==Mesh_version:
@@ -277,7 +276,7 @@ def create_mesh():
         MetaData_Mesh['genotype']='WT'
         check_mesh=get_checksum(mesh_file, algorithm="SHA1")
         MetaData_Mesh['output mesh checksum']=check_mesh
-        writeJSON(MetaData_Mesh,'Mesh_MetaData',MetaData_Mesh)       
+        writeJSON(res_path,'Mesh_MetaData',MetaData_Mesh)       
 
 if __name__ == "__main__":
     create_mesh()
