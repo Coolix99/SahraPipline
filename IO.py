@@ -26,6 +26,7 @@ def getImage_Meta(file):
             image = tif.asarray()
             # Retrieve metadata
             if not tif.series[0].axes=='ZYX':
+                print(tif.series[0].axes)
                 print('unusual axis')
                 return
           

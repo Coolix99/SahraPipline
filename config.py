@@ -3,7 +3,7 @@ import os
 from config_machine import *
 
 if(machine=='Home'):
-    Sahra_path=(r'\\vs-grp07.zih.tu-dresden.de\max_kotz\structured_data\{}').format("")
+    Sahra_path=(r'E:\02_Data\share_Sahra{}').format("")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
@@ -32,6 +32,11 @@ SimilarityMST_path=os.path.join(Output_path,'for_curv_thick','Diffeo','Similarit
 ElementaryDiffeos_path=os.path.join(Output_path,'for_curv_thick','Diffeo','ElementaryDiffeos')
 Hist_path=os.path.join(Output_path,'for_curv_thick','Diffeo','Histogramms')
 
+#Part III
+EpFlat_path=os.path.join(Input_path,'epithelia_flat_test')
+EpSeg_path=os.path.join(Output_path,'epithelia_flat_test')
+EpSeg_path=os.path.join(EpSeg_path,'fin')
+
 """versions"""
 #Part I
 Orient_version = 1
@@ -43,3 +48,4 @@ Coord_version = 1
 #Part II
 Diffeo_version = 1
 Hist_version = 1
+Mesh_version = 1
