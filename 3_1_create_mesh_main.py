@@ -111,7 +111,7 @@ def create_mesh_from_mask(mask):
 
     return mesh
 
-def reduce_and_smooth_mesh(orig_mesh:pv.PolyData, desired_density_per_unit_area = 0.1, num_iter=200):
+def reduce_and_smooth_mesh(orig_mesh:pv.PolyData, desired_density_per_unit_area = 0.03, num_iter=200):
     """
     Reduces the number of vertices in the mesh and applies a smoothing algorithm.
 
@@ -128,21 +128,19 @@ def reduce_and_smooth_mesh(orig_mesh:pv.PolyData, desired_density_per_unit_area 
 
     # Smooth the mesh
     mesh = mesh.smooth(n_iter=20, relaxation_factor=0.2)
-   
-    # Calculate the target number of vertices
-    current_vertex_count = mesh.n_points
-    total_surface_area = mesh.area
-    target_vertex_count = desired_density_per_unit_area * total_surface_area
 
-    # Calculate the decimation factor
-    if target_vertex_count < current_vertex_count:
-        decimation_factor = target_vertex_count / current_vertex_count
-    else:
-        decimation_factor = 1.0  # No decimation needed if the target is higher than current
-    print(current_vertex_count,target_vertex_count)
-    # If decimation is needed, perform it
-    if decimation_factor < 1.0:
+    while True:
+        current_vertex_count = mesh.n_points
+        total_surface_area = mesh.area
+        target_vertex_count = desired_density_per_unit_area * total_surface_area
+        print(current_vertex_count,target_vertex_count)
+        if target_vertex_count > current_vertex_count:
+            break
+        decimation_factor = target_vertex_count / current_vertex_count - 0.1
+        if decimation_factor<0.1:
+            decimation_factor = 0.1 
         mesh = mesh.decimate(1-decimation_factor)
+
     print('finished decimate')
     mesh=mesh.smooth(n_iter=num_iter, relaxation_factor=0.5)
 
@@ -249,14 +247,17 @@ def create_mesh():
 
         mesh=create_mesh_from_mask(flipped_mask)
         mesh=reduce_and_smooth_mesh(mesh)
-        print('red finished,start compute normals')
+        print('reduction finished,start compute normals')
         mesh.compute_normals(point_normals=False, cell_normals=True, auto_orient_normals=True, flip_normals=False)
         print('normals finished')
         view=plot_and_capture_view(mesh)
         view_direction=view[2]
         mesh=remove_cells_by_angle(mesh, view_direction)
-        
-        #mesh.plot()
+        #mesh.plot(show_edges=True)
+        mesh.points=mesh.points*scale
+        mesh=mesh.subdivide_adaptive(max_edge_len=3.0,inplace=True)
+        mesh.compute_normals(point_normals=False, cell_normals=True, auto_orient_normals=True, flip_normals=False)
+        mesh.plot(show_edges=True)
 
         mesh_file_name=data_name+'_mesh.vtk'
         mesh_file=os.path.join(res_path,mesh_file_name)

@@ -12,145 +12,107 @@ from scipy.spatial import cKDTree
 from config import *
 from IO import *
 
-def project(signal_file, vol_file, mesh_file,scales,ending):
-    signal = getImage(signal_file)
-    vol=getImage(vol_file)
-    mesh=pv.read(mesh_file)
-    subdivided_mesh = mesh.subdivide(3)
+def project(mesh:pv.PolyData,sig_img,scales):
+    
     print(mesh.points.shape)
-    print(subdivided_mesh.points.shape)
 
-    tree = cKDTree(subdivided_mesh.points)
-    distances, indices = tree.query(mesh.points,eps=0.2, k=1,workers=10)
+    pixel_pos = np.array(np.where(sig_img > 0)).T
+    tree = cKDTree(mesh.points)
+    distances, indices = tree.query(pixel_pos * scales, eps=0.2, k=1, workers=10, distance_upper_bound=5)
+    Max = np.zeros(int(mesh.points.shape[0]), dtype=np.float32)
+    valid_indices = indices < mesh.points.shape[0]
+    np.maximum.at(Max, indices[valid_indices], sig_img[sig_img > 0][valid_indices])
 
+    mesh.point_data['Max']=Max
 
-    print(signal[vol].shape)
-    pixel_pos=np.array(np.where(vol)).T
-    print(pixel_pos.shape)
+    # print(np.max(Max))
+    # print(np.mean(Max))
+    # print(np.min(Max))
 
-    tree = cKDTree(subdivided_mesh.points)
-    distances, indices = tree.query(pixel_pos*scales,eps=0.2, k=1,workers=10)
-    print(distances.shape)
-    print(indices.shape)
+    # print(np.max(sig_img))
+    # print(np.mean(sig_img))
+    # print(np.min(sig_img))
 
-    Max=np.zeros(int(subdivided_mesh.points.shape[0]),dtype=np.float32)
-    try:
-        np.maximum.at(Max,indices,signal[vol])
-    except:
-        return None
-    subdivided_mesh.point_data[ending]=Max
-    return subdivided_mesh
-    #return subdivided_mesh
     # plotter = pv.Plotter()
-    # plotter.add_mesh(subdivided_mesh, show_edges=True,scalars=ending,cmap='jet')
+    # plotter.add_mesh(mesh, show_edges=False,scalars='Max',cmap='jet')
     # plotter.show()
 
-def evalStatus_proj(signal_dir_path,vol_dir_path,LMcoord_dir_path,project_dir_path,ending):
-    """
-    checks MetaData to desire wether to evaluate the file or not
-    returns a dict of MetaData to be written if we should evaluate the file
-    """
+    vertices = mesh.points/scales  # Nx3 array of vertex positions (x, y, z)
+    faces = mesh.faces.reshape((-1, 4))[:, 1:4]  # Mx3 array of vertex indices for each triangle
+
+    # Start a Napari viewer
+    viewer = napari.Viewer()
+    viewer.add_image(sig_img)
+    viewer.add_surface((vertices, faces,Max))
+
+    # Start the Napari GUI loop
+    napari.run()
+
+    return Max
     
-    AllMetaData_signal=get_JSON(signal_dir_path)
-    if AllMetaData_signal == {}:
-        print('no signaling -> skip')
+
+def evalStatus_proj(fin_dir_path):
+    MetaData=get_JSON(fin_dir_path)
+    if not 'Mesh_MetaData' in MetaData:
+        print('no Mesh_MetaData')
         return False
-    res=AllMetaData_signal
+    
+    if not 'project_MetaData' in MetaData:
+        return MetaData
 
-    AllMetaData_vol=get_JSON(vol_dir_path)
-    if AllMetaData_vol == {}:
-        print('no vol -> skip')
-        return False
-    res.update(AllMetaData_vol)
+    if not MetaData['project_MetaData']['project version']==project_version:
+        return MetaData  
 
-    AllMetaData_LM=get_JSON(LMcoord_dir_path)
-    if not 'Coord_MetaData' in AllMetaData_LM:
-        print('no Surface(Coord) -> skip')
-        return False
+    if not MetaData['project_MetaData']['input mesh checksum']==MetaData['Mesh_MetaData']['output mesh checksum']:
+        return MetaData
 
-    res.update(AllMetaData_LM)
+    return False
 
-    AllMetaData_proj=get_JSON(project_dir_path)
 
-    try:
-        if AllMetaData_proj['proj_MetaData']['proj version']!=proj_version:
-            print('different proj version')
-            return res
-        if  AllMetaData_proj['proj_MetaData']['input Surface checksum']!=res['Coord_MetaData']['output Surface checksum']:
-            print(AllMetaData_proj['proj_MetaData']['input Surface checksum'])
-            print(res['Coord_MetaData']['output Surface checksum'])
-            print('differnt surface')
-            return res  
-        if  AllMetaData_proj['proj_MetaData']['input vol checksum']!=res['vol_image_MetaData']['output vol checksum']:
-            print('differnt vol')
-            return res  
-        if  AllMetaData_proj['proj_MetaData']['input '+ending+ ' checksum']!=res[ending+'_image_MetaData'][ending+ ' checksum']:
-            print('differnt sig')
-            return res  
-        print('already done')
-        return False    #skip
-
-    except:
-        return res  #corrupted -> do again
-     
 def make_projections():
-    ending='Smoc'
-    signal_images_path=os.path.join(structured_data_path,'images','RAW_images_and_splitted','raw_images_'+ending)
-    signal_folder_list=os.listdir(signal_images_path)
-    for signal_folder in signal_folder_list:
-        print(signal_folder)
-
-        LMcoord_dir_path=os.path.join(LMcoord_path,signal_folder[:-len('_'+ending)]+'_nuclei_LMcoord')
-        vol_dir_path=os.path.join(vol_images_path,signal_folder[:-len('_'+ending)]+'_vol')
-        signal_dir_path=os.path.join(signal_images_path,signal_folder)
-        #PR_dir_path=os.path.join(proj_path,'point_regions',signal_folder[:-len('_'+ending)]+ "_PR") 
-        project_dir_path=os.path.join(proj_path,ending,signal_folder+'_proj') 
-        make_path(project_dir_path)
+    signal_dir_path=os.path.join(EpFlat_path,'signal_upperlayer')
+    fin_list=[folder for folder in os.listdir(EpSeg_path) if os.path.isdir(os.path.join(EpSeg_path, folder))]
+    for fin_folder in fin_list:
+        print(fin_folder)
+    
+        fin_dir_path=os.path.join(EpSeg_path,fin_folder)
         
-        PastMetaData=evalStatus_proj(signal_dir_path,vol_dir_path,LMcoord_dir_path,project_dir_path,ending)
+        PastMetaData=evalStatus_proj(fin_dir_path)
         if not isinstance(PastMetaData,dict):
             continue
 
-        MetaData_vol=PastMetaData['vol_image_MetaData']
-        vol_file=MetaData_vol['vol image file name']
-        vol_file_path=os.path.join(vol_dir_path,vol_file)
-        signal_file_path=os.path.join(signal_dir_path,PastMetaData[ending+'_image_MetaData'][ending+' image file name'])
-        scales=MetaData_vol['XYZ size in mum'].copy()
-        if MetaData_vol['axes']=='ZYX':
-            scales[0], scales[-1] = scales[-1], scales[0]
-        MetaData_Surface=PastMetaData['Surface_MetaData']
-        Surface_file=MetaData_Surface['Surface file']
-        Surface_file_path=os.path.join(LMcoord_dir_path,Surface_file)
-        #actual calculation
-        print('compute proj')
-        proj_mesh=project(signal_file_path,vol_file_path,Surface_file_path,scales,ending)
-        if proj_mesh is None:
-            print('error')
-            continue
+        signal_path=os.path.join(signal_dir_path,fin_folder+'.tif')
+        sig_img=getImage(signal_path)
+        
+        MetaData_mesh=PastMetaData['Mesh_MetaData']
+       
+        scales=MetaData_mesh['scales'].copy()
+        Mesh_file=MetaData_mesh['Mesh file']
+        Mesh_file_path=os.path.join(fin_dir_path,Mesh_file)
+        mesh=pv.read(Mesh_file_path)
 
-        proj_file_name=signal_folder+'_proj.vtk'
-        proj_file=os.path.join(project_dir_path,proj_file_name)
-        proj_mesh.save(proj_file)        
+        print('compute proj')
+        max_proj=project(mesh,sig_img,scales)
+        
+        proj_file_name=fin_folder+'_proj'
+        saveArr(max_proj,os.path.join(fin_dir_path,proj_file_name))
         
         MetaData_proj={}
         repo = git.Repo(gitPath,search_parent_directories=True)
         sha = repo.head.object.hexsha
         MetaData_proj['git hash']=sha
         MetaData_proj['git repo']='meshProjection'
-        MetaData_proj['proj version']=proj_version
+        MetaData_proj['proj version']=project_version
         MetaData_proj['proj file']=proj_file_name
-        MetaData_proj['XYZ size in mum']=PastMetaData['Coord_MetaData']['XYZ size in mum']
-        MetaData_proj['axes']=PastMetaData['Coord_MetaData']['axes']
-        MetaData_proj['experimentalist']=PastMetaData['Coord_MetaData']['experimentalist']
-        MetaData_proj['is control']=PastMetaData['Coord_MetaData']['is control']
-        MetaData_proj['genotype']=PastMetaData['Coord_MetaData']['genotype']
-        MetaData_proj['time in hpf']=PastMetaData['Coord_MetaData']['time in hpf']
-        MetaData_proj['input Surface checksum']=PastMetaData['Coord_MetaData']['output Surface checksum']
-        MetaData_proj['input vol checksum']=PastMetaData['vol_image_MetaData']['output vol checksum']
-        MetaData_proj['input '+ending+ ' checksum']=PastMetaData[ending+'_image_MetaData'][ending+ ' checksum']
-        check_proj=get_checksum(proj_file, algorithm="SHA1")
+        MetaData_proj['scales']=MetaData_mesh['scales']
+        MetaData_proj['condition']=MetaData_mesh['condition']
+        MetaData_proj['time in hpf']=MetaData_mesh['time in hpf']
+        MetaData_proj['experimentalist']='Sahra'
+        MetaData_proj['genotype']='WT'
+        MetaData_proj['input mesh checksum']=MetaData_mesh['output mesh checksum']
+        check_proj=get_checksum(os.path.join(fin_dir_path,proj_file_name), algorithm="SHA1")
         MetaData_proj['output proj checksum']=check_proj
-        writeJSON(project_dir_path,'proj_MetaData',MetaData_proj)
+        writeJSON(fin_dir_path,'project_MetaData',MetaData_proj)       
 
 
 if __name__ == "__main__":
