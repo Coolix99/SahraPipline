@@ -18,7 +18,7 @@ def project(mesh:pv.PolyData,sig_img,scales):
 
     pixel_pos = np.array(np.where(sig_img > 0)).T
     tree = cKDTree(mesh.points)
-    distances, indices = tree.query(pixel_pos * scales, eps=0.2, k=1, workers=10, distance_upper_bound=5)
+    distances, indices = tree.query(pixel_pos * scales, eps=0.2, k=1, workers=10, distance_upper_bound=100)
     Max = np.zeros(int(mesh.points.shape[0]), dtype=np.float32)
     valid_indices = indices < mesh.points.shape[0]
     np.maximum.at(Max, indices[valid_indices], sig_img[sig_img > 0][valid_indices])
@@ -60,7 +60,7 @@ def evalStatus_proj(fin_dir_path):
     if not 'project_MetaData' in MetaData:
         return MetaData
 
-    if not MetaData['project_MetaData']['project version']==project_version:
+    if not MetaData['project_MetaData']['proj version']==project_version:
         return MetaData  
 
     if not MetaData['project_MetaData']['input mesh checksum']==MetaData['Mesh_MetaData']['output mesh checksum']:
