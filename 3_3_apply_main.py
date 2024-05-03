@@ -1,4 +1,5 @@
 import numpy as np
+#np.random.seed(42)
 from typing import List
 import napari
 import os
@@ -21,7 +22,7 @@ def compute_curve_patch(model:Cellpose,img):
     return flows[1]
 
 def calculate_flow(mesh:pv.PolyData,proj,model):
-    bsize=224
+    bsize=224 #224?
     im_scale=1
     num_points = mesh.points.shape[0]
 
@@ -49,7 +50,80 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         x = np.tile(indices, (bsize, 1))
         y = np.tile(indices[:, np.newaxis], (1, bsize))
         pos=x[:,:,np.newaxis]*e1[np.newaxis,np.newaxis,:]*im_scale+y[:,:,np.newaxis]*e2[np.newaxis,np.newaxis,:]*im_scale+r0[np.newaxis,np.newaxis,:]
+
         flattened_pos = pos.reshape(-1, 3)
+
+        import trimesh
+        ray_origins = pos.reshape(-1, 3)-n[np.newaxis,:]*10
+        ray_directions = np.tile(n, (ray_origins.shape[0],1))
+        vertices = mesh.points 
+        faces = mesh.faces.reshape(-1, 4)[:, 1:]  
+        tri_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+        ray_intersector = trimesh.ray.ray_pyembree.RayMeshIntersector(tri_mesh)
+        locations, index_ray, index_tri = ray_intersector.intersects_location(ray_origins, ray_directions,multiple_hits=False)
+
+
+        vertices = mesh.points
+        faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+        viewer = napari.Viewer()
+        viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
+        viewer.add_points(locations, size=3, face_color='blue', edge_color='blue', name='Intersection Points')
+        viewer.add_points(flattened_pos, size=3, face_color='red', edge_color='red', name='Position Points')
+        viewer.add_points([r0], size=10, face_color='green', edge_color='green', name='Random Point r0')
+        vectors = np.stack([e1, e2, n])  # Assuming e1, e2, n are already defined as unit vectors
+        origins = np.array([r0, r0, r0])  # Originating from r0
+        vector_data = np.concatenate([origins[:, np.newaxis, :], origins[:, np.newaxis, :] + vectors[:, np.newaxis, :]], axis=1)
+
+        # Add vectors with the corrected format
+        viewer.add_vectors(vector_data, edge_width=2, edge_color=['cyan', 'magenta', 'yellow'], name='Vectors at r0', length=0.1)
+
+
+
+        napari.run()
+        
+
+
+        print(locations.shape)
+        print(index_ray.shape)
+        ind_ray = np.unique(index_ray, return_index=True)[1]
+
+        tree = cKDTree(mesh.points)
+        _, ind_mesh = tree.query(locations)
+        
+
+        image_patch=np.zeros((ray_origins.shape[0]))
+        image_patch[ind_ray]=proj[ind_mesh]
+
+        image_patch=image_patch.reshape(bsize, bsize)
+        import matplotlib.pyplot as plt
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))  # 1 row, 2 columns, and optional figure size
+
+        # Second subplot for image_patch
+        img2 = axs[1].imshow(image_patch, cmap='gray', origin='lower')
+        fig.colorbar(img2, ax=axs[1])  # Add a color bar to the subplot
+        axs[1].set_title('Image Patch in Grayscale')
+
+        # Show the plot
+        plt.show()
+
+        #print(index_tri)
+        # # Handle the results to get the first intersection data per ray
+        # 
+        # first_intersections = locations[unique_indices]
+        # first_ray_indices = index_ray[unique_indices]
+
+        # # Extracting vertex colors (or any other point data you have, e.g., 'proj')
+        # first_color_data = mesh.visual.vertex_colors[mesh.faces[index_tri[unique_indices]]][:,0,:]
+
+        # # Map data back to the grid shape
+        # intersected_data = np.full((x.size, 4), np.nan)  # Prepare an array full of NaNs
+        # intersected_data[first_ray_indices] = first_color_data  # Place the color data where intersections happened
+        # intersected_data = intersected_data.reshape(x.shape + (4,))  # Reshape to the original grid shape with color channels
+
+        
+        return
+
+
         tree = cKDTree(mesh.points)
         distances, indices = tree.query(flattened_pos)
         image_data = proj[indices]
@@ -57,10 +131,21 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         distance_patch = distances.reshape(bsize, bsize)
 
         import matplotlib.pyplot as plt
-        plt.imshow(distance_patch, cmap='viridis', origin='lower')  # You can change the colormap as needed
-        plt.colorbar()  # Optionally add a color bar to show the mapping of color to data values
-        plt.title('Image from Mesh Point Data')
+        fig, axs = plt.subplots(1, 2, figsize=(10, 5))  # 1 row, 2 columns, and optional figure size
+
+        # First subplot for distance_patch
+        img1 = axs[0].imshow(distance_patch, cmap='viridis', origin='lower')
+        fig.colorbar(img1, ax=axs[0])  # Add a color bar to the subplot
+        axs[0].set_title('Distance Patch Visualization')
+
+        # Second subplot for image_patch
+        img2 = axs[1].imshow(image_patch, cmap='gray', origin='lower')
+        fig.colorbar(img2, ax=axs[1])  # Add a color bar to the subplot
+        axs[1].set_title('Image Patch in Grayscale')
+
+        # Show the plot
         plt.show()
+        return
 
         flow=compute_curve_patch(model,image_patch)
 

@@ -256,7 +256,7 @@ def create_mesh():
         #mesh.plot(show_edges=True)
         mesh.points=mesh.points*scale
         mesh=mesh.subdivide_adaptive(max_edge_len=3.0,inplace=True)
-        mesh.compute_normals(point_normals=False, cell_normals=True, auto_orient_normals=True, flip_normals=False)
+        mesh.compute_normals(point_normals=True, cell_normals=True, auto_orient_normals=True, flip_normals=False)
         mesh.plot(show_edges=True)
 
         mesh_file_name=data_name+'_mesh.vtk'
