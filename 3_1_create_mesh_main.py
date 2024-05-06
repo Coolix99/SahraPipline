@@ -804,9 +804,19 @@ def create_mesh():
         center_line_path_3d=center_line_session(flipped_mask,Orient_df)
         mesh,_=construct_Surface(flipped_mask,Orient_df,center_line_path_3d,scale)
 
+ 
         mesh = mesh.decimate(0.5)
-        mesh=mesh.subdivide_adaptive(max_edge_len=3.0,inplace=True)
+        print('decimate')
+        boundary = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
+        boundary.plot(color='red', line_width=2, show_edges=True)
+        mesh=mesh.subdivide_adaptive(max_edge_len=20.0)
+        print('subdev')
+        boundary = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
+        boundary.plot(color='red', line_width=2, show_edges=True)
         mesh=mesh.clean()
+        print('clean')
+        boundary = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
+        boundary.plot(color='red', line_width=2, show_edges=True)
         mesh.compute_normals(point_normals=True, cell_normals=True, auto_orient_normals=True, flip_normals=False)
         mesh.plot(show_edges=True)
 
