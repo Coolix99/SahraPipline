@@ -101,7 +101,7 @@ def make_projections():
         repo = git.Repo(gitPath,search_parent_directories=True)
         sha = repo.head.object.hexsha
         MetaData_proj['git hash']=sha
-        MetaData_proj['git repo']='meshProjection'
+        MetaData_proj['git repo']='Sahrapipline'
         MetaData_proj['proj version']=project_version
         MetaData_proj['proj file']=proj_file_name
         MetaData_proj['scales']=MetaData_mesh['scales']
