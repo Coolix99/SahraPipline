@@ -39,11 +39,25 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         random_index = np.random.choice(open_ind)
         
         r0=mesh.points[random_index]
+        #mesh.compute_normals(point_normals=True, cell_normals=True, auto_orient_normals=True, flip_normals=False)
+        mesh.plot_normals(mag=5)
+        return
         n=mesh.point_normals[random_index]
         e1=np.array((1,0,0))
         e1=e1-np.dot(e1,n)
         e1=e1/np.linalg.norm(e1)
         e2=np.cross(e1,n)
+
+        vertices = mesh.points
+        faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+        viewer = napari.Viewer()
+        viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
+        vectors = np.stack([n])  # Assuming e1, e2, n are already defined as unit vectors
+        origins = np.array([r0])  # Originating from r0
+        vector_data = np.concatenate([origins[:, np.newaxis, :], origins[:, np.newaxis, :] + vectors[:, np.newaxis, :]], axis=1)
+        viewer.add_vectors(vector_data, edge_width=2, edge_color=['cyan'], name='Vectors at r0', length=0.1)
+        napari.run()
+        return
 
         indices = np.arange(-bsize//2, bsize//2 )
 
@@ -54,13 +68,50 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         flattened_pos = pos.reshape(-1, 3)
 
         import trimesh
-        ray_origins = pos.reshape(-1, 3)-n[np.newaxis,:]*10
-        ray_directions = np.tile(n, (ray_origins.shape[0],1))
         vertices = mesh.points 
         faces = mesh.faces.reshape(-1, 4)[:, 1:]  
         tri_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
         ray_intersector = trimesh.ray.ray_pyembree.RayMeshIntersector(tri_mesh)
-        locations, index_ray, index_tri = ray_intersector.intersects_location(ray_origins, ray_directions,multiple_hits=False)
+        ray_origins = pos.reshape(-1, 3)
+        ray_directions_n = np.tile(n, (ray_origins.shape[0], 1))
+        locations_n, index_ray_n, index_tri_n = ray_intersector.intersects_location(ray_origins, ray_directions_n, multiple_hits=False)
+        ray_directions_neg_n = -ray_directions_n  
+        locations_neg_n, index_ray_neg_n, index_tri_neg_n = ray_intersector.intersects_location(ray_origins, ray_directions_neg_n, multiple_hits=False)
+
+        print(index_ray_n.shape)
+        print(index_ray_neg_n.shape)
+       
+        distances_n = np.linalg.norm(locations_n - ray_origins[index_ray_n], axis=1)
+        distances_neg_n = np.linalg.norm(locations_neg_n - ray_origins[index_ray_neg_n], axis=1)
+        print(distances_n.shape)
+        print(distances_neg_n.shape)
+
+        arr_distances_n=np.full(ray_origins.shape[0], np.inf)
+        arr_distances_neg_n=np.full(ray_origins.shape[0], np.inf)
+        arr_distances_n[index_ray_n]=distances_n
+        arr_distances_neg_n[index_ray_neg_n]=distances_neg_n
+        
+        arr_locations_neg_n = np.full_like(ray_origins, np.nan, dtype=np.float64)
+        arr_locations_n = np.full_like(ray_origins, np.nan, dtype=np.float64)
+        arr_locations_n[index_ray_n]=locations_n
+        arr_locations_neg_n[index_ray_neg_n]=locations_neg_n
+        
+        # Initialize an array to store the minimum distances and corresponding locations
+        min_distances = np.full(ray_origins.shape[0], np.inf)
+        nearest_locations = np.full_like(ray_origins, np.nan, dtype=np.float64)
+        #final_index_ray = np.full(ray_origins.shape[0], -1, dtype=int)  
+
+        mask=arr_distances_n<arr_distances_neg_n
+        nearest_locations[mask]=arr_locations_n[mask]
+        nearest_locations[~mask]=arr_locations_neg_n[~mask]
+
+        min_distances[mask]=arr_distances_n[mask]
+        min_distances[~mask]=arr_distances_neg_n[~mask]
+
+
+        valid_indices = ~np.isnan(nearest_locations).any(axis=1)
+        locations = nearest_locations[valid_indices]
+        index_ray = np.where(valid_indices)
 
 
         vertices = mesh.points
@@ -73,15 +124,10 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         vectors = np.stack([e1, e2, n])  # Assuming e1, e2, n are already defined as unit vectors
         origins = np.array([r0, r0, r0])  # Originating from r0
         vector_data = np.concatenate([origins[:, np.newaxis, :], origins[:, np.newaxis, :] + vectors[:, np.newaxis, :]], axis=1)
-
-        # Add vectors with the corrected format
         viewer.add_vectors(vector_data, edge_width=2, edge_color=['cyan', 'magenta', 'yellow'], name='Vectors at r0', length=0.1)
-
-
-
         napari.run()
         
-
+        return
 
         print(locations.shape)
         print(index_ray.shape)
