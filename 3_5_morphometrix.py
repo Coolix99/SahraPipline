@@ -134,40 +134,11 @@ def detect_non_conformal_vertices(mesh):
     return
 
 def getMorphoDf(mesh:pv.PolyData, labels):
-    print(mesh.points.shape)
-    print(mesh.point_normals.shape)
-    #boundary = mesh.extract_feature_edges(boundary_edges=False, feature_edges=True, manifold_edges=False,non_manifold_edges=False,clear_data=True)
-    #boundary.plot(color='red', line_width=2, show_edges=True)
-    
 
-    return
-    non_conformal_vertices = detect_non_conformal_vertices(mesh)
-    plotter = pv.Plotter()
-    plotter.add_mesh(mesh, color='lightblue', show_edges=True)
-    plotter.add_mesh(mesh.points[non_conformal_vertices], color='red', point_size=10, render_points_as_spheres=True, label='Non-Conformal Vertices')
-    plotter.add_legend()
-    plotter.show()
-    
-
-    return
-
-
-    points = mesh.points
-    lines = np.hstack((np.full((len(boundary), 1), 2), boundary)).astype(np.int64)
-
-    # Convert these lines into a vtkLines object
-    edge_mesh = pv.PolyData(points)
-    edge_mesh.lines = lines
-
-    # Create a plotter, add the mesh and the boundary edges
+    edge_mesh = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
     plotter = pv.Plotter()
     plotter.add_mesh(mesh, color='lightblue', show_edges=True, label='Mesh')
     plotter.add_mesh(edge_mesh, color='red', line_width=3, label='Boundary Edges')
-
-    # Optional: Add labels
-    plotter.add_legend()
-
-    # Display the plot
     plotter.show()
     return
     

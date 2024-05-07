@@ -772,6 +772,80 @@ def evalStatus_mesh(res_path):
     
     return False
 
+def bisect_mesh(mesh:pv.PolyData, face_indices, vertex_indices):
+    import numpy as np
+    # Calculate midpoint of the longest edge
+    p1, p2 = mesh.points[vertex_indices[0]], mesh.points[vertex_indices[1]]
+    midpoint = (p1 + p2) / 2
+    midpoint_idx = len(mesh.points)  # Index of the new midpoint vertex
+    mesh.points = np.vstack([mesh.points, midpoint])
+    # Function to split a face by adding a new vertex
+    def split_face(face_idx, new_vertex_idx):
+        face = mesh.faces.reshape(-1, 4)[face_idx]
+        idx = np.setdiff1d(face[1:], vertex_indices)[0]
+        # New faces split across the midpoint
+        new_faces = [
+            [3, new_vertex_idx,idx, vertex_indices[0]],
+            [3, new_vertex_idx,idx, vertex_indices[1]]
+        ]
+        return new_faces
+
+    # Split the largest face and the adjacent face
+    new_faces = split_face(face_indices[0], midpoint_idx)
+    if face_indices[1] is not None:
+        new_faces.extend(split_face(face_indices[1], midpoint_idx))
+    all_faces = mesh.faces.reshape(-1, 4)
+    new_faces_array = np.vstack([f for i, f in enumerate(all_faces) if i not in face_indices])
+    new_faces_array = np.vstack([new_faces_array] + new_faces)
+    mesh.faces = new_faces_array.flatten()
+
+    return pv.PolyData(mesh.points, mesh.faces)
+
+
+def refine_man(mesh):
+    while True:
+        faces = mesh.faces.reshape(-1, 4)[:, 1:]
+
+        # Compute the cell sizes and get the array of areas
+        cell_sizes = mesh.compute_cell_sizes()
+        areas = cell_sizes.cell_data['Area']
+
+        # Find the largest face
+        largest_face_idx = np.argmax(areas)
+        print('largestarea',areas[largest_face_idx])
+        if areas[largest_face_idx]<40:
+            break
+        largest_face_vertex_indices = faces[largest_face_idx]
+
+        # Calculate the lengths of the edges of the largest face
+        edge_lengths = []
+        for i in range(3):
+            edge_lengths.append(np.linalg.norm(mesh.points[largest_face_vertex_indices[i]] - mesh.points[largest_face_vertex_indices[(i + 1) % 3]]))
+
+        # Find the index of the longest edge
+        longest_edge_idx = np.argmax(edge_lengths)
+
+        # Get the vertex indices of the longest edge
+        longest_edge_vertex_indices = [largest_face_vertex_indices[longest_edge_idx], largest_face_vertex_indices[(longest_edge_idx + 1) % 3]]
+
+        # Find the adjacent face sharing the longest edge
+        adjacent_face_idx = None
+        for face_idx, face in enumerate(faces):
+            if set(longest_edge_vertex_indices).issubset(face):
+                if face_idx==largest_face_idx:
+                    continue
+                adjacent_face_idx = face_idx
+                break
+
+        # print("largest_face_idx:", largest_face_idx)
+        # print("Vertex indices of the longest edge:", longest_edge_vertex_indices)
+        # print("Index of the face sharing the edge:", adjacent_face_idx)
+
+    
+        mesh=bisect_mesh(mesh, np.array((largest_face_idx,adjacent_face_idx)), longest_edge_vertex_indices)
+    return mesh
+    
+
 def create_mesh():
     masks_dir_path=os.path.join(EpFlat_path,'peeled_mask')
     signal_dir_path=os.path.join(EpFlat_path,'signal_upperlayer')
@@ -806,13 +880,27 @@ def create_mesh():
 
  
         mesh = mesh.decimate(0.5)
-        while  (mesh.points.shape[0]/mesh.area)<1.1:
+
+        mesh=refine_man(mesh)
+
+        edge_mesh = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
+        plotter = pv.Plotter()
+        plotter.add_mesh(mesh, color='lightblue', show_edges=True, label='Mesh')
+        plotter.add_mesh(edge_mesh, color='red', line_width=3, label='Boundary Edges')
+        plotter.show()
+        
+        while  (mesh.points.shape[0]/mesh.area)<1.5:
            print('divide',mesh.points.shape[0]/mesh.area)
-           mesh=mesh.subdivide(1,'butterfly')
+           mesh=mesh.subdivide(1,'linear')
         
         mesh=mesh.clean()
         mesh.compute_normals(point_normals=True, cell_normals=True, auto_orient_normals=True, flip_normals=False)
-        mesh.plot(show_edges=True)
+        
+        edge_mesh = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
+        plotter = pv.Plotter()
+        plotter.add_mesh(mesh, color='lightblue', show_edges=True, label='Mesh')
+        plotter.add_mesh(edge_mesh, color='red', line_width=3, label='Boundary Edges')
+        plotter.show()
 
         mesh_file_name=data_name+'_mesh.vtk'
         mesh_file=os.path.join(res_path,mesh_file_name)
@@ -834,5 +922,15 @@ def create_mesh():
         MetaData_Mesh['output mesh checksum']=check_mesh
         writeJSON(res_path,'Mesh_MetaData',MetaData_Mesh)       
 
+
+def test():
+    import pyvista as pv
+    import numpy as np
+
+    mesh = pv.Sphere()
+    mesh=mesh.triangulate()
+    
+
 if __name__ == "__main__":
+    #test()
     create_mesh()

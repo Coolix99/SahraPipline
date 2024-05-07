@@ -100,8 +100,8 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
     while True:
         open_ind=np.where(np.linalg.norm(n_flows[:,:],axis=0)<1e-4)[0]
         print(1-(open_ind.shape[0]/num_points))
-        if open_ind.shape[0]<num_points*(1-0.99):
-            print('99% calculated')
+        if open_ind.shape[0]<num_points*(1-0.8):
+            print('80% calculated')
             break
 
         random_index = np.random.choice(open_ind)
@@ -173,7 +173,7 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         image_patch=image_patch.reshape(bsize, bsize)
         dist_patch=min_distances.reshape(bsize, bsize)
 
-        tifffile.imwrite(os.path.join(EpSeg_path,'output.tiff'), image_patch)
+        #tifffile.imwrite(os.path.join(EpSeg_path,'output.tiff'), image_patch)
 
         # import matplotlib.pyplot as plt
         # fig, axs = plt.subplots(1, 2, figsize=(10, 5)) 
@@ -238,7 +238,6 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
     non_zero_indices = np.where(norms >= 1e-2)[0]
     non_zero_vectors = res_flow[:,non_zero_indices]
 
-    # Build a KDTree with non-zero vectors
     tree = cKDTree(mesh.points[non_zero_indices])
     distances, nearest_indices = tree.query(mesh.points[zero_indices])
     res_flow[:,zero_indices] = non_zero_vectors[:,nearest_indices]
