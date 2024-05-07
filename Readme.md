@@ -19,7 +19,7 @@ Part III: cellpose on surface
 3_1_create_mesh_main.py: marching cubes and selecting
 3_2_project_main.py: 
 3_3_apply_network_main.py
-3_4_constructCells_main:
+3_4_segment_main:
 plot
 
 
