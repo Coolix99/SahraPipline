@@ -3,10 +3,8 @@ from typing import List
 import napari
 import os
 import git
-import pandas as pd
 from simple_file_checksum import get_checksum
 import pyvista as pv
-from scipy import ndimage
 from scipy.spatial import cKDTree
 
 from config import *
@@ -25,18 +23,7 @@ def project(mesh:pv.PolyData,sig_img,scales):
 
     mesh.point_data['Max']=Max
 
-    # print(np.max(Max))
-    # print(np.mean(Max))
-    # print(np.min(Max))
-
-    # print(np.max(sig_img))
-    # print(np.mean(sig_img))
-    # print(np.min(sig_img))
-
-    # plotter = pv.Plotter()
-    # plotter.add_mesh(mesh, show_edges=False,scalars='Max',cmap='jet')
-    # plotter.show()
-
+  
     vertices = mesh.points/scales  # Nx3 array of vertex positions (x, y, z)
     faces = mesh.faces.reshape((-1, 4))[:, 1:4]  # Mx3 array of vertex indices for each triangle
 

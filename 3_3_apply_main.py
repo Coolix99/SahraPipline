@@ -6,13 +6,10 @@ import os
 import git
 from simple_file_checksum import get_checksum
 import pyvista as pv
-import random
 from scipy.spatial import cKDTree
-from scipy.spatial import Delaunay
 from scipy.interpolate import griddata
 
 from cellpose import models
-from cellpose.core import run_net
 from cellpose.models import Cellpose
 
 from config import *
@@ -20,11 +17,6 @@ from IO import *
 
 def compute_curve_patch(model:Cellpose,img):
     masks, flows, _=model.cp.eval(img,compute_masks=False)
-    # print(len(flows))
-    # print(flows[0].shape)
-    # print(flows[1].shape)
-    # print(flows[2].shape)
-    # print(flows[1])
     return flows[1][:,0,:,:]
 
 def getPatchImg(e1,e2,n,r0,bsize,im_scale,points,proj,random_index):
@@ -50,17 +42,6 @@ def getPatchImg(e1,e2,n,r0,bsize,im_scale,points,proj,random_index):
         # Interpolate the projection data and distances onto the grid
         image_patch = griddata(filtered_points, filtered_proj, (grid_x, grid_y), method='linear', fill_value=0)
         distance_patch = griddata(filtered_points, filtered_distance, (grid_x, grid_y), method='linear', fill_value=np.inf)
-
-        # import matplotlib.pyplot as plt
-        # plt.figure(figsize=(8, 6))
-        # plt.triplot(filtered_points[:, 0], filtered_points[:, 1], tri.simplices, 'ko-')
-        # #plt.tripcolor(filtered_points[:, 0], filtered_points[:, 1], tri.simplices, facecolors=filtered_proj, edgecolors='k', cmap='viridis')
-        # #plt.colorbar(label='Projection Values')
-        # plt.title('Delaunay Triangulation with Projection Values')
-        # plt.xlabel('Relative X')
-        # plt.ylabel('Relative Y')
-        # plt.grid(True)
-        # plt.show()
 
 
     else:
@@ -116,7 +97,6 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
     add_flows=np.zeros_like(res_flow)
     n_flows=np.zeros_like(res_flow,dtype=int)
 
-    count=0
     while True:
         open_ind=np.where(np.linalg.norm(n_flows[:,:],axis=0)<1e-4)[0]
         print(1-(open_ind.shape[0]/num_points))
@@ -127,7 +107,6 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         random_index = np.random.choice(open_ind)
         
         r0=mesh.points[random_index]
-        #mesh.compute_normals(point_normals=True, cell_normals=True, auto_orient_normals=True, flip_normals=False)
        
         n=mesh.point_normals[random_index]
         e1=np.array((1,0,0))
@@ -135,17 +114,6 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         e1=e1/np.linalg.norm(e1)
         e2=np.cross(e1,n)
 
-
-        # vertices = mesh.points
-        # faces = mesh.faces.reshape((-1, 4))[:, 1:4]
-        # viewer = napari.Viewer()
-        # viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
-        # vectors = np.stack([e1,e2,n])  # Assuming e1, e2, n are already defined as unit vectors
-        # origins = np.array([r0,r0,r0])  # Originating from r0
-        # vector_data = np.concatenate([origins[:, np.newaxis, :],  vectors[:, np.newaxis, :]], axis=1)
-        # viewer.add_vectors(vector_data, edge_width=2, edge_color=['cyan'], name='Vectors at r0', length=0.1)
-        # napari.run()
-        
         indices = np.arange(-bsize//2, bsize//2 )
 
         x = np.tile(indices, (bsize, 1))
@@ -181,7 +149,6 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         # Initialize an array to store the minimum distances and corresponding locations
         min_distances = np.full(ray_origins.shape[0], np.inf)
         nearest_locations = np.full_like(ray_origins, np.nan, dtype=np.float64)
-        #final_index_ray = np.full(ray_origins.shape[0], -1, dtype=int)  
 
         mask=arr_distances_n<arr_distances_neg_n
         nearest_locations[mask]=arr_locations_n[mask]
@@ -190,41 +157,12 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         min_distances[mask]=arr_distances_n[mask]
         min_distances[~mask]=arr_distances_neg_n[~mask]
 
-        # import matplotlib.pyplot as plt
-        # fig, axs = plt.subplots(1, 3, figsize=(15, 5)) 
-        # img1 = axs[0].imshow(arr_distances_n.reshape(bsize, bsize), cmap='magma', origin='lower')
-        # fig.colorbar(img1, ax=axs[0])  
-        # axs[0].set_title('arr_distances_n')
-        # img2 = axs[1].imshow(arr_distances_neg_n.reshape(bsize, bsize), cmap='magma', origin='lower')
-        # fig.colorbar(img2, ax=axs[1]) 
-        # axs[1].set_title('arr_distances_neg_n')
-        # img3 = axs[2].imshow(min_distances.reshape(bsize, bsize), cmap='magma', origin='lower')
-        # fig.colorbar(img3, ax=axs[2]) 
-        # axs[2].set_title('min_distances')
-        # plt.show()
-
 
         valid_indices = ~np.isnan(nearest_locations).any(axis=1)
         locations = nearest_locations[valid_indices]
         index_ray = np.where(valid_indices)[0]
 
-
-        # vertices = mesh.points
-        # faces = mesh.faces.reshape((-1, 4))[:, 1:4]
-        # viewer = napari.Viewer()
-        # viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
-        # viewer.add_points(locations, size=3, face_color='blue', edge_color='blue', name='Intersection Points')
-        # viewer.add_points(flattened_pos, size=3, face_color='red', edge_color='red', name='Position Points')
-        # viewer.add_points([r0], size=10, face_color='green', edge_color='green', name='Random Point r0')
-        # vectors = np.stack([e1, e2, n])  # Assuming e1, e2, n are already defined as unit vectors
-        # origins = np.array([r0, r0, r0])  # Originating from r0
-        # vector_data = np.concatenate([origins[:, np.newaxis, :], origins[:, np.newaxis, :] + vectors[:, np.newaxis, :]], axis=1)
-        # viewer.add_vectors(vector_data, edge_width=2, edge_color=['cyan', 'magenta', 'yellow'], name='Vectors at r0', length=0.1)
-        # napari.run()
-        
-        
-
-
+    
         ind_ray = np.unique(index_ray)
         tree = cKDTree(mesh.points)
         _, ind_mesh = tree.query(locations)
@@ -286,22 +224,6 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         np.add.at(add_flows, (slice(None), indices), valid_flows.T)
         np.add.at(n_flows, (slice(None), indices), 1)
 
-        # vertices = mesh.points
-            # faces = mesh.faces.reshape((-1, 4))[:, 1:4]
-            # viewer = napari.Viewer()
-            # viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
-            # viewer.add_points([r0], size=10, face_color='green', edge_color='green', name='Random Point r0')
-            # n = 1
-            # sampled_points = vertices[::n]  # Reduce density for clarity
-            # sampled_flows = res_flow[:, ::n].T  # Transpose to align with napari's expected input
-            # vector_data = np.zeros((sampled_flows.shape[0], 2, 3))
-            # vector_data[:, 0, :] = sampled_points  # Start points
-            # vector_data[:, 1, :] =  sampled_flows *1  # End points, scale to adjust length
-            # viewer.add_vectors(vector_data, edge_width=0.1, edge_color='cyan',
-            #                 name='Flow Vectors')
-
-            # # Start napari
-            # napari.run()
     
     valid_mask = n_flows > 0
     res_flow[valid_mask] = add_flows[valid_mask] / n_flows[valid_mask]
@@ -339,14 +261,7 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
     return res_flow
 
 
-    vertices = mesh.points 
-    faces = mesh.faces.reshape((-1, 4))[:, 1:4] 
-    viewer = napari.Viewer()
-    viewer.add_surface((vertices, faces,proj))
-    napari.run()
 
-    return 0
-    
 
 def evalStatus_apply(fin_dir_path):
     MetaData=get_JSON(fin_dir_path)

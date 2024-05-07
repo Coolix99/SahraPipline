@@ -6,9 +6,7 @@ import os
 import git
 from simple_file_checksum import get_checksum
 import pyvista as pv
-import random
 from scipy.spatial import cKDTree
-
 from sklearn.cluster import DBSCAN
 
 from config import *
@@ -16,19 +14,7 @@ from IO import *
 
 
 def euler_int(mesh:pv.PolyData,flow):
-    # vertices = mesh.points
-    # faces = mesh.faces.reshape((-1, 4))[:, 1:4]
-    # viewer = napari.Viewer()
-    # #viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
-    # n = 1
-    # sampled_points = vertices[::n]  # Reduce density for clarity
-    # sampled_flows = flow[:, ::n].T  # Transpose to align with napari's expected input
-    # vector_data = np.zeros((sampled_flows.shape[0], 2, 3))
-    # vector_data[:, 0, :] = sampled_points  # Start points
-    # vector_data[:, 1, :] =  sampled_flows *1  # End points, scale to adjust length
-    # viewer.add_vectors(vector_data, edge_width=0.1, edge_color='cyan',
-    #                 name='Flow Vectors')
-    # napari.run()
+
 
     N_iter = 10  
     dx = 5
