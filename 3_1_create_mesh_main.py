@@ -806,17 +806,11 @@ def create_mesh():
 
  
         mesh = mesh.decimate(0.5)
-        print('decimate')
-        boundary = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
-        boundary.plot(color='red', line_width=2, show_edges=True)
-        mesh=mesh.subdivide_adaptive(max_edge_len=20.0)
-        print('subdev')
-        boundary = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
-        boundary.plot(color='red', line_width=2, show_edges=True)
+        while  (mesh.points.shape[0]/mesh.area)<1.1:
+           print('divide',mesh.points.shape[0]/mesh.area)
+           mesh=mesh.subdivide(1,'butterfly')
+        
         mesh=mesh.clean()
-        print('clean')
-        boundary = mesh.extract_feature_edges(boundary_edges=True, feature_edges=False, manifold_edges=False,non_manifold_edges=False,clear_data=True)
-        boundary.plot(color='red', line_width=2, show_edges=True)
         mesh.compute_normals(point_normals=True, cell_normals=True, auto_orient_normals=True, flip_normals=False)
         mesh.plot(show_edges=True)
 
