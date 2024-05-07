@@ -7,6 +7,8 @@ from simple_file_checksum import get_checksum
 import pyvista as pv
 import random
 from scipy.spatial import cKDTree
+from scipy.spatial import Delaunay
+from scipy.interpolate import griddata
 
 from cellpose import models
 from cellpose.core import run_net
@@ -20,10 +22,90 @@ def compute_curve_patch(model:Cellpose,img):
 
     return flows[1]
 
+def getPatchImg(e1,e2,n,r0,bsize,im_scale,points,proj,random_index):
+    relpos=points-r0
+    im_scale=1
+    rel_1 = np.dot(relpos, e1) * im_scale + bsize // 2
+    rel_2 = np.dot(relpos, e2) * im_scale + bsize // 2
+    rel_n = np.abs(np.dot(relpos, n))
+    mask = (rel_1 >= -10) & (rel_1 <= bsize + 10) & (rel_2 >= -10) & (rel_2 <= bsize + 10) & (rel_n < 30)
+    filtered_points = np.vstack((rel_1[mask], rel_2[mask])).T
+    filtered_proj = proj[mask]
+    filtered_distance = rel_n[mask]
+
+    # Create empty patches
+    image_patch = np.zeros((bsize, bsize))
+    distance_patch = np.zeros((bsize, bsize))
+
+    # Generate grid for interpolation
+    grid_x, grid_y = np.mgrid[0:bsize, 0:bsize]
+
+    # Check if we have enough points to form a triangulation
+    if len(filtered_points) >= 3:
+        # Interpolate the projection data and distances onto the grid
+        image_patch = griddata(filtered_points, filtered_proj, (grid_x, grid_y), method='linear', fill_value=0)
+        distance_patch = griddata(filtered_points, filtered_distance, (grid_x, grid_y), method='linear', fill_value=np.inf)
+
+        # import matplotlib.pyplot as plt
+        # plt.figure(figsize=(8, 6))
+        # plt.triplot(filtered_points[:, 0], filtered_points[:, 1], tri.simplices, 'ko-')
+        # #plt.tripcolor(filtered_points[:, 0], filtered_points[:, 1], tri.simplices, facecolors=filtered_proj, edgecolors='k', cmap='viridis')
+        # #plt.colorbar(label='Projection Values')
+        # plt.title('Delaunay Triangulation with Projection Values')
+        # plt.xlabel('Relative X')
+        # plt.ylabel('Relative Y')
+        # plt.grid(True)
+        # plt.show()
+
+
+    else:
+        # If not enough points, fill with default values (can adjust as needed)
+        image_patch.fill(0)
+        distance_patch.fill(np.inf)
+
+    return image_patch, distance_patch
+
+def getPatchImg_old(e1, e2, n, r0, bsize, im_scale, mesh, proj):
+    indices = np.arange(-bsize//2, bsize//2)
+    x = np.tile(indices, (bsize, 1))
+    y = np.tile(indices[:, np.newaxis], (1, bsize))
+    pos = x[:, :, np.newaxis] * e1[np.newaxis, np.newaxis, :] * im_scale + \
+          y[:, :, np.newaxis] * e2[np.newaxis, np.newaxis, :] * im_scale + \
+          r0[np.newaxis, np.newaxis, :]
+    
+    # Initialize patches
+    image_patch = np.zeros((bsize, bsize))
+    distance_patch = np.full((bsize, bsize), np.inf)  # Start with inf distances
+    
+    # Ray tracing for each point in the grid
+    for i in range(bsize):
+        for j in range(bsize):
+            # Define ray start and end points
+            origin = pos[i, j] - n * 10
+            end_point = origin + n * 20  
+            
+            # Perform ray tracing using PyVista
+            first_intersection, intersection_cells = mesh.ray_trace(origin, end_point, first_point=True)
+            if first_intersection.size > 0:  # Check if there is one intersection
+                # Calculate the distance from origin to the intersection point
+                distance_patch[i, j] = np.linalg.norm(first_intersection - origin)
+                
+                # Assuming 'proj' is accessible by point indices and is mapped correctly in 'mesh'
+                # Find the closest point in the mesh to the intersection point
+                idx = mesh.find_closest_point(first_intersection)
+                image_patch[i, j] = proj[idx]
+            else:
+                # No intersection found, set the image patch value to 0
+                image_patch[i, j] = 0
+
+    return image_patch, distance_patch
+
+
 def calculate_flow(mesh:pv.PolyData,proj,model):
     bsize=224
     im_scale=1
     num_points = mesh.points.shape[0]
+    print(num_points)
 
     res_flow=np.zeros((3,num_points))
     add_flows=np.zeros_like(res_flow)
@@ -44,24 +126,25 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         e1=e1/np.linalg.norm(e1)
         e2=np.cross(e1,n)
 
-        indices = np.arange(-bsize//2, bsize//2 )
+        return
 
-        x = np.tile(indices, (bsize, 1))
-        y = np.tile(indices[:, np.newaxis], (1, bsize))
-        pos=x[:,:,np.newaxis]*e1[np.newaxis,np.newaxis,:]*im_scale+y[:,:,np.newaxis]*e2[np.newaxis,np.newaxis,:]*im_scale+r0[np.newaxis,np.newaxis,:]
-        flattened_pos = pos.reshape(-1, 3)
-        tree = cKDTree(mesh.points)
-        distances, indices = tree.query(flattened_pos)
-        image_data = proj[indices]
-        image_patch = image_data.reshape(bsize, bsize)
-        distance_patch = distances.reshape(bsize, bsize)
+        image_patch,distance_patch=getPatchImg(e1,e2,n,r0,bsize,im_scale,mesh.points,proj,random_index)
+        sigma = 2.0  # Define the amount of blurring
+        from scipy.ndimage import gaussian_filter
+        distance_patch = gaussian_filter(distance_patch, sigma=sigma)
+        bad_pxls=distance_patch>25.0
+        image_patch[bad_pxls]=0
 
         import matplotlib.pyplot as plt
         plt.imshow(distance_patch, cmap='viridis', origin='lower')  # You can change the colormap as needed
         plt.colorbar()  # Optionally add a color bar to show the mapping of color to data values
+        plt.title('Dist from Mesh Point Data')
+        plt.show()
+        plt.imshow(image_patch, cmap='gray', origin='lower')  # You can change the colormap as needed
+        plt.colorbar()  # Optionally add a color bar to show the mapping of color to data values
         plt.title('Image from Mesh Point Data')
         plt.show()
-
+        
         flow=compute_curve_patch(model,image_patch)
 
         import matplotlib.pyplot as plt
@@ -75,7 +158,7 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
         plt.title('Image with Vector Field Overlay')
         plt.show()
 
-        dist_thr=2.5
+        dist_thr=10
         mask=distance_patch<dist_thr
 
         # Transforming 2D flow to 3D using e1 and e2
@@ -84,6 +167,11 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
 
         # Apply mask
         valid_flows = flow_3d[mask.reshape(-1), :]
+        indices = np.arange(-bsize//2, bsize//2 )
+        x = np.tile(indices, (bsize, 1))
+        y = np.tile(indices[:, np.newaxis], (1, bsize))
+        pos=x[:,:,np.newaxis]*e1[np.newaxis,np.newaxis,:]*im_scale+y[:,:,np.newaxis]*e2[np.newaxis,np.newaxis,:]*im_scale+r0[np.newaxis,np.newaxis,:]
+        flattened_pos = pos.reshape(-1, 3)
         valid_positions = flattened_pos[mask.reshape(-1), :]
 
         # Update flows at corresponding 3D positions using cKDTree
