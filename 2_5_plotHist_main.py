@@ -5,6 +5,8 @@ from typing import List
 import git
 import napari
 from simple_file_checksum import get_checksum
+import matplotlib.pyplot as plt
+import matplotlib.tri as tri
 
 from config import *
 from IO import *
@@ -29,7 +31,26 @@ def plot3d_napari(mesh:pv.PolyData):
     napari.run()
 
 def plot2d(mesh):
-    print(mesh.point_data)
+    # Extracting vertex coordinates and face indices
+    coord_1 = mesh.point_data['coord_1']
+    coord_2 = mesh.point_data['coord_2']
+    faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+    triangulation = tri.Triangulation(coord_1, coord_2, faces)
+    
+    for key,nstd in zip(['thickness_avg', 'avg_curvature_avg', 'gauss_curvature_avg'],[5,4,4]):
+        data = mesh.point_data[key]
+        filtered_data = filter_outliers(data,nstd)
+        
+    
+        # Plotting the triangles with curvature data as color
+        plt.figure(figsize=(10, 8))
+        coloring = plt.tripcolor(triangulation, filtered_data, shading='flat', cmap='viridis')
+        plt.colorbar(coloring, label=key)
+        plt.xlabel('Coord 1')
+        plt.ylabel('Coord 2')
+        plt.grid(True)
+        plt.show()
+
 
 
 def plotHistogramms(relevant_conditions):
