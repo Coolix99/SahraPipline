@@ -4,6 +4,7 @@ import pyvista as pv
 from typing import List
 import git
 from simple_file_checksum import get_checksum
+from scipy.spatial import cKDTree
 
 from config import *
 from IO import *
@@ -81,7 +82,12 @@ def getHistSurface(mesh:pv.PolyData):
     if decimation_factor < 1.0:
         simplified_mesh = mesh.decimate(1-decimation_factor)
         # print(f"Simplified vertex count: {simplified_mesh.n_points}")
-    #simplified_mesh.plot()
+
+    tree = cKDTree(mesh.points)
+    min_distance_point, index_point = tree.query(simplified_mesh.points, k=1)
+    simplified_mesh.point_data['coord_1']=mesh.point_data['coord_1'][index_point]
+    simplified_mesh.point_data['coord_2']=mesh.point_data['coord_2'][index_point]
+
     return simplified_mesh
 
 def check_order(df, init_folder, target_folder):
