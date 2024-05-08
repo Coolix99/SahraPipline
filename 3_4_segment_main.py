@@ -99,7 +99,7 @@ def segment_all():
         flow_file_path=os.path.join(fin_dir_path,flow_file)
         flow=loadArr(flow_file_path)
         
-        print('apply network')
+        print('euler int')
         pos=euler_int(mesh,flow)
         print(pos.shape)
 

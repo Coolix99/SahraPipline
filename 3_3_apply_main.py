@@ -259,9 +259,6 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
 
     return res_flow
 
-
-
-
 def evalStatus_apply(fin_dir_path):
     MetaData=get_JSON(fin_dir_path)
     if not 'Mesh_MetaData' in MetaData:
