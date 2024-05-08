@@ -78,7 +78,7 @@ def plot():
         # print(labels)
         # print(sig_img)
 
-        #plot_img_res(mesh,proj,labels,sig_img,scales)
+        plot_img_res(mesh,proj,labels,sig_img,scales)
         plot_res(mesh,proj,labels)
 
 if __name__ == "__main__":

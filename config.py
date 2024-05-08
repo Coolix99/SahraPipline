@@ -8,7 +8,7 @@ if(machine=='Home'):
     
 
 if(machine=='Laptop'):
-    Sahra_path=(r'\\vs-grp07.zih.tu-dresden.de\max_kotz\structured_data\{}').format("")
+    Sahra_path=(r'\\vs-grp07.zih.tu-dresden.de\max_kotz\share_Sarah\{}').format("")
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
 if(machine=='BA'):
