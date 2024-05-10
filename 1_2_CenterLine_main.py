@@ -182,18 +182,20 @@ def center_line_session(im_file,old_df):
     point2 = old_df[old_df['name'] == 'Distal_pt']['coordinate_px'].values[0]
     direction_dv = old_df[old_df['name'] == 'fin_plane']['coordinate_px'].values[0]
     im_3d=getImage(im_file)
+
     #centroid_3d = ndimage.center_of_mass(im_3d)
     centroid_3d=np.array(im_3d.shape,dtype=float)/2
 
     center_plane_point, direction_2 ,direction_1 , size_2d,plane_normal=get_Plane(point1, point2, direction_dv,im_3d,centroid_3d)
     print(center_plane_point)
-    im = create_2d_image_from_3d(center_plane_point,direction_2 ,direction_1 , size_2d, im_3d)
+    im = create_2d_image_from_3d(center_plane_point,direction_2 ,direction_1 , size_2d, im_3d).astype(int)
+    im_mask=im>0
 
     viewer = napari.Viewer(ndisplay=2)
   
-    im = np.array(im, dtype=np.uint8)
+    im_mask = np.array(im_mask, dtype=np.uint8)
     kernel_size = (11, 11) 
-    blurred_image = cv2.GaussianBlur(im, kernel_size, 0)
+    blurred_image = cv2.GaussianBlur(im_mask, kernel_size, 0)
     threshold_value = np.max(blurred_image)/2
     _, binary_image = cv2.threshold(blurred_image, threshold_value, 255, cv2.THRESH_BINARY)
 

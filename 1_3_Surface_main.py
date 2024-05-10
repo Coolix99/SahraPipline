@@ -14,11 +14,12 @@ from bisect import bisect_right
 import pyvista as pv
 import pymeshfix as mf
 from scipy.spatial import cKDTree
+from scipy.ndimage import label, binary_fill_holes
 
 from config import *
 from IO import *
 
-import numpy as np
+
 
 
 def calculate_positions_3d(x_positions, y_positions, z_positions,scales):
@@ -199,11 +200,36 @@ def vertical_center_line(prox_dist_pos,closed_image):
     res=np.array((all_centroid_y,all_centroid_x)).T
     return res
 
+def process_image(im_3d):
+    # Step 1: Create a mask where the image values are greater than zero
+    mask = im_3d > 0
+
+    # Step 2: Label connected components in the mask
+    labeled_array, num_features = label(mask)
+
+    # Step 3: Find the largest connected component by finding the label with the maximum count
+    if num_features == 0:
+        return np.zeros_like(mask)  # Return an empty mask if no features are found
+
+    # The zeroth index of bincount is the background count, which we don't consider
+    largest_component_label = np.argmax(np.bincount(labeled_array.flat)[1:]) + 1
+
+    # Step 4: Extract the largest component
+    largest_component = labeled_array == largest_component_label
+
+    # Step 5: Fill holes in the largest component
+    filled_component = binary_fill_holes(largest_component)
+
+    return filled_component
+
 def construct_Surface(im_file,old_df,center_line_path_3d,scales):
     point1 = old_df[old_df['name'] == 'Proximal_pt']['coordinate_px'].values[0]
     point2 = old_df[old_df['name'] == 'Distal_pt']['coordinate_px'].values[0]
     direction_dv = old_df[old_df['name'] == 'fin_plane']['coordinate_px'].values[0]
-    im_3d=getImage(im_file)
+    im_3d=getImage(im_file).astype(int)
+
+    im_3d=process_image(im_3d)
+
     centroid_3d = ndimage.center_of_mass(im_3d)
 
     center_plane_point, direction_2 ,direction_1 , size_2d,plane_normal=get_Plane(point1, point2, direction_dv,im_3d,centroid_3d)
