@@ -19,7 +19,7 @@ def extract_coordinate(df, name):
 
 def orient_session(im):
     viewer = napari.Viewer(ndisplay=3)
-    im_layer = viewer.add_image(im,rendering='iso')
+    im_layer = viewer.add_labels(im)
     last_pos=None
     last_viewer_direction=None
     points = []
