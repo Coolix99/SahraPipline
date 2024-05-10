@@ -5,6 +5,7 @@ import os
 import git
 from simple_file_checksum import get_checksum
 import pyvista as pv
+from scipy.ndimage import label, binary_fill_holes
 
 from config import *
 from IO import *
@@ -47,8 +48,34 @@ def getIntersections(vol_img,r0,normal,max_value=100,precision=1):
 
     return r0+normal*best_upper, r0+normal*best_lower
 
+def process_image(im_3d):
+    # Step 1: Create a mask where the image values are greater than zero
+    mask = im_3d > 0
+
+    # Step 2: Label connected components in the mask
+    labeled_array, num_features = label(mask)
+
+    # Step 3: Find the largest connected component by finding the label with the maximum count
+    if num_features == 0:
+        return np.zeros_like(mask)  # Return an empty mask if no features are found
+
+    # The zeroth index of bincount is the background count, which we don't consider
+    largest_component_label = np.argmax(np.bincount(labeled_array.flat)[1:]) + 1
+
+    # Step 4: Extract the largest component
+    largest_component = labeled_array == largest_component_label
+
+    # Step 5: Fill holes in the largest component
+    filled_component = binary_fill_holes(largest_component)
+
+    return filled_component
+
+
 def calculate_Thickness(im_file,surf_file,scales):
-    vol_img=getImage(im_file)
+    vol_img=getImage(im_file).astype(int)
+    vol_img=process_image(vol_img)
+
+
     mesh=pv.read(surf_file)
     import skimage as ski
     vol_img=ski.filters.gaussian(vol_img, sigma=(2,5,5),truncate=3)>0.5
