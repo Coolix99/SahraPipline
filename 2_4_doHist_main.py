@@ -196,12 +196,12 @@ def make_Hist(sim_df,diffeos_df):
     for start_fin in paths:
         print(paths[start_fin])
         res=calcDiffeo(paths[start_fin],used_diffeos_df,all_surfaces)
-        plotter = pv.Plotter()
-        plotter.add_mesh(all_surfaces[ref_fin], color='blue', label='Target')
-        all_surfaces[start_fin].points=res
-        plotter.add_mesh(all_surfaces[start_fin], color='red', label='Defomed')
-        plotter.add_legend()
-        plotter.show()
+        # plotter = pv.Plotter()
+        # plotter.add_mesh(all_surfaces[ref_fin], color='blue', label='Target')
+        # all_surfaces[start_fin].points=res
+        # plotter.add_mesh(all_surfaces[start_fin], color='red', label='Defomed')
+        # plotter.add_legend()
+        # plotter.show()
        
         for i in range(res.shape[0]): 
             hist_ind=HistSurface.find_closest_point(res[i])
