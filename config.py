@@ -42,7 +42,7 @@ EpSeg_path=os.path.join(EpSeg_path,'fin')
 Orient_version = 1
 CenterLine_version = 1
 Surface_version = 1
-Thickness_version = 1
+Thickness_version = 2
 Coord_version = 1
 
 #Part II

@@ -10,36 +10,43 @@ from scipy.ndimage import label, binary_fill_holes
 from config import *
 from IO import *
 
+def getPx(r0,normal,a,vol_img):
+    coord=np.array((int(r0[0]+0.5+normal[0]*a),int(r0[1]+0.5+normal[1]*a),int(r0[2]+0.5+normal[2]*a)),dtype=int)
 
-def getIntersections(vol_img,r0,normal,max_value=100,precision=1):
-    a = 0
+    if np.all(coord >= 0) and np.all(coord < np.array(vol_img.shape)):
+        return vol_img[coord[0], coord[1], coord[2]]
+    else:
+        return 0
+
+def getIntersections(vol_img,r0,normal,max_value=50,precision=1):
+    start=None
+    alternating_list = [0] + [j for i in range(1, 11) for j in (i, -i)]
+    for a in alternating_list:
+        f_a=getPx(r0,normal,a,vol_img)
+        if f_a:
+            start=a
+            break
+    if start is None:
+        return
+                    
+    a=start
     b = max_value
-
-    coord=np.clip(np.array((int(r0[0]+0.5+normal[0]*a),int(r0[1]+0.5+normal[1]*a),int(r0[2]+0.5+normal[2]*a)),dtype=int),[0,0,0],[vol_img.shape[0]-1,vol_img.shape[1]-1,vol_img.shape[2]-1])
-    f_a=vol_img[coord[0],coord[1],coord[2]]
-    if not f_a:
-        return None
-
     while abs(b - a) > precision:
         midpoint = (a + b) / 2.0
-        coord=np.clip(np.array((int(r0[0]+0.5+normal[0]*a),int(r0[1]+0.5+normal[1]*a),int(r0[2]+0.5+normal[2]*a)),dtype=int),[0,0,0],[vol_img.shape[0]-1,vol_img.shape[1]-1,vol_img.shape[2]-1])
-        f_a=vol_img[coord[0],coord[1],coord[2]]
-        coord=np.clip(np.array((int(r0[0]+0.5+normal[0]*midpoint),int(r0[1]+0.5+normal[1]*midpoint),int(r0[2]+0.5+normal[2]*midpoint)),dtype=int),[0,0,0],[vol_img.shape[0]-1,vol_img.shape[1]-1,vol_img.shape[2]-1])
-        f_mid=vol_img[coord[0],coord[1],coord[2]]
+        f_a=getPx(r0,normal,a,vol_img)
+        f_mid=getPx(r0,normal,midpoint,vol_img)
         if f_mid == f_a:
             a = midpoint
         else:
             b = midpoint
     best_upper = (a + b) / 2.0
 
-    a = 0
+    a = start
     b = -max_value
     while abs(b - a) > precision:
         midpoint = (a + b) / 2.0
-        coord=np.clip(np.array((int(r0[0]+0.5+normal[0]*a),int(r0[1]+0.5+normal[1]*a),int(r0[2]+0.5+normal[2]*a)),dtype=int),[0,0,0],[vol_img.shape[0]-1,vol_img.shape[1]-1,vol_img.shape[2]-1])
-        f_a=vol_img[coord[0],coord[1],coord[2]]
-        coord=np.clip(np.array((int(r0[0]+0.5+normal[0]*midpoint),int(r0[1]+0.5+normal[1]*midpoint),int(r0[2]+0.5+normal[2]*midpoint)),dtype=int),[0,0,0],[vol_img.shape[0]-1,vol_img.shape[1]-1,vol_img.shape[2]-1])
-        f_mid=vol_img[coord[0],coord[1],coord[2]]
+        f_a=getPx(r0,normal,a,vol_img)
+        f_mid=getPx(r0,normal,midpoint,vol_img)
         if f_mid == f_a:
             a = midpoint
         else:
@@ -82,35 +89,28 @@ def calculate_Thickness(im_file,surf_file,scales):
     points_px=mesh.point_data['Coord px']
     normals_px=mesh.point_normals/scales
 
-   
-    upper_dist=np.zeros(points_px.shape[0],dtype=float)
-    lower_dist=np.zeros(points_px.shape[0],dtype=float)
+    dist=np.zeros(points_px.shape[0],dtype=float)
     for i in range(points_px.shape[0]):
         res=getIntersections(vol_img,points_px[i,:],normals_px[i,:])
         if res is None:
-            upper_dist[i]=0
-            lower_dist[i]=0
+            dist[i]=0
             continue
         upper_point, lower_point=res
-        #print(upper_point,lower_point)
-        upper_dist[i]=np.linalg.norm((upper_point-points_px[i,:])*scales)
-        lower_dist[i]=np.linalg.norm((lower_point-points_px[i,:])*scales)
-        
-    mesh.point_data['upper_dist']=upper_dist
-    mesh.point_data['lower_dist']=lower_dist
-    mesh.point_data['thickness']=upper_dist+lower_dist
+        dist[i]=np.linalg.norm((upper_point-lower_point)*scales)
+    
+    mesh.point_data['thickness']=dist
 
     # viewer = napari.Viewer(ndisplay=3)
     # faces = mesh.faces.reshape(-1, 4)[:, 1:]
-    # surface = (points_px, faces)
+    # surface = (points_px, faces,dist)
     # viewer.add_surface(surface)
     # viewer.add_labels(vol_img)
     # #viewer.add_labels(blur)
-    # viewer.add_points(points_plot)
+    # #viewer.add_points(points_plot)
     # napari.run()
 
     # p = pv.Plotter()
-    # p.add_mesh(mesh,scalars="thickness", color="grey", ambient=0.6, opacity=0.5, show_edges=False)
+    # p.add_mesh(mesh,scalars="thickness", color='grey', ambient=0.6, opacity=0.5, show_edges=False)
     # p.show()
     # p = pv.Plotter()
     # p.add_mesh(mesh,scalars="lower_dist", color="grey", ambient=0.6, opacity=0.5, show_edges=False)

@@ -12,8 +12,8 @@ from IO import *
 
 def plot_surface(surf_file):
     mesh=pv.read(surf_file)
-
-    mesh.plot()
+    print(mesh.point_data)
+    mesh.plot(scalars='thickness')
 
 
 def plot_all():
