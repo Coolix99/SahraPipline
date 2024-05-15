@@ -326,7 +326,7 @@ def apply_models():
         MetaData_flow['experimentalist']='Sahra'
         MetaData_flow['genotype']='WT'
         MetaData_flow['input mesh checksum']=MetaData_mesh['output mesh checksum']
-        MetaData_flow['input proj checksum']=MetaData_mesh['output proj checksum']
+        #MetaData_flow['input proj checksum']=MetaData_mesh['output proj checksum']
         check_proj=get_checksum(os.path.join(fin_dir_path,flow_file_name+'.npy'), algorithm="SHA1")
         MetaData_flow['output flow checksum']=check_proj
         writeJSON(fin_dir_path,'apply_MetaData',MetaData_flow)       
