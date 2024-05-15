@@ -243,19 +243,19 @@ def calculate_flow(mesh:pv.PolyData,proj,model):
     res_flow[:,zero_indices] = non_zero_vectors[:,nearest_indices]
 
 
-    vertices = mesh.points
-    faces = mesh.faces.reshape((-1, 4))[:, 1:4]
-    viewer = napari.Viewer()
-    viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
-    n = 1
-    sampled_points = vertices[::n]  # Reduce density for clarity
-    sampled_flows = res_flow[:, ::n].T  # Transpose to align with napari's expected input
-    vector_data = np.zeros((sampled_flows.shape[0], 2, 3))
-    vector_data[:, 0, :] = sampled_points  # Start points
-    vector_data[:, 1, :] =  sampled_flows *1  # End points, scale to adjust length
-    viewer.add_vectors(vector_data, edge_width=0.1, edge_color='cyan',
-                    name='Flow Vectors')
-    napari.run()
+    # vertices = mesh.points
+    # faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+    # viewer = napari.Viewer()
+    # viewer.add_surface((vertices, faces, proj), name='Surface Mesh')
+    # n = 1
+    # sampled_points = vertices[::n]  # Reduce density for clarity
+    # sampled_flows = res_flow[:, ::n].T  # Transpose to align with napari's expected input
+    # vector_data = np.zeros((sampled_flows.shape[0], 2, 3))
+    # vector_data[:, 0, :] = sampled_points  # Start points
+    # vector_data[:, 1, :] =  sampled_flows *1  # End points, scale to adjust length
+    # viewer.add_vectors(vector_data, edge_width=0.1, edge_color='cyan',
+    #                 name='Flow Vectors')
+    # napari.run()
 
     return res_flow
 
@@ -278,8 +278,8 @@ def evalStatus_apply(fin_dir_path):
     if not MetaData['apply_MetaData']['input mesh checksum']==MetaData['Mesh_MetaData']['output mesh checksum']:
         return MetaData
     
-    if not MetaData['apply_MetaData']['input proj checksum']==MetaData['project_MetaData']['output proj checksum']:
-        return MetaData
+    # if not MetaData['apply_MetaData']['input proj checksum']==MetaData['project_MetaData']['output proj checksum']:
+    #     return MetaData
 
     return False
 
@@ -326,7 +326,8 @@ def apply_models():
         MetaData_flow['experimentalist']='Sahra'
         MetaData_flow['genotype']='WT'
         MetaData_flow['input mesh checksum']=MetaData_mesh['output mesh checksum']
-        check_proj=get_checksum(os.path.join(fin_dir_path,flow_file_name), algorithm="SHA1")
+        MetaData_flow['input proj checksum']=MetaData_mesh['output proj checksum']
+        check_proj=get_checksum(os.path.join(fin_dir_path,flow_file_name+'.npy'), algorithm="SHA1")
         MetaData_flow['output flow checksum']=check_proj
         writeJSON(fin_dir_path,'apply_MetaData',MetaData_flow)       
 
