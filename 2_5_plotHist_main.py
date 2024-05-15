@@ -73,9 +73,9 @@ def plotHistogramms(relevant_conditions):
         data_file_path=os.path.join(hist_dir_path,data_file)
         hist_data=np.load(data_file_path+'.npy',allow_pickle=True)
         
-        plot3d_napari(mesh)
+        #plot3d_napari(mesh)
 
-        #plot2d(mesh)
+        plot2d(mesh)
 
 
 
