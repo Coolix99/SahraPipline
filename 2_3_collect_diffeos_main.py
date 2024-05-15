@@ -23,7 +23,7 @@ def main():
 
 def plot():
     ED_folder_list=[folder for folder in os.listdir(ElementaryDiffeos_path) if os.path.isdir(os.path.join(ElementaryDiffeos_path, folder))]
-    ED_folder_list=['diffeo_0a0502224f']
+    #ED_folder_list=['diffeo_0a0502224f']
     for ED_folder in ED_folder_list:
         print(ED_folder)
         ED_folder_path=os.path.join(ElementaryDiffeos_path,ED_folder)
@@ -57,5 +57,5 @@ def plot():
 
 
 if __name__ == "__main__":
-    #main()
-    plot()
+    main()
+    #plot()
