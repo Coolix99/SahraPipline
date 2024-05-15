@@ -134,7 +134,9 @@ def plotCompare2d():
         surface_file=MetaData['Surface file']
         Mesh_file_path=os.path.join(hist_dir_path,surface_file)
         mesh=pv.read(Mesh_file_path)
-        
+
+        mesh.point_data['mean2-gauss']=mesh.point_data['avg_curvature_avg']*mesh.point_data['avg_curvature_avg']-mesh.point_data['gauss_curvature_avg']
+            
         data_file=MetaData['Data file']
         data_file_path=os.path.join(hist_dir_path,data_file)
         hist_data=np.load(data_file_path+'.npy',allow_pickle=True)
@@ -152,8 +154,8 @@ def plotCompare2d():
     dev_meshes.sort()
     reg_meshes.sort()
     
-    keys = ['thickness_avg', 'avg_curvature_avg', 'gauss_curvature_avg']
-    nstds = [5, 4, 4]
+    keys = ['thickness_avg', 'avg_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
+    nstds = [5, 4, 4,4]
     
     global_min_max = {}
     for key in keys:
@@ -162,8 +164,10 @@ def plotCompare2d():
     print(global_min_max)
     global_min_max['avg_curvature_avg']=(-0.01, 0.01)
     global_min_max['gauss_curvature_avg']=(-0.0001, 0.0001)
+    global_min_max['mean2-gauss'] = (-0.00003, 0.00003)
     from matplotlib.gridspec import GridSpec
     for key, nstd in zip(keys, nstds):
+        print(key)
         vmin, vmax = global_min_max[key]
         fig = plt.figure(figsize=(25, 8))
         gs = GridSpec(2, max(len(dev_meshes), len(reg_meshes)), figure=fig)
@@ -194,8 +198,8 @@ def plotCompare2d():
     
 
 def main():  
-    #plotCompare2d()
-    plotHistogramms(['time in hpf','condition'])
+    plotCompare2d()
+    #plotHistogramms(['time in hpf','condition'])
     #plotHistogramms(['condition'])
     #plotHistogramms(['time in hpf'])
     return
