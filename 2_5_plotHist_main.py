@@ -1,12 +1,9 @@
 import pandas as pd
-import networkx as nx
 import pyvista as pv
-from typing import List
-import git
 import napari
-from simple_file_checksum import get_checksum
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
+import re
 
 from config import *
 from IO import *
@@ -51,8 +48,6 @@ def plot2d(mesh):
         plt.grid(True)
         plt.show()
 
-
-
 def plotHistogramms(relevant_conditions):
     relevant_conditions.sort()
     combined_string = '_'.join(relevant_conditions)
@@ -80,15 +75,129 @@ def plotHistogramms(relevant_conditions):
         
         plot3d_napari(mesh)
 
-        plot2d(mesh)
+        #plot2d(mesh)
 
+
+
+def extract_category_and_number(input_string):
+    # Define the regex pattern to match the required format
+    pattern = r'([a-zA-Z]+)_(\d+)'
+    
+    # Use the re.match method to apply the regex pattern to the input string
+    match = re.match(pattern, input_string)
+    
+    if match:
+        # Extract the category and number from the match object
+        category = match.group(1)
+        number = int(match.group(2))
+        return category, number
+    else:
+        # If the input string doesn't match the pattern, return None
+        return None
+
+def plot_mesh_2d(ax, mesh, key, nstd, vmin, vmax):
+    coord_1 = mesh.point_data['coord_1']
+    coord_2 = mesh.point_data['coord_2']
+    faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+    triangulation = tri.Triangulation(coord_1, coord_2, faces)
+    
+    data = mesh.point_data[key]
+    filtered_data = filter_outliers(data, nstd)
+    
+    coloring = ax.tripcolor(triangulation, filtered_data, shading='flat', cmap='viridis', vmin=vmin, vmax=vmax)
+    ax.set_xlabel('Coord 1')
+    ax.set_ylabel('Coord 2')
+    ax.set_aspect('equal')
+    ax.grid(True)
+    return coloring
+
+def plotCompare2d():
+    relevant_conditions=['time in hpf','condition']
+    relevant_conditions.sort()
+    combined_string = '_'.join(relevant_conditions)
+    Condition_path_dir=os.path.join(Hist_path,combined_string)
+    print(Condition_path_dir)
+    hist_folder_list=[folder for folder in os.listdir(Condition_path_dir) if os.path.isdir(os.path.join(Condition_path_dir, folder))]
+    times=[]
+    categories=[]
+    meshs=[]
+    for hist_folder in hist_folder_list:
+        hist_dir_path=os.path.join(Condition_path_dir,hist_folder)
+
+        MetaData=get_JSON(hist_dir_path)
         
+        if not 'Hist_MetaData' in MetaData:
+            continue
+        MetaData=MetaData['Hist_MetaData']
+        print(hist_folder)
+        
+        surface_file=MetaData['Surface file']
+        Mesh_file_path=os.path.join(hist_dir_path,surface_file)
+        mesh=pv.read(Mesh_file_path)
+        
+        data_file=MetaData['Data file']
+        data_file_path=os.path.join(hist_dir_path,data_file)
+        hist_data=np.load(data_file_path+'.npy',allow_pickle=True)
+        
+        category,time=extract_category_and_number(hist_folder)
+        
+        times.append(time)
+        categories.append(category)
+        meshs.append(mesh)
+    
+    # Organize meshes by category and time
+    dev_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'dev']
+    reg_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'reg']
+    
+    dev_meshes.sort()
+    reg_meshes.sort()
+    
+    keys = ['thickness_avg', 'avg_curvature_avg', 'gauss_curvature_avg']
+    nstds = [5, 4, 4]
+    
+    global_min_max = {}
+    for key in keys:
+        all_values = np.concatenate([mesh.point_data[key] for mesh in meshs])
+        global_min_max[key] = (all_values.min(), all_values.max())
+    print(global_min_max)
+    global_min_max['avg_curvature_avg']=(-0.01, 0.01)
+    global_min_max['gauss_curvature_avg']=(-0.0001, 0.0001)
+    from matplotlib.gridspec import GridSpec
+    for key, nstd in zip(keys, nstds):
+        vmin, vmax = global_min_max[key]
+        fig = plt.figure(figsize=(25, 8))
+        gs = GridSpec(2, max(len(dev_meshes), len(reg_meshes)), figure=fig)
+        
+        axs = []
+        for i in range(max(len(dev_meshes), len(reg_meshes))):
+            if i < len(dev_meshes):
+                ax = fig.add_subplot(gs[0, i])
+                coloring = plot_mesh_2d(ax, dev_meshes[i][1], key, nstd, vmin, vmax)
+                ax.set_title(f'dev_{dev_meshes[i][0]}')
+                axs.append(ax)
+            if i < len(reg_meshes):
+                ax = fig.add_subplot(gs[1, i])
+                coloring = plot_mesh_2d(ax, reg_meshes[i][1], key, nstd, vmin, vmax)
+                ax.set_title(f'reg_{reg_meshes[i][0]}')
+                axs.append(ax)
+        
+        plt.subplots_adjust(bottom=0.2)
+        
+        # Add colorbar in the margin at the bottom
+        cbar_ax = fig.add_axes([0.15, 0.1, 0.7, 0.02])  # [left, bottom, width, height]
+        cbar = fig.colorbar(coloring, cax=cbar_ax, orientation='horizontal')
+        cbar.set_label(key)
+        
+        plt.tight_layout(rect=[0, 0.2, 1, 1])
+        plt.show()
+
     
 
 def main():  
+    #plotCompare2d()
     plotHistogramms(['time in hpf','condition'])
-    plotHistogramms(['condition'])
-    plotHistogramms(['time in hpf'])
+    #plotHistogramms(['condition'])
+    #plotHistogramms(['time in hpf'])
     return
     
     pass
