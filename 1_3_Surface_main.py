@@ -415,7 +415,7 @@ def make_Surface():
         CenterLine_file=os.path.join(FlatFin_dir_path,PastMetaData['CenterLine_MetaData']['CenterLine file'])
         CenterLine=np.load(CenterLine_file)
 
-        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()[::-1]
+        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()
 
         #actual calculation
         print('start surface construct')

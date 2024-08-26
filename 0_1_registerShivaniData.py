@@ -92,7 +92,7 @@ def register_raw():
             ED_marker_folder_path=os.path.join(ED_marker_path,img_name)
             make_path(ED_marker_folder_path)
             ED_marker_im_path=os.path.join(ED_marker_folder_path,img_name+'.tif')
-            save_array_as_tiff(image_data[0],ED_marker_im_path)
+            save_array_as_tiff(image_data[1],ED_marker_im_path)
 
             MetaData_ED_marker={}
             repo = git.Repo(gitPath,search_parent_directories=True)
@@ -156,5 +156,5 @@ def register_finmask():
        
 
 if __name__ == "__main__":
-    #register_raw()
-    register_finmask()
+    register_raw()
+    #register_finmask()

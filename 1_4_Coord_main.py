@@ -489,7 +489,7 @@ def make_Coord():
         MetaData_Orient=PastMetaData['Orient_MetaData']
         Orient_file=MetaData_Orient['Orient file']
 
-        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()[::-1] 
+        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()
 
         #actual calculation
         mesh = create_coord_system(os.path.join(FlatFin_dir_path,Surface_file_name),os.path.join(FlatFin_dir_path,Orient_file),os.path.join(FlatFin_dir_path,Rip_file),scales)

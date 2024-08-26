@@ -173,7 +173,7 @@ def make_Thickness():
         MetaData_Coord=PastMetaData['Coord_MetaData']
         Surface_file_name=MetaData_Coord['Surface file']
 
-        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()[::-1]
+        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()
 
         #actual calculation
         mesh = calculate_Thickness(os.path.join(finmasks_path,data_name,data_name+'.tif'),os.path.join(FlatFin_dir_path,Surface_file_name),scales)
