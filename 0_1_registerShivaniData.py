@@ -110,7 +110,7 @@ def register_raw():
             writeJSON(ED_marker_folder_path,'MetaData_ED_marker',MetaData_ED_marker)
 
 def register_finmask():
-    mask_folders_path=os.path.join(Input_Shivani_path,'scaled_masks')
+    mask_folders_path=os.path.join(Input_Shivani_path,'tissue_masks')
     
     raw_folders_list= [item for item in os.listdir(mask_folders_path) if os.path.isdir(os.path.join(mask_folders_path, item))]
     for raw_folder in raw_folders_list:

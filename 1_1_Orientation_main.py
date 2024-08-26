@@ -159,7 +159,7 @@ def make_orientation():
         make_path(FlatFin_dir_path)
         
         mask_img=getImage(os.path.join(mask_folder_path,maskMetaData['MetaData_finmasks']['finmasks file']))
-        membrane_img=getImage(os.path.join(mask_folder_path,membraneMetaData['MetaData_membrane']['membrane file']))
+        membrane_img=getImage(os.path.join(membrane_folder_path,membraneMetaData['MetaData_membrane']['membrane file']))
         masked_image = membrane_img * mask_img.astype(membrane_img.dtype)
 
         print('start interactive session')
