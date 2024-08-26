@@ -101,7 +101,9 @@ def vertical_center_line(prox_dist_pos,closed_image):
     return res
  
 def get_Plane(point1, point2, direction_dv,im_3d,centroid_3d):
+
     plane_normal, plane_point = define_plane(point1, point2, direction_dv)
+    
     vector_to_point = centroid_3d - plane_point
     projection = vector_to_point - np.dot(vector_to_point, plane_normal) * plane_normal
     center_plane_point = plane_point + projection
@@ -178,16 +180,21 @@ def interpolate_path(path,s_values, s_position):
     return index,interpolated_x, interpolated_y, interpolated_z
 
 def center_line_session(im_file,old_df):
+    #print(old_df)
     point1 = old_df[old_df['name'] == 'Proximal_pt']['coordinate_px'].values[0]
     point2 = old_df[old_df['name'] == 'Distal_pt']['coordinate_px'].values[0]
     direction_dv = old_df[old_df['name'] == 'fin_plane']['coordinate_px'].values[0]
     im_3d=getImage(im_file)
 
+    # viewer = napari.Viewer()
+    # viewer.add_labels(im_3d, name='Mask')
+    # napari.run()
+
     #centroid_3d = ndimage.center_of_mass(im_3d)
     centroid_3d=np.array(im_3d.shape,dtype=float)/2
 
     center_plane_point, direction_2 ,direction_1 , size_2d,plane_normal=get_Plane(point1, point2, direction_dv,im_3d,centroid_3d)
-    print(center_plane_point)
+
     im = create_2d_image_from_3d(center_plane_point,direction_2 ,direction_1 , size_2d, im_3d).astype(int)
     im_mask=im>0
 
@@ -312,10 +319,10 @@ def make_center_line():
 
         #actual calculation
         print('start interactive session')
-        center_line_path_3d=center_line_session(os.path.join(vol_path,str(PastMetaData['Orient_MetaData']['time in hpf'])+'hpf',data_name+'.tif'),Orient_df)
+        center_line_path_3d=center_line_session(os.path.join(finmasks_path,data_name,data_name+'.tif'),Orient_df)
         if(center_line_path_3d is None):
             continue
-        print(center_line_path_3d)
+        #print(center_line_path_3d)
 
         CenterLine_file_name=data_name+'_CenterLine.npy'
         CenterLine_file=os.path.join(FlatFin_dir_path,CenterLine_file_name)
@@ -328,7 +335,7 @@ def make_center_line():
         MetaData_CenterLine['git repo']='Sahrapipline'
         MetaData_CenterLine['CenterLine version']=CenterLine_version
         MetaData_CenterLine['CenterLine file']=CenterLine_file_name
-        MetaData_CenterLine['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_CenterLine['scales ZYX']=PastMetaData['Orient_MetaData']['scales ZYX']
         MetaData_CenterLine['condition']=PastMetaData['Orient_MetaData']['condition']
         MetaData_CenterLine['time in hpf']=PastMetaData['Orient_MetaData']['time in hpf']
         MetaData_CenterLine['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']

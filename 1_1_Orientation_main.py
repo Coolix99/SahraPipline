@@ -109,7 +109,7 @@ def orient_session(im):
     napari.run()
     df = pd.DataFrame(points_data)
     
-    print(df)
+    
 
 
     v1=extract_coordinate(df,'Proximal_pt')-extract_coordinate(df,'Distal_pt')
@@ -122,7 +122,7 @@ def orient_session(im):
 
     new_row = pd.DataFrame({'coordinate_px': [n], 'name': ['fin_plane']})
     df = pd.concat([df, new_row], ignore_index=True)
-
+    print(df)
     return df
 
 def evalStatus_orient(FlatFin_dir_path):
