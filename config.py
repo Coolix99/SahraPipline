@@ -29,8 +29,7 @@ ED_marker_path=os.path.join(Output_path,'ED_marker')
 finmasks_path=os.path.join(Output_path,'finmasks')
 
 # #Part I
-# vol_path=os.path.join(Input_path,'for_curv_thick')
-# FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
+FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
 
 # #Part II
 # SimilarityMST_path=os.path.join(Output_path,'for_curv_thick','Diffeo','SimilarityMST')

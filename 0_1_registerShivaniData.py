@@ -133,7 +133,7 @@ def register_finmask():
             
 
             #finmasks
-            finmasks_folder_path=os.path.join(finmasks_path,img_name)
+            finmasks_folder_path=os.path.join(finmasks_path,os.path.splitext(img_name)[0])
             make_path(finmasks_folder_path)
             finmasks_im_path=os.path.join(finmasks_folder_path,img_name)
             save_array_as_tiff(im,finmasks_im_path)

@@ -150,49 +150,47 @@ def extract_condition(s):
         raise ValueError(f"No 'dev' or 'reg' found in string: {s}")
 
 def make_orientation():
-    time_folder_list= [item for item in os.listdir(vol_path) if os.path.isdir(os.path.join(vol_path, item))]
-    for time_folder in time_folder_list:
-        time=int(time_folder[:-len('hpf')])
-        time_folder_path=os.path.join(vol_path,time_folder)
-        vol_list = os.listdir(time_folder_path)
-        for vol_img_name in vol_list:
-            if not vol_img_name[-4:]=='.tif':
-                continue
-            data_name=vol_img_name[:-4]
-            condition=extract_condition(data_name)
-            print(data_name,condition,time)
+    membrane_folder_list= [item for item in os.listdir(membranes_path) if os.path.isdir(os.path.join(membranes_path, item))]
+    for membrane_folder in membrane_folder_list:
+        print(membrane_folder)
+        membrane_folder_path=os.path.join(membranes_path,membrane_folder)
+        mask_folder_path=os.path.join(finmasks_path,membrane_folder+'_scaled')
+        print(get_JSON(mask_folder_path))
+        print(get_JSON(membrane_folder_path))
+        
+        return
 
-            FlatFin_dir_path=os.path.join(FlatFin_path,data_name+'_FlatFin')
+        FlatFin_dir_path=os.path.join(FlatFin_path,data_name+'_FlatFin')
 
-            PastMetaData=evalStatus_orient(FlatFin_dir_path)
-            if not isinstance(PastMetaData,dict):
-                continue
-            make_path(FlatFin_dir_path)
+        PastMetaData=evalStatus_orient(FlatFin_dir_path)
+        if not isinstance(PastMetaData,dict):
+            continue
+        make_path(FlatFin_dir_path)
 
-            vol_img,scales=getImage_Meta(os.path.join(time_folder_path,vol_img_name))
+        vol_img,scales=getImage_Meta(os.path.join(time_folder_path,vol_img_name))
 
-            print('start interactive session')
-            Orient_df=orient_session(vol_img)
-            
-            Orient_file_name=data_name+'_Orient.h5'
-            Orient_file=os.path.join(FlatFin_dir_path,Orient_file_name)
-            Orient_df.to_hdf(Orient_file, key='data', mode='w')
+        print('start interactive session')
+        Orient_df=orient_session(vol_img)
+        
+        Orient_file_name=data_name+'_Orient.h5'
+        Orient_file=os.path.join(FlatFin_dir_path,Orient_file_name)
+        Orient_df.to_hdf(Orient_file, key='data', mode='w')
 
-            MetaData_Orient={}
-            repo = git.Repo(gitPath,search_parent_directories=True)
-            sha = repo.head.object.hexsha
-            MetaData_Orient['git hash']=sha
-            MetaData_Orient['git repo']='Sahrapipline'
-            MetaData_Orient['Orient version']=Orient_version
-            MetaData_Orient['Orient file']=Orient_file_name
-            MetaData_Orient['scales']=[scales[0],scales[1],scales[2]]
-            MetaData_Orient['condition']=condition
-            MetaData_Orient['time in hpf']=time
-            MetaData_Orient['experimentalist']='Sahra'
-            MetaData_Orient['genotype']='WT'
-            check_Orient=get_checksum(Orient_file, algorithm="SHA1")
-            MetaData_Orient['output Orient checksum']=check_Orient
-            writeJSON(FlatFin_dir_path,'Orient_MetaData',MetaData_Orient)
+        MetaData_Orient={}
+        repo = git.Repo(gitPath,search_parent_directories=True)
+        sha = repo.head.object.hexsha
+        MetaData_Orient['git hash']=sha
+        MetaData_Orient['git repo']='Sahrapipline'
+        MetaData_Orient['Orient version']=Orient_version
+        MetaData_Orient['Orient file']=Orient_file_name
+        MetaData_Orient['scales']=[scales[0],scales[1],scales[2]]
+        MetaData_Orient['condition']=condition
+        MetaData_Orient['time in hpf']=time
+        MetaData_Orient['experimentalist']='Sahra'
+        MetaData_Orient['genotype']='WT'
+        check_Orient=get_checksum(Orient_file, algorithm="SHA1")
+        MetaData_Orient['output Orient checksum']=check_Orient
+        writeJSON(FlatFin_dir_path,'Orient_MetaData',MetaData_Orient)
         continue
        
 
