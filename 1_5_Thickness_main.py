@@ -173,10 +173,10 @@ def make_Thickness():
         MetaData_Coord=PastMetaData['Coord_MetaData']
         Surface_file_name=MetaData_Coord['Surface file']
 
-        scales=PastMetaData['CenterLine_MetaData']['scales'].copy()
+        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()[::-1]
 
         #actual calculation
-        mesh = calculate_Thickness(os.path.join(vol_path,str(PastMetaData['Orient_MetaData']['time in hpf'])+'hpf',data_name+'.tif'),os.path.join(FlatFin_dir_path,Surface_file_name),scales)
+        mesh = calculate_Thickness(os.path.join(finmasks_path,data_name,data_name+'.tif'),os.path.join(FlatFin_dir_path,Surface_file_name),scales)
         
         Surface_file=os.path.join(FlatFin_dir_path,Surface_file_name)
         mesh.save(Surface_file)
@@ -188,7 +188,7 @@ def make_Thickness():
         MetaData_Thickness['git repo']='Sahrapipline'
         MetaData_Thickness['Thickness version']=Thickness_version
         MetaData_Thickness['Surface file']=Surface_file_name
-        MetaData_Thickness['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_Thickness['scales ZYX']=PastMetaData['Orient_MetaData']['scales ZYX']
         MetaData_Thickness['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']
         MetaData_Thickness['genotype']=PastMetaData['Surface_MetaData']['genotype']
         MetaData_Thickness['condition']=PastMetaData['Orient_MetaData']['condition']

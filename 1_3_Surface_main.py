@@ -415,11 +415,11 @@ def make_Surface():
         CenterLine_file=os.path.join(FlatFin_dir_path,PastMetaData['CenterLine_MetaData']['CenterLine file'])
         CenterLine=np.load(CenterLine_file)
 
-        scales=PastMetaData['CenterLine_MetaData']['scales'].copy()
+        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()[::-1]
 
         #actual calculation
         print('start surface construct')
-        surface,Rip_df=construct_Surface(os.path.join(vol_path,str(PastMetaData['Orient_MetaData']['time in hpf'])+'hpf',data_name+'.tif'),Orient_df,CenterLine,scales)
+        surface,Rip_df=construct_Surface(os.path.join(finmasks_path,data_name,data_name+'.tif'),Orient_df,CenterLine,scales)
         
         Surface_file_name=data_name+'_surface.vtk'
         Surface_file=os.path.join(FlatFin_dir_path,Surface_file_name)
@@ -437,7 +437,7 @@ def make_Surface():
         MetaData_Surface['Surface version']=Surface_version
         MetaData_Surface['Surface file']=Surface_file_name
         MetaData_Surface['Rip file']=Rip_file_name
-        MetaData_Surface['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_Surface['scales ZYX']=PastMetaData['Orient_MetaData']['scales ZYX']
         MetaData_Surface['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']
         MetaData_Surface['condition']=PastMetaData['Orient_MetaData']['condition']
         MetaData_Surface['time in hpf']=PastMetaData['Orient_MetaData']['time in hpf']

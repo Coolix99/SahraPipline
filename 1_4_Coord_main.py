@@ -489,7 +489,7 @@ def make_Coord():
         MetaData_Orient=PastMetaData['Orient_MetaData']
         Orient_file=MetaData_Orient['Orient file']
 
-        scales=PastMetaData['CenterLine_MetaData']['scales'].copy() 
+        scales=PastMetaData['CenterLine_MetaData']['scales ZYX'].copy()[::-1] 
 
         #actual calculation
         mesh = create_coord_system(os.path.join(FlatFin_dir_path,Surface_file_name),os.path.join(FlatFin_dir_path,Orient_file),os.path.join(FlatFin_dir_path,Rip_file),scales)
@@ -510,7 +510,7 @@ def make_Coord():
         MetaData_Coord['git repo']='Sahrapipline'
         MetaData_Coord['Coord version']=Coord_version
         MetaData_Coord['Surface file']=Surface_file_name
-        MetaData_Coord['scales']=PastMetaData['Orient_MetaData']['scales']
+        MetaData_Coord['scales ZYX']=PastMetaData['Orient_MetaData']['scales ZYX']
         MetaData_Coord['condition']=PastMetaData['Orient_MetaData']['condition']
         MetaData_Coord['time in hpf']=PastMetaData['Surface_MetaData']['time in hpf']
         MetaData_Coord['experimentalist']=PastMetaData['Orient_MetaData']['experimentalist']
