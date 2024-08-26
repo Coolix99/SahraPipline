@@ -109,8 +109,52 @@ def register_raw():
             MetaData_ED_marker['ED_marker checksum']=check
             writeJSON(ED_marker_folder_path,'MetaData_ED_marker',MetaData_ED_marker)
 
+def register_finmask():
+    mask_folders_path=os.path.join(Input_Shivani_path,'scaled_masks')
+    
+    raw_folders_list= [item for item in os.listdir(mask_folders_path) if os.path.isdir(os.path.join(mask_folders_path, item))]
+    for raw_folder in raw_folders_list:
+        time, is_dev=extract_info(raw_folder)
+        print(time, is_dev)
+        img_folder_path=os.path.join(mask_folders_path,raw_folder)
+        im_list = os.listdir(img_folder_path)
+        for img_name in im_list:
+            print(img_name)
+            im=getImage(os.path.join(img_folder_path,img_name))
+            
+            
+            # viewer = napari.Viewer()
+            # for i in range(image_data.shape[0]):  # Iterate over the channels
+            #     viewer.add_image(image_data[i], name=f'Channel {i+1}')
+
+            # # Run the Napari event loop
+            # napari.run()
+  
+            
+
+            #finmasks
+            finmasks_folder_path=os.path.join(finmasks_path,img_name)
+            make_path(finmasks_folder_path)
+            finmasks_im_path=os.path.join(finmasks_folder_path,img_name)
+            save_array_as_tiff(im,finmasks_im_path)
+
+            MetaData_finmasks={}
+            repo = git.Repo(gitPath,search_parent_directories=True)
+            sha = repo.head.object.hexsha
+            MetaData_finmasks['git hash']=sha
+            MetaData_finmasks['git repo']='Sahrapipline'
+            MetaData_finmasks['finmasks file']=img_name
+            MetaData_finmasks['condition']='Development' if is_dev else 'Regeneration'
+            MetaData_finmasks['time in hpf']=time
+            MetaData_finmasks['experimentalist']='Shivani'
+            MetaData_finmasks['genotype']='WT'
+            check=get_checksum(finmasks_im_path, algorithm="SHA1")
+            MetaData_finmasks['finmasks checksum']=check
+            writeJSON(finmasks_folder_path,'MetaData_finmasks',MetaData_finmasks)
+
        
        
 
 if __name__ == "__main__":
-    register_raw()
+    #register_raw()
+    register_finmask()
