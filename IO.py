@@ -9,6 +9,9 @@ import json
 from config import *
 
 
+def save_array_as_tiff(image_data: np.ndarray, output_tiff_file: str):
+    # Save the NumPy array as a TIFF file
+    tifffile.imwrite(output_tiff_file, image_data)
 
 def getImage(file):
     with tifffile.TiffFile(file) as tif:

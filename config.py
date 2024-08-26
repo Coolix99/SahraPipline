@@ -3,16 +3,16 @@ import os
 from config_machine import *
 
 if(machine=='Home'):
-    Sahra_path=(r'E:\02_Data\share_Sahra{}').format("")
+    #Sahra_Shivani_path=(r'E:\02_Data\share_Sahra{}').format("")
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 
 if(machine=='Laptop'):
-    Sahra_path=(r'C:\Users\s0095413\Documents\02_Data\share_Sarah\{}').format("")
+    #Sahra_Shivani_path=(r'C:\Users\s0095413\Documents\02_Data\share_Sarah\{}').format("")
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
 if(machine=='BA'):
-    Sahra_path=(r'/home/max/Documents/02_Data/share_Sarah/{}').format("")
+    Sahra_Shivani_path=(r'/home/max/Documents/02_Data/sahra_shivani_data')
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     
@@ -20,22 +20,27 @@ if(machine=='BA'):
 """path structure"""
 gitPath=script_dir
 
-Input_path=os.path.join(Sahra_path,'for_max')
-Output_path=os.path.join(Sahra_path,'for_sahra')
+Output_path=os.path.join(Sahra_Shivani_path,'sorted_data')
 
-#Part I
-vol_path=os.path.join(Input_path,'for_curv_thick')
-FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
+#Part 0
+Input_Shivani_path=os.path.join(Sahra_Shivani_path,'from_Shivani')
+membranes_path=os.path.join(Output_path,'membranes')
+ED_marker_path=os.path.join(Output_path,'ED_marker')
+finmasks_path=os.path.join(Output_path,'finmasks')
 
-#Part II
-SimilarityMST_path=os.path.join(Output_path,'for_curv_thick','Diffeo','SimilarityMST')
-ElementaryDiffeos_path=os.path.join(Output_path,'for_curv_thick','Diffeo','ElementaryDiffeos')
-Hist_path=os.path.join(Output_path,'for_curv_thick','Diffeo','Histogramms')
+# #Part I
+# vol_path=os.path.join(Input_path,'for_curv_thick')
+# FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
 
-#Part III
-EpFlat_path=os.path.join(Input_path,'epithelia_flat_test')
-EpSeg_path=os.path.join(Output_path,'epithelia_flat_test')
-EpSeg_path=os.path.join(EpSeg_path,'fin')
+# #Part II
+# SimilarityMST_path=os.path.join(Output_path,'for_curv_thick','Diffeo','SimilarityMST')
+# ElementaryDiffeos_path=os.path.join(Output_path,'for_curv_thick','Diffeo','ElementaryDiffeos')
+# Hist_path=os.path.join(Output_path,'for_curv_thick','Diffeo','Histogramms')
+
+# #Part III
+# EpFlat_path=os.path.join(Input_path,'epithelia_flat_test')
+# EpSeg_path=os.path.join(Output_path,'epithelia_flat_test')
+# EpSeg_path=os.path.join(EpSeg_path,'fin')
 
 """versions"""
 #Part I
