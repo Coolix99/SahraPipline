@@ -146,7 +146,7 @@ def make_orientation():
     for membrane_folder in membrane_folder_list:
         print(membrane_folder)
         membrane_folder_path=os.path.join(membranes_path,membrane_folder)
-        mask_folder_path=os.path.join(finmasks_path,membrane_folder+'_scaled')
+        mask_folder_path=os.path.join(finmasks_path,membrane_folder)
         
         maskMetaData=get_JSON(mask_folder_path)
         membraneMetaData=get_JSON(membrane_folder_path)
@@ -160,7 +160,17 @@ def make_orientation():
         
         mask_img=getImage(os.path.join(mask_folder_path,maskMetaData['MetaData_finmasks']['finmasks file']))
         membrane_img=getImage(os.path.join(membrane_folder_path,membraneMetaData['MetaData_membrane']['membrane file']))
-        masked_image = membrane_img * mask_img.astype(membrane_img.dtype)
+        
+        masked_image = membrane_img.copy()
+        masked_image[mask_img<255]=0
+        
+        # viewer = napari.Viewer()
+        # viewer.add_labels(mask_img, name='Mask')
+        # viewer.add_image(membrane_img, name='Membrane')
+        # viewer.add_image(masked_image, name='res')
+        # napari.run()
+
+        
 
         print('start interactive session')
         Orient_df=orient_session(masked_image)
