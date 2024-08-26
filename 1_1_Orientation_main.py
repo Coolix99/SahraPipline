@@ -140,14 +140,6 @@ def evalStatus_orient(FlatFin_dir_path):
 
     return False
 
-def extract_condition(s):
-    # Using regular expressions to find 'dev' or 'reg'
-    match = re.search(r'(dev|reg)', s)
-    if match:
-        return match.group(1)
-    else:
-        # If neither 'dev' nor 'reg' is found, raise an error
-        raise ValueError(f"No 'dev' or 'reg' found in string: {s}")
 
 def make_orientation():
     membrane_folder_list= [item for item in os.listdir(membranes_path) if os.path.isdir(os.path.join(membranes_path, item))]
@@ -155,24 +147,25 @@ def make_orientation():
         print(membrane_folder)
         membrane_folder_path=os.path.join(membranes_path,membrane_folder)
         mask_folder_path=os.path.join(finmasks_path,membrane_folder+'_scaled')
-        print(get_JSON(mask_folder_path))
-        print(get_JSON(membrane_folder_path))
         
-        return
-
-        FlatFin_dir_path=os.path.join(FlatFin_path,data_name+'_FlatFin')
+        maskMetaData=get_JSON(mask_folder_path)
+        membraneMetaData=get_JSON(membrane_folder_path)
+        
+        FlatFin_dir_path=os.path.join(FlatFin_path,membrane_folder+'_FlatFin')
 
         PastMetaData=evalStatus_orient(FlatFin_dir_path)
         if not isinstance(PastMetaData,dict):
             continue
         make_path(FlatFin_dir_path)
-
-        vol_img,scales=getImage_Meta(os.path.join(time_folder_path,vol_img_name))
+        
+        mask_img=getImage(os.path.join(mask_folder_path,maskMetaData['MetaData_finmasks']['finmasks file']))
+        membrane_img=getImage(os.path.join(mask_folder_path,membraneMetaData['MetaData_membrane']['membrane file']))
+        masked_image = membrane_img * mask_img.astype(membrane_img.dtype)
 
         print('start interactive session')
-        Orient_df=orient_session(vol_img)
+        Orient_df=orient_session(masked_image)
         
-        Orient_file_name=data_name+'_Orient.h5'
+        Orient_file_name=membrane_folder+'_Orient.h5'
         Orient_file=os.path.join(FlatFin_dir_path,Orient_file_name)
         Orient_df.to_hdf(Orient_file, key='data', mode='w')
 
@@ -183,11 +176,11 @@ def make_orientation():
         MetaData_Orient['git repo']='Sahrapipline'
         MetaData_Orient['Orient version']=Orient_version
         MetaData_Orient['Orient file']=Orient_file_name
-        MetaData_Orient['scales']=[scales[0],scales[1],scales[2]]
-        MetaData_Orient['condition']=condition
-        MetaData_Orient['time in hpf']=time
-        MetaData_Orient['experimentalist']='Sahra'
-        MetaData_Orient['genotype']='WT'
+        MetaData_Orient['scales ZYX']=membraneMetaData['MetaData_membrane']['scales ZYX']
+        MetaData_Orient['condition']=membraneMetaData['MetaData_membrane']['condition']
+        MetaData_Orient['time in hpf']=membraneMetaData['MetaData_membrane']['time in hpf']
+        MetaData_Orient['experimentalist']=membraneMetaData['MetaData_membrane']['experimentalist']
+        MetaData_Orient['genotype']=membraneMetaData['MetaData_membrane']['genotype']
         check_Orient=get_checksum(Orient_file, algorithm="SHA1")
         MetaData_Orient['output Orient checksum']=check_Orient
         writeJSON(FlatFin_dir_path,'Orient_MetaData',MetaData_Orient)
