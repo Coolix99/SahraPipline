@@ -336,15 +336,15 @@ def calculateCurvatureTensor(mesh):
     
     vals,vec=np.linalg.eigh(curvature_tensors)
     
-    avg_curvature=(vals[:,0]+vals[:,1])/2
+    mean_curvature=(vals[:,0]+vals[:,1])/2
     gauss_curvature=(vals[:,0]*vals[:,1])
 
-    # avg_curvature_pv=mesh.curvature(curv_type='mean')
+    # mean_curvature_pv=mesh.curvature(curv_type='mean')
     # gauss_curvature_pv=mesh.curvature(curv_type='gaussian')
 
     #import matplotlib.pyplot as plt
     # plt.figure(figsize=(10, 6))
-    # plt.scatter(avg_curvature, avg_curvature_pv)
+    # plt.scatter(mean_curvature, mean_curvature_pv)
     # plt.title('avg')
     # plt.xlabel('own')
     # plt.ylabel('pv')
@@ -358,13 +358,13 @@ def calculateCurvatureTensor(mesh):
     # plt.grid(alpha=0.75)
     # plt.show()
 
-    # average = np.mean(avg_curvature)
-    # std_dev = np.std(avg_curvature)
-    # outliers = np.abs(avg_curvature - average) > 2 * std_dev
-    # avg_curvature[outliers] = np.nan
+    # average = np.mean(mean_curvature)
+    # std_dev = np.std(mean_curvature)
+    # outliers = np.abs(mean_curvature - average) > 2 * std_dev
+    # mean_curvature[outliers] = np.nan
 
     
-    # valid_values = avg_curvature[~np.isnan(avg_curvature)]
+    # valid_values = mean_curvature[~np.isnan(mean_curvature)]
     # plt.figure(figsize=(10, 6))
     # plt.hist(valid_values, bins=10, alpha=0.7, color='blue', edgecolor='black')
     # plt.title('Histogram of Values Distribution')
@@ -391,13 +391,13 @@ def calculateCurvatureTensor(mesh):
     mesh.point_data['curvature_tensor']=curvature_tensors
     mesh.point_data['main_curvature_directions']=vec
     mesh.point_data['main_curvatures']=vals
-    mesh.point_data['avg_curvature']=avg_curvature
+    mesh.point_data['mean_curvature']=mean_curvature
     mesh.point_data['gauss_curvature']=gauss_curvature
 
     return 1
 
     p = pv.Plotter()
-    p.add_mesh(mesh,scalars="avg_curvature", color="grey", show_edges=False)
+    p.add_mesh(mesh,scalars="mean_curvature", color="grey", show_edges=False)
     p.show()
 
     p = pv.Plotter()
