@@ -5,6 +5,7 @@ import os
 import git
 from simple_file_checksum import get_checksum
 import pyvista as pv
+import shutil
 
 from config import *
 from IO import *
@@ -38,7 +39,48 @@ def plot_surface_image_mask(surf_file,membrane_file, ED_file, mask_file,scales):
     
     # Start Napari viewer
     napari.run()
-    
+
+def plot_surface_delete(Surface_file_name,data_name):
+    FlatFin_dir_path=os.path.join(FlatFin_path,data_name+'_FlatFin')
+    surf_file=os.path.join(FlatFin_dir_path,Surface_file_name)
+    mesh = pv.read(surf_file)
+    print(mesh.point_data)
+
+    # Create a plotter
+    plotter = pv.Plotter()
+
+    # Add the mesh to the plotter
+    plotter.add_mesh(mesh, scalars='thickness')
+
+    # Define a callback function for key press events
+    def key_callback(key):
+        print(key)
+        if key == 'd' or key == 'r':
+            print(f"Deleting {surf_file}")
+            if os.path.exists(FlatFin_dir_path):
+                try:
+                    shutil.rmtree(FlatFin_dir_path)
+                except Exception as e:
+                    print(f"Error: {e}")
+            if key == 'r':
+                print(f"Deleting also {data_name}")
+                # shutil.rmtree(os.path.join(membranes_path,data_name))
+                # shutil.rmtree(os.path.join(ED_marker_path,data_name))
+                # shutil.rmtree(os.path.join(finmasks_path,data_name))
+            plotter.close()
+
+    # Add the key press callback to the plotter
+    plotter.add_key_event('d', lambda: key_callback('d'))  # Bind 'd' to delete
+    plotter.add_key_event('r', lambda: key_callback('r'))  # Bind 'r' to delete
+    plotter.add_key_event('q', lambda: key_callback('q'))  # Bind 'q' to close without deleting
+
+    # Show the plot and wait for key press
+    try:
+        plotter.show()
+    except Exception as e:
+        print(f"Error: {e}")
+
+
 
 def plot_all():
     FlatFin_folder_list=os.listdir(FlatFin_path)
@@ -53,17 +95,23 @@ def plot_all():
             continue
         if 'Thickness_MetaData' in MetaData:
             MetaData=MetaData['Thickness_MetaData']
-        elif 'Coord_MetaData' in MetaData:
-            MetaData=MetaData['Coord_MetaData']
         else:
-            MetaData=MetaData['Surface_MetaData']
+            print('no Thickness')
+            continue
+
+        # elif 'Coord_MetaData' in MetaData:
+        #     MetaData=MetaData['Coord_MetaData']
+        # else:
+        #     MetaData=MetaData['Surface_MetaData']
 
 
         Surface_file_name=MetaData['Surface file']
-
         #plot_surface(os.path.join(FlatFin_dir_path,Surface_file_name))
 
         data_name=FlatFin_folder[:-len('_FlatFin')]
+        plot_surface_delete(Surface_file_name,data_name)
+        continue
+        
         
         plot_surface_image_mask(os.path.join(FlatFin_dir_path,Surface_file_name),
                                 os.path.join(membranes_path,data_name,data_name+'.tif'),

@@ -161,3 +161,4 @@ cython_debug/
 
 # own files
 config_machine.py
+*.html

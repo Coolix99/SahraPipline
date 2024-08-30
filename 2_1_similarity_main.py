@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import pdist, squareform
 from scipy.sparse.csgraph import minimum_spanning_tree
+from scipy.spatial import distance_matrix
 from scipy.sparse import find 
 
 from config import *
@@ -18,10 +19,10 @@ def calculate_mesh_features(mesh:pv.PolyData):
     features = {}
     #print(mesh.point_data)
     features['surface_area'] = mesh.area
-    features['average_curvature'] = mesh.point_data['avg_curvature'].mean()
-    features['gauss_curvature'] = mesh.point_data['gauss_curvature'].mean()
-    features['max average_curvature'] = np.abs(mesh.point_data['avg_curvature']).max()
-    features['max gauss_curvature'] = np.abs(mesh.point_data['gauss_curvature']).max()
+    # features['average_curvature'] = mesh.point_data['avg_curvature'].mean()
+    # features['gauss_curvature'] = mesh.point_data['gauss_curvature'].mean()
+    # features['max average_curvature'] = np.abs(mesh.point_data['avg_curvature']).max()
+    # features['max gauss_curvature'] = np.abs(mesh.point_data['gauss_curvature']).max()
     features['L1'] = np.max(mesh.point_data['coord_1'])-np.min(mesh.point_data['coord_1'])
     features['L2'] = np.max(mesh.point_data['coord_2'])-np.min(mesh.point_data['coord_2'])
     features['aspect ratio'] = features['L1']/features['L2']
@@ -29,72 +30,84 @@ def calculate_mesh_features(mesh:pv.PolyData):
 
     return features
 
-def getMST(df):
-    if len(df)==1:
+def get_primitive_Graph(df):
+    from scipy.spatial import KDTree
+    from bokeh.plotting import figure, show
+    from bokeh.models import ColumnDataSource, HoverTool
+    from bokeh.transform import factor_mark, linear_cmap
+    from bokeh.palettes import Viridis256
+    if len(df) == 1:
         return None
 
-    meshes=[]
+    meshes = []
     for row in df.itertuples():
-        meshes.append(pv.read(os.path.join(FlatFin_path,row.folder_name,row.file_name)))
+        meshes.append(pv.read(os.path.join(FlatFin_path, row.folder_name, row.file_name)))
 
-    #calculate features
+    # Calculate features
     features_list = [calculate_mesh_features(mesh) for mesh in meshes]
-    feature_df = pd.DataFrame(features_list)
+    feature_df = pd.DataFrame(features_list)[['surface_area', 'aspect ratio']]
+    
+    # Normalize the features
     scaler = StandardScaler()
     feature_df_normalized = scaler.fit_transform(feature_df)
+    
+    # Add normalized features back to the dataframe
+    df['x'] = feature_df_normalized[:, 0]
+    df['y'] = feature_df_normalized[:, 1]
+    
+    # Create a ColumnDataSource from the dataframe
+    source = ColumnDataSource(df)
+    
+    # Define unique markers for different conditions
+    conditions = df['condition'].unique()
+    markers = ['circle', 'triangle', 'square', 'diamond', 'inverted_triangle']
+    
+    # Create the Bokeh figure
+    p = figure(title="Feature Scatter Plot", tools="pan,wheel_zoom,box_zoom,reset")
+    
+    # Add scatter plot with different markers and colors
+    p.scatter('x', 'y', source=source,
+              fill_alpha=0.6, size=10,
+              marker=factor_mark('condition', markers, conditions),
+              color=linear_cmap('time in hpf', Viridis256, df['time in hpf'].min(), df['time in hpf'].max()))
+    
+    # Add hover tool to show the file_name
+    hover = HoverTool()
+    hover.tooltips = [
+        ("File Name", "@file_name"),
+        ("Condition", "@condition"),
+        ("Time in hpf", "@{time in hpf}"),
+        ("Surface Area", "@x"),
+        ("Aspect Ratio", "@y"),
+    ]
+    p.add_tools(hover)
 
-    #PCA
-    pca = PCA(n_components=2)
-    principal_components = pca.fit_transform(feature_df_normalized)
-    pca_df = pd.DataFrame(data = principal_components, columns = ['principal_component_1', 'principal_component_2'])
+    points = np.column_stack((df['x'], df['y']))
+    dist_matrix = distance_matrix(points, points)
+    mst = minimum_spanning_tree(dist_matrix).toarray()
 
-    #Centroid
-    centroid = pca_df.mean()
-    pca_df['distance_from_centroid'] = np.sqrt((pca_df['principal_component_1'] - centroid['principal_component_1'])**2 + 
-                                            (pca_df['principal_component_2'] - centroid['principal_component_2'])**2)
-    pca_df['file_name'] = df['file_name'].values
-    pca_df['folder_name'] = df['folder_name'].values
-    pca_df = pca_df.reset_index(drop=True)
-    sorted_df = pca_df.sort_values(by='distance_from_centroid')
-    #print(sorted_df[['file_name', 'distance_from_centroid']])
+    # Build the graph structure
+    graph = {row.folder_name: [] for row in df.itertuples()}
+    edges = []
 
-    #MST
-    coordinates = pca_df[['principal_component_1', 'principal_component_2']].values
-    distance_matrix = squareform(pdist(coordinates, metric='euclidean'))
-    mst_matrix = minimum_spanning_tree(distance_matrix)
-    # Extracting edges with correct indexing
-    rows, cols, distances = find(mst_matrix)
+    for i in range(len(points)):
+        for j in range(len(points)):
+            if mst[i, j] > 0:
+                graph[df.iloc[i]['folder_name']].append(df.iloc[j]['folder_name'])
+                edges.append((i, j))
+    
+    # Draw the edges as lines between points
+    for edge in edges:
+        p.line([points[edge[0], 0], points[edge[1], 0]], 
+               [points[edge[0], 1], points[edge[1], 1]], 
+               line_width=2, color='black')
+    
+    show(p)
+    print(graph)
+    # Return the graph in a dictionary format
+    return graph
 
-    edges_data = []
-    for start, end, dist in zip(rows, cols, distances):
-        if start != end:  # Ensure no self-loops, adjust logic as necessary
-            edges_data.append({
-                'Folder1': df.iloc[start]['folder_name'],
-                'Folder2': df.iloc[end]['folder_name'],
-                'Distance': mst_matrix[start, end]
-            })
-    # Convert list of dictionaries to DataFrame
-    edges_df = pd.DataFrame(edges_data)
-    #print(edges_df)
-
-    # mst = mst_matrix.toarray().astype(float)
-    # edges = np.column_stack(np.where(mst > 0))
-    # # Plotting the points
-    # plt.scatter(pca_df['principal_component_1'], pca_df['principal_component_2'], c='blue')
-    # # Drawing the MST edges
-    # for edge in edges:
-    #     point1 = pca_df.iloc[edge[0]][['principal_component_1', 'principal_component_2']]
-    #     point2 = pca_df.iloc[edge[1]][['principal_component_1', 'principal_component_2']]
-    #     plt.plot([point1[0], point2[0]], [point1[1], point2[1]], 'k-', alpha=0.6)
-
-    # plt.title('Minimum Spanning Tree of Meshes in PCA Space')
-    # plt.xlabel('Principal Component 1')
-    # plt.ylabel('Principal Component 2')
-    # plt.show()
-    return edges_df
-
-def make_sim_MSTs(relevant_conditions):
-    relevant_conditions.sort()
+def make_primitive_Graph():
     FlatFin_folder_list=os.listdir(FlatFin_path)
     FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
     data_list = []
@@ -115,34 +128,19 @@ def make_sim_MSTs(relevant_conditions):
             'experimentalist': MetaData['experimentalist']
         })
     df = pd.DataFrame(data_list)
-    grouped_df = df.groupby(relevant_conditions)
 
-    combined_string = '_'.join(relevant_conditions)
-    MST_path_dir=os.path.join(SimilarityMST_path,combined_string)
-    make_path(MST_path_dir)
-
-    data_list = []
-    for name, group in grouped_df:
-        print("Group Name:", name)
-        print(group, "\n")
-        edges_df = getMST(group)
-        if edges_df is None:
-            continue
-        combined_string = '_'.join(str(item) for item in name)
-        edges_df.to_hdf(os.path.join(MST_path_dir,combined_string+'.h5'), key='data', mode='w')
-        data_list.append({c:n for c,n in zip(relevant_conditions,name)})
-        data_list[-1]['file name']=combined_string+'.h5'
-    df = pd.DataFrame(data_list)
     print(df)
-    df.to_hdf(os.path.join(MST_path_dir,'alldf.h5'), key='data', mode='w')
+    
+    make_path(primitive_Graph_path)
+
+    
+    get_primitive_Graph(df)
     return
     
-    
+       
 
 def main():
-    make_sim_MSTs(['time in hpf','condition'])
-    make_sim_MSTs(['condition'])
-    make_sim_MSTs(['time in hpf'])
+    make_primitive_Graph()
 
     return
 

@@ -1,6 +1,6 @@
 import numpy as np
 from typing import List,Tuple
-#import napari
+import napari
 import os
 import git
 #import pandas as pd
@@ -8,6 +8,7 @@ from simple_file_checksum import get_checksum
 import re
 import czifile
 import xml.etree.ElementTree as ET
+from scipy.ndimage import gaussian_filter, label
 
 from config import *
 from IO import *
@@ -41,6 +42,46 @@ def read_czi_metadata(file_path: str):
         image_data = np.squeeze(czi.asarray())
 
     return voxel_size, image_data
+
+def apply_3d_gaussian_blur(image, sigma=1):
+    """Apply 3D Gaussian blur to the image."""
+    return gaussian_filter(image, sigma=sigma)
+
+def apply_threshold(image, threshold):
+    """Apply a threshold to the image."""
+    return image > threshold
+
+def extract_largest_connected_component(binary_image):
+    """Extract the largest connected component from the binary image."""
+    labeled_image, num_features = label(binary_image)
+    
+    # Find the largest connected component
+    if num_features == 0:
+        return np.zeros_like(binary_image, dtype=bool)
+    
+    component_sizes = np.array([np.sum(labeled_image == i + 1) for i in range(num_features)])
+    largest_component_index = np.argmax(component_sizes) + 1
+    
+    # Extract the largest component
+    largest_component = labeled_image == largest_component_index
+    
+    return largest_component
+
+def process_3d_image(image, sigma=4, threshold=0.5):
+    """Process the 3D image: Gaussian blur, threshold, and extract the largest component."""
+    blurred_image = apply_3d_gaussian_blur(image.astype(np.float32), sigma)
+    binary_image = apply_threshold(blurred_image, threshold)
+    largest_component = extract_largest_connected_component(binary_image)
+    
+    # viewer = napari.Viewer()
+    # viewer.add_labels(image, name=f'image ')
+    # viewer.add_image(blurred_image, name=f'blurred_image ')
+    # viewer.add_labels(binary_image, name=f'binary_image ')
+    # viewer.add_labels(largest_component, name=f'largest_component ')
+    # napari.run()
+
+    return largest_component
+
 
 def register_raw():
     raw_folders_path=os.path.join(Input_Shivani_path,'raw_images')
@@ -92,6 +133,7 @@ def register_raw():
             ED_marker_folder_path=os.path.join(ED_marker_path,img_name)
             make_path(ED_marker_folder_path)
             ED_marker_im_path=os.path.join(ED_marker_folder_path,img_name+'.tif')
+            
             save_array_as_tiff(image_data[1],ED_marker_im_path)
 
             MetaData_ED_marker={}
@@ -122,15 +164,7 @@ def register_finmask():
             print(img_name)
             im=getImage(os.path.join(img_folder_path,img_name))
             
-            
-            # viewer = napari.Viewer()
-            # for i in range(image_data.shape[0]):  # Iterate over the channels
-            #     viewer.add_image(image_data[i], name=f'Channel {i+1}')
-
-            # # Run the Napari event loop
-            # napari.run()
-  
-            
+            im=process_3d_image(im>0)
 
             #finmasks
             finmasks_folder_path=os.path.join(finmasks_path,os.path.splitext(img_name)[0])
@@ -156,5 +190,5 @@ def register_finmask():
        
 
 if __name__ == "__main__":
-    register_raw()
-    #register_finmask()
+    #register_raw()
+    register_finmask()

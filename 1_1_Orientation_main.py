@@ -17,9 +17,11 @@ def extract_coordinate(df, name):
     else:
         return None
 
-def orient_session(im):
+def orient_session(mask_img,membrane_img,ED_img):
     viewer = napari.Viewer(ndisplay=3)
-    im_layer = viewer.add_image(im)
+    viewer.add_image(ED_img)
+    viewer.add_image(membrane_img,blending='additive')
+    im_layer = viewer.add_labels(mask_img)
     last_pos=None
     last_viewer_direction=None
     points = []
@@ -120,6 +122,9 @@ def orient_session(im):
     n=np.cross(v3,v2)
     n = n / np.linalg.norm(n)
 
+    if np.isnan(n).any():
+        raise ValueError("The array contains NaN values.")
+
     new_row = pd.DataFrame({'coordinate_px': [n], 'name': ['fin_plane']})
     df = pd.concat([df, new_row], ignore_index=True)
     print(df)
@@ -147,9 +152,15 @@ def make_orientation():
         print(membrane_folder)
         membrane_folder_path=os.path.join(membranes_path,membrane_folder)
         mask_folder_path=os.path.join(finmasks_path,membrane_folder)
+        ED_folder_path=os.path.join(ED_marker_path,membrane_folder)
         
         maskMetaData=get_JSON(mask_folder_path)
+        if maskMetaData=={}:
+            print('no mask')
+            continue
         membraneMetaData=get_JSON(membrane_folder_path)
+        EDMetaData=get_JSON(ED_folder_path)
+        #print(EDMetaData)
         
         FlatFin_dir_path=os.path.join(FlatFin_path,membrane_folder+'_FlatFin')
 
@@ -160,9 +171,10 @@ def make_orientation():
         
         mask_img=getImage(os.path.join(mask_folder_path,maskMetaData['MetaData_finmasks']['finmasks file']))
         membrane_img=getImage(os.path.join(membrane_folder_path,membraneMetaData['MetaData_membrane']['membrane file']))
+        ED_img=getImage(os.path.join(ED_folder_path,EDMetaData['MetaData_ED_marker']['ED_marker file']))
         
         masked_image = membrane_img.copy()
-        masked_image[mask_img<255]=0
+        #masked_image[mask_img>0]=0
         
         # viewer = napari.Viewer()
         # viewer.add_labels(mask_img, name='Mask')
@@ -173,7 +185,7 @@ def make_orientation():
         
 
         print('start interactive session')
-        Orient_df=orient_session(masked_image)
+        Orient_df=orient_session(mask_img,masked_image,ED_img)
         
         Orient_file_name=membrane_folder+'_Orient.h5'
         Orient_file=os.path.join(FlatFin_dir_path,Orient_file_name)
