@@ -24,6 +24,8 @@ Output_path=os.path.join(Sahra_Shivani_path,'sorted_data')
 
 #Part 0
 Input_Shivani_path=os.path.join(Sahra_Shivani_path,'from_Shivani')
+Input_Sahra_path=os.path.join(Sahra_Shivani_path,'from_Sahra')
+
 membranes_path=os.path.join(Output_path,'membranes')
 ED_marker_path=os.path.join(Output_path,'ED_marker')
 finmasks_path=os.path.join(Output_path,'finmasks')
