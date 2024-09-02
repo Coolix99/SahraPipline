@@ -19,8 +19,9 @@ def extract_coordinate(df, name):
 
 def orient_session(mask_img,membrane_img,ED_img):
     viewer = napari.Viewer(ndisplay=3)
-    viewer.add_image(ED_img)
-    viewer.add_image(membrane_img,blending='additive')
+    if not membrane_img is None:
+        viewer.add_image(ED_img)
+        viewer.add_image(membrane_img,blending='additive')
     im_layer = viewer.add_labels(mask_img)
     last_pos=None
     last_viewer_direction=None
@@ -147,12 +148,12 @@ def evalStatus_orient(FlatFin_dir_path):
 
 
 def make_orientation():
-    membrane_folder_list= [item for item in os.listdir(membranes_path) if os.path.isdir(os.path.join(membranes_path, item))]
-    for membrane_folder in membrane_folder_list:
-        print(membrane_folder)
-        membrane_folder_path=os.path.join(membranes_path,membrane_folder)
-        mask_folder_path=os.path.join(finmasks_path,membrane_folder)
-        ED_folder_path=os.path.join(ED_marker_path,membrane_folder)
+    finmasks_folder_list= [item for item in os.listdir(finmasks_path) if os.path.isdir(os.path.join(finmasks_path, item))]
+    for mask_folder in finmasks_folder_list:
+        print(mask_folder)
+        membrane_folder_path=os.path.join(membranes_path,mask_folder)
+        mask_folder_path=os.path.join(finmasks_path,mask_folder)
+        ED_folder_path=os.path.join(ED_marker_path,mask_folder)
         
         maskMetaData=get_JSON(mask_folder_path)
         if maskMetaData=={}:
@@ -162,7 +163,7 @@ def make_orientation():
         EDMetaData=get_JSON(ED_folder_path)
         #print(EDMetaData)
         
-        FlatFin_dir_path=os.path.join(FlatFin_path,membrane_folder+'_FlatFin')
+        FlatFin_dir_path=os.path.join(FlatFin_path,mask_folder+'_FlatFin')
 
         PastMetaData=evalStatus_orient(FlatFin_dir_path)
         if not isinstance(PastMetaData,dict):
@@ -170,24 +171,22 @@ def make_orientation():
         make_path(FlatFin_dir_path)
         
         mask_img=getImage(os.path.join(mask_folder_path,maskMetaData['MetaData_finmasks']['finmasks file']))
-        membrane_img=getImage(os.path.join(membrane_folder_path,membraneMetaData['MetaData_membrane']['membrane file']))
-        ED_img=getImage(os.path.join(ED_folder_path,EDMetaData['MetaData_ED_marker']['ED_marker file']))
-        
-        masked_image = membrane_img.copy()
-        #masked_image[mask_img>0]=0
-        
-        # viewer = napari.Viewer()
-        # viewer.add_labels(mask_img, name='Mask')
-        # viewer.add_image(membrane_img, name='Membrane')
-        # viewer.add_image(masked_image, name='res')
-        # napari.run()
+        if not membraneMetaData=={}:
+            membrane_img=getImage(os.path.join(membrane_folder_path,membraneMetaData['MetaData_membrane']['membrane file']))
+            ED_img=getImage(os.path.join(ED_folder_path,EDMetaData['MetaData_ED_marker']['ED_marker file']))
+        else:
+            membraneMetaData['MetaData_membrane']=maskMetaData['MetaData_finmasks']
+            membrane_img=None
+            ED_img=None
 
+        
+       
         
 
         print('start interactive session')
-        Orient_df=orient_session(mask_img,masked_image,ED_img)
+        Orient_df=orient_session(mask_img,membrane_img,ED_img)
         
-        Orient_file_name=membrane_folder+'_Orient.h5'
+        Orient_file_name=mask_folder+'_Orient.h5'
         Orient_file=os.path.join(FlatFin_dir_path,Orient_file_name)
         Orient_df.to_hdf(Orient_file, key='data', mode='w')
 

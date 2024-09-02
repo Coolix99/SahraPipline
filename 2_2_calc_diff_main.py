@@ -7,7 +7,7 @@ import hashlib
 from simple_file_checksum import get_checksum
 
 from sub_manifold import sub_manifold,sub_manifold_1_closed,sub_manifold_0
-from find_diffeo_hirarchical import findDiffeo
+from find_diffeo_hirarchical_new import findDiffeo
 from config import *
 from IO import *
 
@@ -52,8 +52,8 @@ def getInput(init_dir_path,target_dir_path):
     except:
         return False
     
-    scales_init=init_MetaData['CenterLine_MetaData']['scales'].copy()
-    scales_target=target_MetaData['CenterLine_MetaData']['scales'].copy()
+    scales_init=init_MetaData['CenterLine_MetaData']['scales ZYX'].copy()
+    scales_target=target_MetaData['CenterLine_MetaData']['scales ZYX'].copy()
    
     init_surface_file=os.path.join(init_dir_path,init_surface_file_name)
     init_orient_file=os.path.join(init_dir_path,init_orient_file_name)
@@ -196,7 +196,9 @@ def make_diffeo(f1,f2,group_path):
     #make_path(diffeo_dir_path)
     print('calculate',init_folder,target_folder)
     try:
-        findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
+        diff_energy=findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
+        print(diff_energy)
+        
     except:
         print('fatal error')
         return
@@ -219,10 +221,12 @@ def make_diffeo(f1,f2,group_path):
     MetaData_Diffeo['Diffeo file']=diffeo_file_name
     MetaData_Diffeo['init_folder']=init_folder
     MetaData_Diffeo['target_folder']=target_folder
+    MetaData_Diffeo['diff_energy']=diff_energy.item()
     MetaData_Diffeo['input init checksum']=init_MetaData['Thickness_MetaData']['output Surface checksum']
     MetaData_Diffeo['input target checksum']=target_MetaData['Thickness_MetaData']['output Surface checksum']
     check_Diffeo=get_checksum(diffeo_file, algorithm="SHA1")
     MetaData_Diffeo['output Diffeo checksum']=check_Diffeo
+    #print(MetaData_Diffeo)
     writeJSON(diffeo_dir_path,'MetaData_Diffeo',MetaData_Diffeo)
     
     # p = pv.Plotter()
@@ -295,21 +299,15 @@ def make_diffeo(f1,f2,group_path):
     
 
 def main():
-    SimilarityMST_folder_list=[folder for folder in os.listdir(SimilarityMST_path) if os.path.isdir(os.path.join(SimilarityMST_path, folder))]
-    for S_folder in SimilarityMST_folder_list:
-        print(S_folder)
-        filename = os.path.join(SimilarityMST_path,S_folder,"alldf.h5")
-        alldf = pd.read_hdf(filename)
-        print(alldf)
-        for index, row in alldf.iterrows():
-            print(row)
-            file_name=row['file name']
-            MST_df = pd.read_hdf(os.path.join(SimilarityMST_path,S_folder,file_name))
-            for index2, row2 in MST_df.iterrows():
-                print(row2)
-                f1=row2['Folder1']
-                f2=row2['Folder2']
-                make_diffeo(f1,f2,ElementaryDiffeos_path)
+    filename = os.path.join(Diffeo_path,"primitive_similarity.h5")
+    alldf = pd.read_hdf(filename)
+    print(alldf)
+    for index2, row2 in alldf.iterrows():
+        print(row2)
+        f1=row2['node_1']
+        f2=row2['node_2']
+        make_diffeo(f1,f2,ElementaryDiffeos_path)
+        
                 
 
 if __name__ == "__main__":

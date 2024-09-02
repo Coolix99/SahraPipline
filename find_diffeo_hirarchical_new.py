@@ -305,7 +305,11 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     # p.show()
     
     findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
-    
+    # for valid energy: (2a+6b+2c−d)=0
+    a=0.1
+    b=0.1
+    c=1.0  
+    d=2*a+4*b+2*c
     for level in range(len(mesh_hirarchical)):
         all_sum_deriv=[]
         #interative solving
@@ -315,9 +319,9 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
         for i in range(N_iterations[level]):
             #print(i)
             #calculate the forces
-            c=1.0
+            
             deformed_vertex_points=mesh_hirarchical[level].point_data['deformed']
-            forces=np.array(compute_forces(vertex_points, deformed_vertex_points, faces, 0.0, 0.0, c,2*c))
+            forces=np.array(compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c,d))
 
             #calculate normal component or take paralel component
             tangent_forces=getTangentComponent(forces,mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level])
@@ -348,11 +352,11 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
         # plt.show()
 
         if level==len(mesh_hirarchical)-1:
-            return
+            return total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c,d)
        
     
 
-    return
+     
 
 
 def main():
