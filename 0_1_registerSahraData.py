@@ -95,8 +95,10 @@ def register_finmask():
         im_list = os.listdir(img_folder_path)
         for img_name in im_list:
             print(img_name)
-
-            im,voxel_size_um=getImage_Meta(os.path.join(img_folder_path,img_name))
+            try:
+                im,voxel_size_um=getImage_Meta(os.path.join(img_folder_path,img_name))
+            except:
+                continue
         
             im=process_3d_image(im>0)
 
