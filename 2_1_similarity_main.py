@@ -114,37 +114,37 @@ def get_primitive_Graph(df):
 
     graph = add_edges_to_graph(graph, dist_matrix, min_connections=3)
 
-    # source = ColumnDataSource(df)
-    # conditions = df['condition'].unique()
-    # markers = ['circle', 'triangle', 'square', 'diamond', 'inverted_triangle']
-    # p = figure(title="Feature Scatter Plot", tools="pan,wheel_zoom,box_zoom,reset,tap")
+    source = ColumnDataSource(df)
+    conditions = df['condition'].unique()
+    markers = ['circle', 'triangle', 'square', 'diamond', 'inverted_triangle']
+    p = figure(title="Feature Scatter Plot", tools="pan,wheel_zoom,box_zoom,reset,tap")
     
-    # p.scatter('x', 'y', source=source,
-    #           fill_alpha=0.6, size=10,
-    #           marker=factor_mark('condition', markers, conditions),
-    #           color=linear_cmap('time in hpf', Viridis256, df['time in hpf'].min(), df['time in hpf'].max()))
+    p.scatter('x', 'y', source=source,
+              fill_alpha=0.6, size=10,
+              marker=factor_mark('condition', markers, conditions),
+              color=linear_cmap('time in hpf', Viridis256, df['time in hpf'].min(), df['time in hpf'].max()))
 
-    # hover = HoverTool()
-    # hover.tooltips = [
-    #     ("File Name", "@file_name"),
-    #     ("Condition", "@condition"),
-    #     ("Time in hpf", "@{time in hpf}"),
-    #     ("Surface Area", "@x"),
-    #     ("Aspect Ratio", "@y"),
-    # ]
-    # p.add_tools(hover)
+    hover = HoverTool()
+    hover.tooltips = [
+        ("File Name", "@file_name"),
+        ("Condition", "@condition"),
+        ("Time in hpf", "@{time in hpf}"),
+        ("Surface Area", "@x"),
+        ("Aspect Ratio", "@y"),
+    ]
+    p.add_tools(hover)
 
-    # edges = []
-    # for i in range(len(points)):
-    #     for j in graph[i]:
-    #         if i < j:  # To avoid duplicate edges
-    #             edges.append((i, j))
-    # for edge in edges:
-    #     p.line([points[edge[0], 0], points[edge[1], 0]], 
-    #            [points[edge[0], 1], points[edge[1], 1]], 
-    #            line_width=2, color='black')
+    edges = []
+    for i in range(len(points)):
+        for j in graph[i]:
+            if i < j:  # To avoid duplicate edges
+                edges.append((i, j))
+    for edge in edges:
+        p.line([points[edge[0], 0], points[edge[1], 0]], 
+               [points[edge[0], 1], points[edge[1], 1]], 
+               line_width=2, color='black')
 
-    # show(p)
+    show(p)
 
     plot_graph(points, graph)
 

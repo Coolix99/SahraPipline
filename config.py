@@ -36,7 +36,7 @@ FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
 #Part II
 Diffeo_path=os.path.join(Output_path,'for_curv_thick','Diffeo')
 ElementaryDiffeos_path=os.path.join(Diffeo_path,'ElementaryDiffeos')
-# Hist_path=os.path.join(Output_path,'for_curv_thick','Diffeo','Histogramms')
+Hist_path=os.path.join(Diffeo_path,'Histogramms')
 
 # #Part III
 # EpFlat_path=os.path.join(Input_path,'epithelia_flat_test')

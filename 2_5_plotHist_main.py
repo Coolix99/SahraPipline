@@ -20,7 +20,7 @@ def plot3d_napari(mesh:pv.PolyData):
     vertices = mesh.points
     faces = mesh.faces.reshape((-1, 4))[:, 1:4]
 
-    for key,nstd in zip(['thickness_avg', 'avg_curvature_avg', 'gauss_curvature_avg'],[5,4,4]):
+    for key,nstd in zip(['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg'],[5,4,4]):
         data = mesh.point_data[key]
         filtered_data = filter_outliers(data,nstd)
         viewer.add_surface((vertices, faces, filtered_data), name=key, colormap='turbo',shading='none')
@@ -34,7 +34,7 @@ def plot2d(mesh):
     faces = mesh.faces.reshape((-1, 4))[:, 1:4]
     triangulation = tri.Triangulation(coord_1, coord_2, faces)
     
-    for key,nstd in zip(['thickness_avg', 'avg_curvature_avg', 'gauss_curvature_avg'],[5,4,4]):
+    for key,nstd in zip(['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg'],[5,4,4]):
         data = mesh.point_data[key]
         filtered_data = filter_outliers(data,nstd)
         
@@ -135,7 +135,7 @@ def plotCompare2d():
         Mesh_file_path=os.path.join(hist_dir_path,surface_file)
         mesh=pv.read(Mesh_file_path)
 
-        mesh.point_data['mean2-gauss']=mesh.point_data['avg_curvature_avg']*mesh.point_data['avg_curvature_avg']-mesh.point_data['gauss_curvature_avg']
+        mesh.point_data['mean2-gauss']=mesh.point_data['mean_curvature_avg']*mesh.point_data['mean_curvature_avg']-mesh.point_data['gauss_curvature_avg']
             
         data_file=MetaData['Data file']
         data_file_path=os.path.join(hist_dir_path,data_file)
@@ -154,7 +154,7 @@ def plotCompare2d():
     dev_meshes.sort()
     reg_meshes.sort()
     
-    keys = ['thickness_avg', 'avg_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
+    keys = ['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
     nstds = [5, 4, 4,4]
     
     global_min_max = {}
@@ -162,7 +162,7 @@ def plotCompare2d():
         all_values = np.concatenate([mesh.point_data[key] for mesh in meshs])
         global_min_max[key] = (all_values.min(), all_values.max())
     print(global_min_max)
-    global_min_max['avg_curvature_avg']=(-0.01, 0.01)
+    global_min_max['mean_curvature_avg']=(-0.01, 0.01)
     global_min_max['gauss_curvature_avg']=(-0.0001, 0.0001)
     global_min_max['mean2-gauss'] = (-0.00003, 0.00003)
     from matplotlib.gridspec import GridSpec
@@ -198,8 +198,8 @@ def plotCompare2d():
     
 
 def main():  
-    plotCompare2d()
-    #plotHistogramms(['time in hpf','condition'])
+    #plotCompare2d()
+    plotHistogramms(['time in hpf','condition'])
     #plotHistogramms(['condition'])
     #plotHistogramms(['time in hpf'])
     return

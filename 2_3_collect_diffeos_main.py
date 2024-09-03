@@ -19,7 +19,7 @@ def get_property_df():
     FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
     data_list = []
     for FlatFin_folder in FlatFin_folder_list:
-        print(FlatFin_folder)
+        #print(FlatFin_folder)
         FlatFin_dir_path = os.path.join(FlatFin_path, FlatFin_folder)
         MetaData = get_JSON(FlatFin_dir_path)
         if 'Thickness_MetaData' not in MetaData:
@@ -67,73 +67,54 @@ def main():
     df = pd.DataFrame(data_list)
     df.to_hdf(os.path.join(ElementaryDiffeos_path, 'elementary.h5'), key='data', mode='w')
     
-    # Create a graph from the dataframe
+   # Create a graph from the dataframe
     G = nx.Graph()
-    for _, row in df.iterrows():
+    for i, row in df.iterrows():
         G.add_edge(row['init_folder'], row['target_folder'], weight=row['diff_energy'])
-    
-    # Compute the shortest path distance matrix
-    def create_sparse_distance_matrix(G):
-        # Initialize a distance matrix with infinity
-        n = len(G)
-        dist_matrix = np.full((n, n), 0)
-        
-        # Map node labels to indices
-        node_index = {node: idx for idx, node in enumerate(G.nodes())}
-        
-        # Fill the matrix with the edge weights where edges exist
-        for u, v, data in G.edges(data=True):
-            i, j = node_index[u], node_index[v]
-            dist_matrix[i, j] = data['weight']
-            dist_matrix[j, i] = data['weight']  # Assuming the graph is undirected
-        return dist_matrix
-    
-    dist_matrix = create_sparse_distance_matrix(G)
-    print(dist_matrix)
-    
-    from sklearn.manifold import Isomap,LocallyLinearEmbedding,SpectralEmbedding
-    #Perform Isomap embedding for 2 dimensions
-    isomap = MDS(n_components=2, dissimilarity='precomputed', random_state=42,verbose=10,max_iter=1000,metric=False,eps=1e-10)
-    embedding_2d = isomap.fit_transform(dist_matrix)
-    
-    #Retrieve property details for hover tool
+
+    # Retrieve property details for hover tool
     property_df = get_property_df()
-    
-    #Match the embeddings with the folder names in property_df
-    embedding_df = pd.DataFrame(embedding_2d, columns=['x', 'y'])
-    embedding_df['folder_name'] = list(G.nodes)
-    merged_df = pd.merge(embedding_df, property_df, on='folder_name')
-    
-    #Prepare the data for Bokeh
-    source = ColumnDataSource(merged_df)
-    conditions = merged_df['condition'].unique()
-    markers = ['circle', 'triangle', 'square', 'diamond', 'inverted_triangle']
-    
-    #Compute original and embedded distances
-    original_distances = dict(nx.get_edge_attributes(G, 'weight'))
-    embedded_distances = {}
-    
-    for edge in G.edges():
-       i, j = list(G.nodes()).index(edge[0]), list(G.nodes()).index(edge[1])
-       embedded_distances[edge] = np.linalg.norm(embedding_2d[i] - embedding_2d[j])
-    
-    #Calculate relative length change (stress)
-    stresses = {}
-    for edge, original_length in original_distances.items():
-       embedded_length = embedded_distances[edge]
-       stresses[edge] = abs(embedded_length - original_length) / original_length
-    
-    #Normalize stress values for color mapping
-    stress_values = np.array(list(stresses.values()))
-    stress_min, stress_max = stress_values.min(), stress_values.max()
-    plot_stress_histogram(stress_values)
+
+    # Add node attributes to the graph from property_df
+    for i, row in property_df.iterrows():
+        if row['folder_name'] in G.nodes:
+            G.nodes[row['folder_name']].update({
+                'file_name': row['file_name'],
+                'condition': row['condition'],
+                'time in hpf': row['time in hpf'],
+                'genotype': row['genotype'],
+                'experimentalist': row['experimentalist']
+            })
+
+    # Use NetworkX for layout
+    pos = nx.spring_layout(G,iterations=100)  # You can choose other layouts like 'circular_layout', 'shell_layout', etc.
+
+    # Prepare data for Bokeh
+    nodes = list(G.nodes())
+    x = [pos[node][0] for node in nodes]
+    y = [pos[node][1] for node in nodes]
+
+    source = ColumnDataSource(data=dict(
+        x=x,
+        y=y,
+        folder_name=nodes,
+        file_name=[G.nodes[node].get('file_name', '') for node in nodes],
+        condition=[G.nodes[node].get('condition', '') for node in nodes],
+        time_in_hpf=[G.nodes[node].get('time in hpf', '') for node in nodes],
+        genotype=[G.nodes[node].get('genotype', '') for node in nodes],
+        experimentalist=[G.nodes[node].get('experimentalist', '') for node in nodes],
+    ))
+
     # Create Bokeh figure
-    p = figure(title="2D MDS Embedding of the Graph", tools="pan,wheel_zoom,box_zoom,reset,tap")
-    
+    p = figure(title="Network Graph Visualization", tools="pan,wheel_zoom,box_zoom,reset,tap")
+
+    # Visualize nodes with scatter plot
+    conditions = property_df['condition'].unique().tolist()
+    markers = ['circle', 'square', 'triangle']  # Example marker list
     p.scatter('x', 'y', source=source,
               fill_alpha=0.6, size=10,
               marker=factor_mark('condition', markers, conditions),
-              color=linear_cmap('time in hpf', Viridis256, merged_df['time in hpf'].min(), merged_df['time in hpf'].max()))
+              color=linear_cmap('time_in_hpf', Viridis256, property_df['time in hpf'].min(), property_df['time in hpf'].max()))
 
     # Add hover tool to show details
     hover = HoverTool()
@@ -141,95 +122,68 @@ def main():
         ("Folder Name", "@folder_name"),
         ("File Name", "@file_name"),
         ("Condition", "@condition"),
-        ("Time in hpf", "@{time in hpf}"),
+        ("Time in hpf", "@time_in_hpf"),
         ("Genotype", "@genotype"),
         ("Experimentalist", "@experimentalist"),
     ]
     p.add_tools(hover)
-    
-    # Draw edges as lines between points, color-coded by stress
+
+    # Draw edges as lines between points, using edge weights for color mapping
     palette = Viridis256
+    stress_min = df['diff_energy'].min()
+    stress_max = df['diff_energy'].max()
     color_mapper = LinearColorMapper(palette=palette, low=stress_min, high=stress_max)
-    
-    for edge, stress in stresses.items():
-        i, j = list(G.nodes()).index(edge[0]), list(G.nodes()).index(edge[1])
-        # Convert stress to a color in the palette
-        stress_normalized = (stress - stress_min) / (stress_max - stress_min)
-        color_index = int(stress_normalized * (len(palette) - 1))
-        line_color = palette[color_index]
-        p.line([embedding_2d[i, 0], embedding_2d[j, 0]], 
-               [embedding_2d[i, 1], embedding_2d[j, 1]], 
-               line_width=2, color=line_color)
-    
+
+    for edge in G.edges(data=True):
+        start_node, end_node = edge[0], edge[1]
+        i = nodes.index(start_node)
+        j = nodes.index(end_node)
+        stress = edge[2]['weight']
+        
+        line_color = palette[int((stress - stress_min) / (stress_max - stress_min) * (len(palette) - 1))]
+        
+        p.line([x[i], x[j]], [y[i], y[j]], line_width=2, color=line_color)
+
     # Add color bar to indicate stress levels
     color_bar = ColorBar(color_mapper=color_mapper, location=(0, 0))
     p.add_layout(color_bar, 'right')
 
+    # Show the plot
     show(p)
-    
-    # Analyze embedding energy for different dimensions
-    dimensions = list(range(2, 10))  # Embedding into 2 to 5 dimensions
-    stress_values = []
-    for dim in dimensions:
-
-        stresses = {}
-        isomap = MDS(n_components=dim, dissimilarity='precomputed', random_state=42,metric=False)
-        embedding = isomap.fit_transform(dist_matrix)
-        print(embedding.shape)
-        for edge in G.edges():
-            i, j = list(G.nodes()).index(edge[0]), list(G.nodes()).index(edge[1])
-            embedded_distances[edge] = np.linalg.norm(embedding[i] - embedding[j])
-        for edge, original_length in original_distances.items():
-            embedded_length = embedded_distances[edge]
-            stresses[edge] = abs(embedded_length - original_length) / original_length
-        hist_stress = np.array(list(stresses.values()))
-        print(dim)
-        stress_values.append(isomap.stress_)
-        plot_stress_histogram(hist_stress)
-    
-    # Plot embedding energy (stress) as a function of dimension
-    plt.figure(figsize=(8, 6))
-    plt.plot(dimensions, stress_values, marker='o')
-    plt.title("MDS Embedding Stress vs. Dimension")
-    plt.xlabel("Number of Dimensions")
-    plt.ylabel("Stress (Energy)")
-    plt.grid(True)
-    plt.show()
-
 
 def plot():
     ED_folder_list=[folder for folder in os.listdir(ElementaryDiffeos_path) if os.path.isdir(os.path.join(ElementaryDiffeos_path, folder))]
     #ED_folder_list=['diffeo_0a0502224f']
     for ED_folder in ED_folder_list:
         print(ED_folder)
-        ED_folder_path=os.path.join(ElementaryDiffeos_path,ED_folder)
-        MetaData=get_JSON(ED_folder_path)
-        if not 'MetaData_Diffeo' in MetaData:
-            continue
+        # ED_folder_path=os.path.join(ElementaryDiffeos_path,ED_folder)
+        # MetaData=get_JSON(ED_folder_path)
+        # if not 'MetaData_Diffeo' in MetaData:
+        #     continue
         
-        Diffeo=np.load(os.path.join(ED_folder_path,MetaData['MetaData_Diffeo']["Diffeo file"]))
+        # Diffeo=np.load(os.path.join(ED_folder_path,MetaData['MetaData_Diffeo']["Diffeo file"]))
 
-        init_folder=MetaData['MetaData_Diffeo']['init_folder']
-        target_folder=MetaData['MetaData_Diffeo']['target_folder']
+        # init_folder=MetaData['MetaData_Diffeo']['init_folder']
+        # target_folder=MetaData['MetaData_Diffeo']['target_folder']
 
-        init_folder_dir=os.path.join(FlatFin_path,init_folder)
-        init_mesh=pv.read(os.path.join(init_folder_dir,get_JSON(init_folder_dir)['Thickness_MetaData']['Surface file']))
+        # init_folder_dir=os.path.join(FlatFin_path,init_folder)
+        # init_mesh=pv.read(os.path.join(init_folder_dir,get_JSON(init_folder_dir)['Thickness_MetaData']['Surface file']))
 
-        target_folder_dir=os.path.join(FlatFin_path,target_folder)
-        target_mesh=pv.read(os.path.join(target_folder_dir,get_JSON(target_folder_dir)['Thickness_MetaData']['Surface file']))
+        # target_folder_dir=os.path.join(FlatFin_path,target_folder)
+        # target_mesh=pv.read(os.path.join(target_folder_dir,get_JSON(target_folder_dir)['Thickness_MetaData']['Surface file']))
 
-        print(Diffeo.shape)
-        print(init_mesh)
-        print(target_mesh)
-        # init_mesh.plot()
-        # target_mesh.plot()
-        init_mesh.points=Diffeo
-        # init_mesh.plot()
-        plotter = pv.Plotter()
-        plotter.add_mesh(target_mesh, color='blue', label='Target')
-        plotter.add_mesh(init_mesh, color='red', label='Defomed')
-        plotter.add_legend()
-        plotter.show()
+        # print(Diffeo.shape)
+        # print(init_mesh)
+        # print(target_mesh)
+        # # init_mesh.plot()
+        # # target_mesh.plot()
+        # init_mesh.points=Diffeo
+        # # init_mesh.plot()
+        # plotter = pv.Plotter()
+        # plotter.add_mesh(target_mesh, color='blue', label='Target')
+        # plotter.add_mesh(init_mesh, color='red', label='Defomed')
+        # plotter.add_legend()
+        # plotter.show()
 
 
 if __name__ == "__main__":
