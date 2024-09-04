@@ -9,6 +9,7 @@ import re
 import czifile
 import xml.etree.ElementTree as ET
 from scipy.ndimage import gaussian_filter, label
+from scipy.ndimage import binary_fill_holes
 
 from config import *
 from IO import *
@@ -67,24 +68,31 @@ def extract_largest_connected_component(binary_image):
     
     return largest_component
 
-def process_3d_image(image, sigma=4, threshold=0.5):
+def process_3d_image(image, sigma=1, threshold=0.5, show_result=True):
     """Process the 3D image: Gaussian blur, threshold, and extract the largest component."""
     blurred_image = apply_3d_gaussian_blur(image.astype(np.float32), sigma)
     binary_image = apply_threshold(blurred_image, threshold)
     largest_component = extract_largest_connected_component(binary_image)
+    filled_image = binary_fill_holes(largest_component)
     
-    # viewer = napari.Viewer()
-    # viewer.add_labels(image, name=f'image ')
-    # viewer.add_image(blurred_image, name=f'blurred_image ')
-    # viewer.add_labels(binary_image, name=f'binary_image ')
-    # viewer.add_labels(largest_component, name=f'largest_component ')
-    # napari.run()
+    if show_result:
+        viewer = napari.Viewer()
+        #viewer.add_labels(image, name='image')
+        #viewer.add_image(blurred_image, name='blurred_image')
+        #viewer.add_labels(binary_image, name='binary_image')
 
-    return largest_component
+        # Add the largest component with editable mode
+        filled_image_layer = viewer.add_labels(filled_image, name='filled_image')
+        filled_image_layer.editable = True
+        
+        # Start the viewer and wait for the user to close it
+        napari.run()
+        #print(np.max(filled_image-filled_image_layer.data))
+    return filled_image_layer.data
 
 
 
-def register_finmask():
+def register_finmask(skip_existing=True):
     mask_folders_path=Input_Sahra_path
     
     raw_folders_list= [item for item in os.listdir(mask_folders_path) if os.path.isdir(os.path.join(mask_folders_path, item))]
@@ -95,6 +103,11 @@ def register_finmask():
         im_list = os.listdir(img_folder_path)
         for img_name in im_list:
             print(img_name)
+            finmasks_folder_path=os.path.join(finmasks_path,os.path.splitext(img_name)[0])
+            make_path(finmasks_folder_path)
+            if (not get_JSON(finmasks_folder_path)=={}) and skip_existing:
+                print('skip')
+                continue
             try:
                 im,voxel_size_um=getImage_Meta(os.path.join(img_folder_path,img_name))
             except:
@@ -102,9 +115,7 @@ def register_finmask():
         
             im=process_3d_image(im>0)
 
-            #finmasks
-            finmasks_folder_path=os.path.join(finmasks_path,os.path.splitext(img_name)[0])
-            make_path(finmasks_folder_path)
+            
             finmasks_im_path=os.path.join(finmasks_folder_path,img_name)
             save_array_as_tiff(im,finmasks_im_path)
 
