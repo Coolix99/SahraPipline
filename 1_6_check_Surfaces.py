@@ -68,6 +68,7 @@ def plot_surface_delete(Surface_file_name,data_name):
                 # shutil.rmtree(os.path.join(ED_marker_path,data_name))
                 # shutil.rmtree(os.path.join(finmasks_path,data_name))
             plotter.close()
+            return False
 
     # Add the key press callback to the plotter
     plotter.add_key_event('d', lambda: key_callback('d'))  # Bind 'd' to delete
@@ -79,15 +80,24 @@ def plot_surface_delete(Surface_file_name,data_name):
         plotter.show()
     except Exception as e:
         print(f"Error: {e}")
+    return True
 
 
-
-def plot_all():
+def plot_all(skip_shown=True):
     FlatFin_folder_list=os.listdir(FlatFin_path)
     FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
     for FlatFin_folder in FlatFin_folder_list:
         print(FlatFin_folder)
         FlatFin_dir_path=os.path.join(FlatFin_path,FlatFin_folder)
+        
+        status_file = os.path.join(FlatFin_dir_path, 'shown.txt')
+        if skip_shown:    
+            if os.path.exists(status_file):
+                with open(status_file, 'r') as f:
+                    status = f.read().strip()
+                    if status == 'shown':
+                        print(f'Skipping {FlatFin_folder}, already shown.')
+                        continue
 
         MetaData=get_JSON(FlatFin_dir_path)
         if not 'Surface_MetaData' in MetaData:
@@ -110,6 +120,8 @@ def plot_all():
 
         data_name=FlatFin_folder[:-len('_FlatFin')]
         plot_surface_delete(Surface_file_name,data_name)
+        with open(status_file, 'w') as f:
+            f.write('shown')
         continue
         
         
