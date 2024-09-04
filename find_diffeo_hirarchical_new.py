@@ -3,6 +3,7 @@ import pyvista as pv
 import numpy as np
 from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree
 import jax.numpy as jnp
 from jax import grad, jit
 
@@ -354,9 +355,92 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
         if level==len(mesh_hirarchical)-1:
             return total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c,d)
        
-    
-def check_for_singularity(mesh):
-    return 
+@jit    
+def calc_normals(x):
+    """
+    Compute the deformation normal N_def for each face.
+    x is of shape (N_f, 3, 3), where N_f is the number of faces.
+    """
+
+    dx1 = x[:, 1] - x[:, 0]  # Deformed first edge
+    dx2 = x[:, 2] - x[:, 0]  # Deformed second edge
+
+    # Compute normal vector for the deformed configuration
+    N_def = jnp.cross(dx1, dx2)  # Cross product gives deformed normal
+    N_def = N_def / jnp.linalg.norm(N_def, axis=-1, keepdims=True)  # Normalize
+
+    return N_def
+
+def check_for_singularity(mesh_init, mesh_target):
+    faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
+    init_vertex_points = mesh_init.points
+    x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
+
+    N_init_1 = np.array(calc_normals(x))  # Normals on each face (N_f, 3)
+    N_init_2 = mesh_init.point_data["normals"]  # Normals at each vertex (N_v, 3)
+
+    # Now, process the deformed mesh before alignment
+    mesh_init.points = mesh_init.point_data["deformed"]
+    deformed_vertex_points = mesh_init.points
+    x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
+    N_def = np.array(calc_normals(x))
+
+    # Align N_init_1 and N_def with N_init_2
+    for i, face in enumerate(faces):
+        face_normals = N_init_2[face]
+        face_center_normal = np.mean(face_normals, axis=0)
+        if np.dot(N_init_1[i], face_center_normal) < 0:
+            # Flip both N_init_1 and N_def for consistency
+            N_init_1[i] = -N_init_1[i]
+            N_def[i] = -N_def[i]
+
+    # Check for singularities by comparing to the closest target vertex point normals
+    centers_faces_deformed = mesh_init.cell_centers()
+    singularity_found = False
+
+    def check_for_singularity(mesh_init, mesh_target):
+        faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
+        init_vertex_points = mesh_init.points
+        x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
+
+        N_init_1 = np.array(calc_normals(x))  # Normals on each face (N_f, 3)
+        N_init_2 = mesh_init.point_data["normals"]  # Normals at each vertex (N_v, 3)
+
+        # Now, process the deformed mesh before alignment
+        mesh_init.points = mesh_init.point_data["deformed"]
+        deformed_vertex_points = mesh_init.points
+        x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
+        N_def = np.array(calc_normals(x))
+
+        # Align N_init_1 and N_def with N_init_2
+        for i, face in enumerate(faces):
+            face_normals = N_init_2[face]
+            face_center_normal = np.mean(face_normals, axis=0)
+            if np.dot(N_init_1[i], face_center_normal) < 0:
+                # Flip both N_init_1 and N_def for consistency
+                N_init_1[i] = -N_init_1[i]
+                N_def[i] = -N_def[i]
+
+        # Build a KDTree for the target vertex points
+        kdtree = cKDTree(mesh_target.points)
+
+        # Check for singularities using KDTree to find the closest target vertex point
+        centers_faces_deformed = mesh_init.cell_centers()
+        singularity_found = False
+
+        for i, center in enumerate(centers_faces_deformed):
+            # Find the closest target vertex using KDTree
+            _, closest_vertex_index = kdtree.query(center)
+            target_normal = mesh_target.pointdata['normals'][closest_vertex_index]
+
+            # Compare the angle between N_def and the closest target normal
+            dot_product = np.dot(N_def[i], target_normal)
+            angle = np.arccos(np.clip(dot_product, -1.0, 1.0))
+            if np.degrees(angle) > 90:
+                singularity_found = True
+                break
+
+        return not singularity_found
 
 
 def main():
