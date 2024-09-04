@@ -66,7 +66,7 @@ def plot_surface_delete(Surface_file_name,data_name):
                 print(f"Deleting also {data_name}")
                 # shutil.rmtree(os.path.join(membranes_path,data_name))
                 # shutil.rmtree(os.path.join(ED_marker_path,data_name))
-                # shutil.rmtree(os.path.join(finmasks_path,data_name))
+                shutil.rmtree(os.path.join(finmasks_path,data_name))
             plotter.close()
 
     # Add the key press callback to the plotter
