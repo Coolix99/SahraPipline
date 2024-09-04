@@ -355,8 +355,8 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             return total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c,d)
        
     
-
-     
+def check_for_singularity(mesh):
+    return 
 
 
 def main():

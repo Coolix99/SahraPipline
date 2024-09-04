@@ -7,7 +7,7 @@ import hashlib
 from simple_file_checksum import get_checksum
 
 from sub_manifold import sub_manifold,sub_manifold_1_closed,sub_manifold_0
-from find_diffeo_hirarchical_new import findDiffeo
+from find_diffeo_hirarchical_new import findDiffeo,check_for_singularity
 from config import *
 from IO import *
 
@@ -206,6 +206,9 @@ def make_diffeo(f1,f2,group_path):
     #mesh_deformed=getDeformedMesh(mesh_init)
     #mesh_deformed.clear_point_data()
     
+    if not check_for_singularity(mesh_init):
+        print('Sigular diffeo')
+
     deformed_positions=mesh_init.point_data["deformed"]
 
     diffeo_file_name=diffeo_folder+'_deformed_positions.npy'
