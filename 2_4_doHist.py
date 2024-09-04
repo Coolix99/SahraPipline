@@ -162,6 +162,9 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
         print(used_diffeos_df)
         print(init_folder, target_folder)
         raise
+    print('TODO check singularity')
+    raise
+
     return current_positions
 
 def make_Hist(group_df,diffeos_df):
