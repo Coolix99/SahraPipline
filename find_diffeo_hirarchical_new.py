@@ -371,13 +371,15 @@ def calc_normals(x):
 
     return N_def
 
-def check_for_singularity(mesh_init, mesh_target):
+
+
+def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
     faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
     init_vertex_points = mesh_init.points
     x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
 
     N_init_1 = np.array(calc_normals(x))  # Normals on each face (N_f, 3)
-    N_init_2 = mesh_init.point_data["normals"]  # Normals at each vertex (N_v, 3)
+    N_init_2 = mesh_init.point_normals  # Normals at each vertex (N_v, 3)
 
     # Now, process the deformed mesh before alignment
     mesh_init.points = mesh_init.point_data["deformed"]
@@ -392,55 +394,32 @@ def check_for_singularity(mesh_init, mesh_target):
         if np.dot(N_init_1[i], face_center_normal) < 0:
             # Flip both N_init_1 and N_def for consistency
             N_init_1[i] = -N_init_1[i]
+        if N_def[i,2]<0:
             N_def[i] = -N_def[i]
 
-    # Check for singularities by comparing to the closest target vertex point normals
-    centers_faces_deformed = mesh_init.cell_centers()
-    singularity_found = False
+    # Build a KDTree for the target vertex points
+    kdtree = cKDTree(mesh_target.points)
 
-    def check_for_singularity(mesh_init, mesh_target):
-        faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
-        init_vertex_points = mesh_init.points
-        x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
+    # Check for singularities using KDTree to find the closest target vertex point
+    centers_faces_deformed = mesh_init.cell_centers().points
+    for i, center in enumerate(centers_faces_deformed):
+        # Find the closest target vertex using KDTree
+        _, closest_vertex_index = kdtree.query(center)
+        target_normal = mesh_target.point_normals[closest_vertex_index]
 
-        N_init_1 = np.array(calc_normals(x))  # Normals on each face (N_f, 3)
-        N_init_2 = mesh_init.point_data["normals"]  # Normals at each vertex (N_v, 3)
+        # Compare the angle between N_def and the closest target normal
+        dot_product = np.dot(N_def[i], target_normal)
+        angle = np.arccos(np.clip(dot_product, -1.0, 1.0))
+        if np.degrees(angle) > 90:
+            print(N_def[i])
 
-        # Now, process the deformed mesh before alignment
-        mesh_init.points = mesh_init.point_data["deformed"]
-        deformed_vertex_points = mesh_init.points
-        x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
-        N_def = np.array(calc_normals(x))
+            print(target_normal)
 
-        # Align N_init_1 and N_def with N_init_2
-        for i, face in enumerate(faces):
-            face_normals = N_init_2[face]
-            face_center_normal = np.mean(face_normals, axis=0)
-            if np.dot(N_init_1[i], face_center_normal) < 0:
-                # Flip both N_init_1 and N_def for consistency
-                N_init_1[i] = -N_init_1[i]
-                N_def[i] = -N_def[i]
+            print(np.degrees(angle))
+            print(dot_product)
+            return False
 
-        # Build a KDTree for the target vertex points
-        kdtree = cKDTree(mesh_target.points)
-
-        # Check for singularities using KDTree to find the closest target vertex point
-        centers_faces_deformed = mesh_init.cell_centers()
-        singularity_found = False
-
-        for i, center in enumerate(centers_faces_deformed):
-            # Find the closest target vertex using KDTree
-            _, closest_vertex_index = kdtree.query(center)
-            target_normal = mesh_target.pointdata['normals'][closest_vertex_index]
-
-            # Compare the angle between N_def and the closest target normal
-            dot_product = np.dot(N_def[i], target_normal)
-            angle = np.arccos(np.clip(dot_product, -1.0, 1.0))
-            if np.degrees(angle) > 90:
-                singularity_found = True
-                break
-
-        return not singularity_found
+    return True
 
 
 def main():
@@ -551,7 +530,9 @@ def main():
     mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target,init_MetaData,target_MetaData=getInput(init_dir_path,target_dir_path)
 
     findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
-
+    #mesh_init.point_data["deformed"][[1,4]]=mesh_init.point_data["deformed"][[4,1]]
+    print(check_for_singularity(mesh_init, mesh_target))
+    
     p = pv.Plotter()
     p.add_mesh(mesh_target, color='green', show_edges=True)
     points_array=mesh_target.points[sub_manifolds_target[0].path]
@@ -561,6 +542,8 @@ def main():
     lines[1:] = np.arange(len(points_array),dtype=int)
     polydata.lines = lines
     p.add_mesh(polydata, color='green', line_width=5, render_lines_as_tubes=True)  
+
+    
     delta=30
     mesh_init.points=mesh_init.point_data['deformed']-np.array((delta,0,0))
     p.add_mesh(mesh_init, color='blue', show_edges=True)

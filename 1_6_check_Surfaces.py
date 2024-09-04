@@ -119,11 +119,12 @@ def plot_all(skip_shown=True):
         #plot_surface(os.path.join(FlatFin_dir_path,Surface_file_name))
 
         data_name=FlatFin_folder[:-len('_FlatFin')]
-        plot_surface_delete(Surface_file_name,data_name)
         with open(status_file, 'w') as f:
             f.write('shown')
-        continue
         
+        plot_surface_delete(Surface_file_name,data_name)
+        
+        continue
         
         plot_surface_image_mask(os.path.join(FlatFin_dir_path,Surface_file_name),
                                 os.path.join(membranes_path,data_name,data_name+'.tif'),
