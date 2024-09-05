@@ -24,9 +24,15 @@ def extract_info(s: str) -> Tuple[int, bool]:
         raise ValueError("The string does not contain a valid 'h' pattern with a preceding number.")
     
     # Check if '_reg' is present in the string
-    is_reg = '_reg' in s
-    
-    return hours, not is_reg
+    if 'reg' in s and 'dev' in s:
+        raise ValueError("Both 'reg' and 'dev' are present in the string.")
+    elif 'reg' in s:
+        return hours, False
+    elif 'dev' in s:
+        return hours, True
+    else:
+        raise ValueError("Neither 'reg' nor 'dev' are present in the string.")
+
 
 def read_czi_metadata(file_path: str):
     # Open the .czi file
