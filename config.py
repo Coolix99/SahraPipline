@@ -34,7 +34,8 @@ finmasks_path=os.path.join(Output_path,'finmasks')
 FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
 
 #Part II
-Diffeo_path=os.path.join(Output_path,'for_curv_thick','Diffeo')
+Curv_Thick_path=os.path.join(Output_path,'for_curv_thick')
+Diffeo_path=os.path.join(Curv_Thick_path,'Diffeo')
 ElementaryDiffeos_path=os.path.join(Diffeo_path,'ElementaryDiffeos')
 Hist_path=os.path.join(Diffeo_path,'Histogramms')
 
