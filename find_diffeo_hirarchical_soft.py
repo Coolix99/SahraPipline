@@ -345,11 +345,11 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             old=mesh_hirarchical[level].point_data["deformed"].copy()
             projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
             force_surface=(mesh_hirarchical[level].point_data["deformed"]-old)*force_surface_faktor[level]
-            print(np.max(np.linalg.norm(elastic_force,axis=1)),np.max(np.linalg.norm(force_surface,axis=1)),np.max(np.linalg.norm(elastic_force+force_surface,axis=1)),rate)
+            
             mesh_hirarchical[level].point_data["deformed"]=old+rate*(elastic_force+force_surface)
             
-            # if i%(N_iterations[level]//3)==0:
-            #     print(level)
+            if i%(N_iterations[level]//20)==0:
+                print(level,i,np.max(np.linalg.norm(elastic_force,axis=1)),np.max(np.linalg.norm(force_surface,axis=1)),np.max(np.linalg.norm(elastic_force+force_surface,axis=1)),rate)
                 #plot_debugg(mesh_hirarchical[level],mesh_target)
             
             mesh_hirarchical[level].point_data["displacement"]=mesh_hirarchical[level].point_data["deformed"]-mesh_hirarchical[level].point_data["rotated"]
@@ -366,7 +366,7 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
         
 
         if level==len(mesh_hirarchical)-1:
-            return total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c,d)
+            return total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c,d), a,b,c,d
        
 @jit    
 def calc_normals(x):
@@ -468,7 +468,7 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
 
     
     print('found', N_bad)
-    return N_bad<20
+    return N_bad<25
 
 
 def main():
