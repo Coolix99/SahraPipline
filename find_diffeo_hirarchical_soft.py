@@ -87,11 +87,11 @@ def findInitialGuess(mesh_init,mesh_target,sub_manifolds_init:List[sub_manifold]
                 continue
     #interpolateDeformation(mesh_init)
     interpolateDeformation_localCoord(mesh_init)
-    
+    mesh_init.point_data["deformed"]=mesh_init.point_data["rotated"] + 0.5*mesh_init.point_data["displacement"]
     #project points
-    projectPoints(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
-    smoothDisplacement(mesh_init)
-    projectPoints(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
+    #projectPoints(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
+    #smoothDisplacement(mesh_init)
+    #projectPoints(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
 
 def getTangentComponent(derivatives,mesh_init:pv.PolyData,mesh_target:pv.PolyData,sub_manifolds_init:List[sub_manifold]):
     closest_cells = mesh_target.find_closest_cell(mesh_init.point_data["deformed"])
@@ -284,42 +284,15 @@ def total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, 
     x = deformed_vertex_points[faces]  
     return np.array(total_energy(x, X, a, b, c,d))
 
-
-def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
-    N_iterations=[20,20,20,20]
-    start_rates=[0.1,0.05,0.01,0.005]
-    target_reductions=[0.95,0.7,0.3]
-    mesh_hirarchical,sub_manifolds_hirarchical=makeHirarchicalGrids(mesh_init,sub_manifolds_init,mesh_target,target_reductions)
-    # p = pv.Plotter()
-    # delta=0
-    # for i in range(len(mesh_hirarchical)):
-    #     mesh_hirarchical[i].points=mesh_hirarchical[i].point_data['rotated']-np.array((delta,0,0))
-    #     p.add_mesh(mesh_hirarchical[i], color='blue', show_edges=True)
-    #     points_array=mesh_hirarchical[i].point_data['rotated'][sub_manifolds_hirarchical[i][0].path]-np.array((delta,0,0))
-    #     polydata = pv.PolyData(points_array)
-    #     lines=np.zeros((len(points_array)+1),dtype=int)
-    #     lines[0]=len(points_array)
-    #     lines[1:] = np.arange(len(points_array),dtype=int)
-    #     polydata.lines = lines
-    #     p.add_mesh(polydata, color='blue', line_width=5, render_lines_as_tubes=True)  
-    #     delta+=50
-    # p.show()
-    
-    findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
-
-    faces = mesh_hirarchical[0].faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
-    init_vertex_points = mesh_hirarchical[0].points
+def plot_debugg(mesh_init,mesh_target):
+    faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
+    init_vertex_points = mesh_init.points
     x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
-
     N_init_1 = np.array(calc_normals(x))  # Normals on each face (N_f, 3)
-    N_init_2 = np.cross(mesh_hirarchical[0].point_data['direction_1'],mesh_hirarchical[0].point_data['direction_2'])
-
-    # Now, process the deformed mesh before alignment
-    deformed_vertex_points = mesh_hirarchical[0].point_data["deformed"]
+    N_init_2 = np.cross(mesh_init.point_data['direction_1'],mesh_init.point_data['direction_2'])
+    deformed_vertex_points = mesh_init.point_data["deformed"]
     x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
     N_def = np.array(calc_normals(x))
-
-    # Align N_init_1 and N_def with N_init_2
     for i, face in enumerate(faces):
         face_normals = N_init_2[face]
         face_center_normal = np.mean(face_normals, axis=0)
@@ -327,18 +300,29 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             # Flip both N_init_1 and N_def for consistency
             N_init_1[i] = -N_init_1[i]
             N_def[i] = -N_def[i]
-
     arrow_scale=10
-    mesh_deformed=mesh_hirarchical[0].copy()
-    mesh_deformed.points=mesh_hirarchical[0].point_data["deformed"]
+    mesh_deformed=mesh_init.copy()
+    mesh_deformed.points=mesh_init.point_data["deformed"]
     p = pv.Plotter()
     p.add_mesh(mesh_deformed, color='red', show_edges=True)
     points=pv.PolyData(mesh_deformed.cell_centers().points)
     points["vectors"] = N_def * arrow_scale
     points.set_active_vectors("vectors")
     p.add_mesh(points.arrows, color='red')
+    p.add_mesh(mesh_target, color='green', show_edges=True)
     p.show()
 
+def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
+    N_iterations=[1000,500,500,100]
+    start_rates=[0.001,0.001,0.001,0.01]
+    target_reductions=[0.99,0.99,0.95]
+    force_surface_faktor=[1.0,3.0,3.0,5.0]
+    mesh_hirarchical,sub_manifolds_hirarchical=makeHirarchicalGrids(mesh_init,sub_manifolds_init,mesh_target,target_reductions)
+    
+    findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
+
+    #plot_debugg(mesh_hirarchical[0],mesh_target)
+    
 
     # for valid energy: (2a+6b+2c−d)=0
     a=0.1
@@ -356,67 +340,30 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             #calculate the forces
             
             deformed_vertex_points=mesh_hirarchical[level].point_data['deformed']
-            forces=np.array(compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c,d))
+            elastic_force=0.05*np.array(compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c,d))
 
-            #calculate normal component or take paralel component
-            tangent_forces=getTangentComponent(forces,mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level])
-
-            #do euler step
-            max_force=np.max(tangent_forces)
-            #print(max_deriv)
-            sum_forces=np.sum(np.linalg.norm(tangent_forces,axis=1))
-            #print(sum_deriv)
-            all_sum_deriv.append(sum_forces)
-            if i>2:
-                if all_sum_deriv[-2]<all_sum_deriv[-1]:
-                    print(rate)
-                    rate=rate/1.5
-
-            mesh_hirarchical[level].point_data["deformed"]=mesh_hirarchical[level].point_data["deformed"]+rate*tangent_forces/max_force
-            projectPoints(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
+            old=mesh_hirarchical[level].point_data["deformed"].copy()
+            projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
+            force_surface=(mesh_hirarchical[level].point_data["deformed"]-old)*force_surface_faktor[level]
+            print(np.max(np.linalg.norm(elastic_force,axis=1)),np.max(np.linalg.norm(force_surface,axis=1)),np.max(np.linalg.norm(elastic_force+force_surface,axis=1)),rate)
+            mesh_hirarchical[level].point_data["deformed"]=old+rate*(elastic_force+force_surface)
+            
+            # if i%(N_iterations[level]//3)==0:
+            #     print(level)
+                #plot_debugg(mesh_hirarchical[level],mesh_target)
+            
             mesh_hirarchical[level].point_data["displacement"]=mesh_hirarchical[level].point_data["deformed"]-mesh_hirarchical[level].point_data["rotated"]
         #transfer result to next level
         if level<len(mesh_hirarchical)-1:
+            # print('before transfer')
+            # plot_debugg(mesh_hirarchical[level],mesh_target)
             transfer_displacement(mesh_hirarchical[level],mesh_hirarchical[level+1])   
             smoothDisplacement(mesh_hirarchical[level+1])
-            projectPoints(mesh_hirarchical[level+1],mesh_target,sub_manifolds_hirarchical[level+1],sub_manifolds_target)
+            # print('transfered to',level+1)
+            # plot_debugg(mesh_hirarchical[level+1],mesh_target)
 
-        plt.plot(range(len(all_sum_deriv)),all_sum_deriv)
-        plt.yscale('log')
-        plt.xscale('log')
-        plt.show()
 
-        faces = mesh_hirarchical[level].faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
-        init_vertex_points = mesh_hirarchical[level].points
-        x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
-
-        N_init_1 = np.array(calc_normals(x))  # Normals on each face (N_f, 3)
-        N_init_2 = np.cross(mesh_hirarchical[level].point_data['direction_1'],mesh_hirarchical[level].point_data['direction_2'])
-
-        # Now, process the deformed mesh before alignment
-        deformed_vertex_points = mesh_hirarchical[level].point_data["deformed"]
-        x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
-        N_def = np.array(calc_normals(x))
-
-        # Align N_init_1 and N_def with N_init_2
-        for i, face in enumerate(faces):
-            face_normals = N_init_2[face]
-            face_center_normal = np.mean(face_normals, axis=0)
-            if np.dot(N_init_1[i], face_center_normal) < 0:
-                # Flip both N_init_1 and N_def for consistency
-                N_init_1[i] = -N_init_1[i]
-                N_def[i] = -N_def[i]
-
-        arrow_scale=10
-        mesh_deformed=mesh_hirarchical[level].copy()
-        mesh_deformed.points=mesh_hirarchical[level].point_data["deformed"]
-        p = pv.Plotter()
-        p.add_mesh(mesh_deformed, color='red', show_edges=True)
-        points=pv.PolyData(mesh_deformed.cell_centers().points)
-        points["vectors"] = N_def * arrow_scale
-        points.set_active_vectors("vectors")
-        p.add_mesh(points.arrows, color='red')
-        p.show()
+        
 
         if level==len(mesh_hirarchical)-1:
             return total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c,d)
@@ -448,12 +395,12 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
     N_init_2 = np.cross(mesh_init.point_data['direction_1'],mesh_init.point_data['direction_2'])
 
     arrow_scale=10
-    p = pv.Plotter()
-    p.add_mesh(mesh_init, color='green', show_edges=True)
-    mesh_init["vectors"] = N_init_2 * arrow_scale
-    mesh_init.set_active_vectors("vectors")
-    p.add_mesh(mesh_init.arrows, color='green')
-    p.show()
+    # p = pv.Plotter()
+    # p.add_mesh(mesh_init, color='green', show_edges=True)
+    # mesh_init["vectors"] = N_init_2 * arrow_scale
+    # mesh_init.set_active_vectors("vectors")
+    # p.add_mesh(mesh_init.arrows, color='green')
+    # p.show()
 
     # p = pv.Plotter()
     # p.add_mesh(mesh_init, color='green', show_edges=True)
@@ -482,26 +429,26 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
     mesh_target_normals=np.cross(mesh_target.point_data['direction_1'],mesh_target.point_data['direction_2'])
 
 
-    p = pv.Plotter()
-    p.add_mesh(mesh_target, color='green', show_edges=True)
-    mesh_target["vectors"] = mesh_target_normals * arrow_scale
-    mesh_target.set_active_vectors("vectors")
-    p.add_mesh(mesh_target.arrows, color='green')
-    p.show()
+    # p = pv.Plotter()
+    # p.add_mesh(mesh_target, color='green', show_edges=True)
+    # mesh_target["vectors"] = mesh_target_normals * arrow_scale
+    # mesh_target.set_active_vectors("vectors")
+    # p.add_mesh(mesh_target.arrows, color='green')
+    # p.show()
 
-    mesh_deformed=mesh_init.copy()
-    mesh_deformed.points=mesh_init.point_data["deformed"]
-    p = pv.Plotter()
-    p.add_mesh(mesh_deformed, color='red', show_edges=True)
-    points=pv.PolyData(mesh_deformed.cell_centers().points)
-    points["vectors"] = N_def * arrow_scale
-    points.set_active_vectors("vectors")
-    p.add_mesh(points.arrows, color='red')
-    p.show()
+    # mesh_deformed=mesh_init.copy()
+    # mesh_deformed.points=mesh_init.point_data["deformed"]
+    # p = pv.Plotter()
+    # p.add_mesh(mesh_deformed, color='red', show_edges=True)
+    # points=pv.PolyData(mesh_deformed.cell_centers().points)
+    # points["vectors"] = N_def * arrow_scale
+    # points.set_active_vectors("vectors")
+    # p.add_mesh(points.arrows, color='red')
+    # p.show()
 
     centers_faces_deformed = mesh_init.cell_centers().points
     kdtree = cKDTree(mesh_target.points)
-
+    N_bad=0
     for i, center in enumerate(centers_faces_deformed):
         # Find the closest target vertex using KDTree
         _, closest_vertex_index = kdtree.query(center)
@@ -511,17 +458,17 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
         dot_product = np.dot(N_def[i], target_normal)
         angle = np.arccos(np.clip(dot_product, -1.0, 1.0))
         if np.degrees(angle) > 90:
-            print(N_def[i])
+            # print(N_def[i])
 
-            print(target_normal)
+            # print(target_normal)
 
-            print(np.degrees(angle))
-            print(dot_product)
-            return False
+            # print(np.degrees(angle))
+            # print(dot_product)
+            N_bad+=1
 
     
-
-    return True
+    print('found', N_bad)
+    return N_bad<20
 
 
 def main():
@@ -646,7 +593,7 @@ def main():
     p.add_mesh(polydata, color='green', line_width=5, render_lines_as_tubes=True)  
 
     
-    delta=30
+    delta=0
     mesh_init.points=mesh_init.point_data['deformed']-np.array((delta,0,0))
     p.add_mesh(mesh_init, color='blue', show_edges=True)
     points_array=mesh_init.point_data['deformed'][sub_manifolds_init[0].path]-np.array((delta,0,0))

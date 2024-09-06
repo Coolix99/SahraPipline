@@ -92,7 +92,7 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None):
     # Show plot
     show(p)
 
-def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, style='box', color='blue'):
+def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, style='box', color='blue', width=None):
     """
     Create a time-series plot (box plot or violin plot) with individual scatter points, based on filtered data.
     
@@ -110,6 +110,8 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
         The plot style: 'box' for box plot or 'violin' for violin plot.
     color : str, optional (default='blue')
         The color for the scatter points and the plots.
+    width : float, optional (defualt=None)
+        Scaling of the width of the bar or violin. If none a guess will be used
     
     Returns:
     --------
@@ -124,7 +126,7 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
     # Check if y_col is provided
     if y_col is None:
         raise ValueError("You must specify the column for the y-axis (y_col).")
-    
+
     # Ensure 'time in hpf' exists and is integer (numerical values)
     df['time in hpf'] = df['time in hpf'].astype(int)
 
@@ -135,6 +137,12 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
     times = sorted(list(grouped.groups.keys()))  # Sorted list of time points
     values = [grouped.get_group(time)[y_col].values for time in times]
     
+    if width is None:
+        print(times)
+        differences = [times[i+1] - times[i] for i in range(len(times) - 1)]
+        smallest_interval = min(differences)
+        width = smallest_interval*0.8
+
     # Create a ColumnDataSource for scatter plot
     scatter_source = ColumnDataSource(df)
     
@@ -164,17 +172,12 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
         # Add a box plot
         for i, (time, val) in enumerate(zip(times, values)):
             # Calculate the quartiles and whiskers
-            q1, q2, q3 = np.percentile(val, [25, 50, 75])
-            iqr = q3 - q1
-            lower_bound = max(min(val), q1 - 1.5 * iqr)
-            upper_bound = min(max(val), q3 + 1.5 * iqr)
+            lower_bound,q1, q2, q3,upper_bound = np.percentile(val, [10,25, 50, 75,90])
 
-            # Draw the boxes and whiskers with width in screen units
-            p.vbar(x=time, width=10, width_units="screen", bottom=q1, top=q3, color=color, alpha=0.4)
-            p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black')
-            p.scatter(x=[time], y=[q2], size=10, color='black', marker='x', fill_color='white')  # Use scatter for median
-            p.line(x=[time - 1.5, time + 1.5], y=[q2, q2], line_width=3, line_color='black', 
-               line_dash='solid', line_cap='round', line_join='round')
+            # the box
+            p.vbar(x=time, width=width, bottom=q1, top=q3, color=color, alpha=0.4)
+
+            
     elif style == 'violin':
         # Draw a violin plot (mirror density plot)
         for i, (time, val) in enumerate(zip(times, values)):
@@ -188,17 +191,170 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
             kde_values = kde(x)
             
             # Normalize the kde_values to fit the desired width in screen units
-            kde_values = kde_values / kde_values.max() *2 # Normalize the density
-            
-
+            kde_values = kde_values / kde_values.max() *width*0.5 # Normalize the density
             
             p.patch(np.concatenate([time - kde_values, (time + kde_values)[::-1]]),  # Left and right side of the violin
                 np.concatenate([x, x[::-1]]),  # Mirror the vertical KDE on both sides
                 alpha=0.3, color=color, line_color=color)
     
+    #the lines
+    for i, (time, val) in enumerate(zip(times, values)):
+        # Calculate the quartiles and whiskers
+        lower_bound,q1, q2, q3,upper_bound = np.percentile(val, [10,25, 50, 75,90])
+        #the bounds
+        p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black',line_width=2)
+        p.line(x=[time - width/3, time + width/3], y=[lower_bound, lower_bound], line_width=2, line_color='black', 
+            line_dash='solid', line_cap='round', line_join='round')
+        p.line(x=[time - width/3, time + width/3], y=[upper_bound, upper_bound], line_width=2, line_color='black', 
+            line_dash='solid', line_cap='round', line_join='round')
+
+        #the mean
+        p.scatter(x=[time], y=[q2], size=10, color='black', marker='x', fill_color='white')  # Use scatter for median
+        p.line(x=[time - width/2, time + width/2], y=[q2, q2], line_width=3, line_color='black', 
+            line_dash='solid', line_cap='round', line_join='round')
+
     # Configure the legend
     p.legend.location = "top_left"
     
+    # Show the plot
+    show(p)
+
+def plot_double_timeseries(df, y_col=None, style='box'):
+    """
+    Create a time-series plot (box plot or violin plot) with individual scatter points, based on filtered data.
+    The plot will be split in the middle: 
+    - Left: 'Development' in blue
+    - Right: 'Regeneration' in orange
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        The input DataFrame containing the data to plot.
+    y_col : str
+        The column name from `df` to use for the y-axis (quantity of interest).
+    style : str, optional (default='box')
+        The plot style: 'box' for box plot or 'violin' for violin plot.
+    
+    Returns:
+    --------
+    None
+    Displays an interactive time-series plot (box or violin) with scatter points in the browser.
+    """
+    
+    if y_col is None:
+        raise ValueError("You must specify the column for the y-axis (y_col).")
+    
+    # Filter data for 'Development' and 'Regeneration'
+    df_dev = df[df['condition'] == 'Development'].copy()
+    df_reg = df[df['condition'] == 'Regeneration'].copy()
+
+    # Ensure 'time in hpf' exists and is integer
+    df_dev['time in hpf'] = df_dev['time in hpf'].astype(int)
+    df_reg['time in hpf'] = df_reg['time in hpf'].astype(int)
+
+    # Group data by 'time in hpf' for both conditions
+    grouped_dev = df_dev.groupby('time in hpf')
+    grouped_reg = df_reg.groupby('time in hpf')
+
+    # Extract unique times and prepare data
+    times_dev = sorted(list(grouped_dev.groups.keys()))
+    values_dev = [grouped_dev.get_group(time)[y_col].values for time in times_dev]
+    times_reg = sorted(list(grouped_reg.groups.keys()))
+    values_reg = [grouped_reg.get_group(time)[y_col].values for time in times_reg]
+
+    # Define plot width
+    all_times = all_times = sorted(set(times_dev).union(set(times_reg)))
+    width = 0.8 * min(np.diff(all_times)) if len(all_times) > 1 else 1
+    
+    # Apply the shift for scatter points
+    df_dev['shifted_time'] = df_dev['time in hpf'] - width * 0.25  # Shift dev points to the left
+    df_reg['shifted_time'] = df_reg['time in hpf'] + width * 0.25  # Shift reg points to the right
+
+    # Create a ColumnDataSource for scatter plot
+    scatter_source_dev = ColumnDataSource(df_dev)
+    scatter_source_reg = ColumnDataSource(df_reg)
+
+    # Create figure with a shared numerical x-axis
+    p = figure(title=f"Double Time-series ({style.capitalize()} Plot) of {y_col} by Time",
+               x_axis_label="Time (hpf)",
+               y_axis_label=y_col,
+               tools="pan,wheel_zoom,box_zoom,reset,save")
+
+    # Add hover tool for scatter plot
+    hover = HoverTool()
+    hover.tooltips = [
+        ("Time (hpf)", "@{time in hpf}"),
+        (y_col, f"@{{{y_col}}}"),
+        ("Condition", "@{condition}")
+    ]
+    p.add_tools(hover)
+
+    # Scatter plot for individual points (Development)
+    p.scatter(x='shifted_time', y=y_col, source=scatter_source_dev,
+              size=8, color='blue', alpha=0.6, legend_label='Development Points')
+
+    # Scatter plot for individual points (Regeneration)
+    p.scatter(x='shifted_time', y=y_col, source=scatter_source_reg,
+              size=8, color='orange', alpha=0.6, legend_label='Regeneration Points')
+
+    # Box or violin plot for Development and Regeneration
+    for condition, times, values, color in zip(['Development', 'Regeneration'],
+                                               [times_dev, times_reg],
+                                               [values_dev, values_reg],
+                                               ['blue', 'orange']):
+        if style == 'box':
+            # Add box plots
+            for i, (time, val) in enumerate(zip(times, values)):
+                lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+
+                # Box for quartiles
+                if condition=='Development':
+                    time_shift=time-width/4 
+                else:
+                    time_shift=time+width/4 
+                p.vbar(x=time_shift, width=width/2, bottom=q1, top=q3, color=color, alpha=0.4)
+                  
+        elif style == 'violin':
+            # Add violin plots
+            for i, (time, val) in enumerate(zip(times, values)):
+                kde = gaussian_kde(val, bw_method=0.3)
+                x = np.linspace(min(val)*0.8, max(val)*1.2, 100)
+                kde_values = kde(x)
+                kde_values = kde_values / kde_values.max() * width * 0.5
+                
+                if condition=='Development':
+                    #time_shift=time-width/4 
+                    p.patch(np.concatenate([time - kde_values, np.array([time,time])]),
+                        np.concatenate([x, np.array([x[-1],x[0]])]),
+                        alpha=0.3, color=color, line_color=color)
+                else:
+                    #time_shift=time+width/4 
+
+                    p.patch(np.concatenate([np.array([time,time]), (time + kde_values)[::-1]]),
+                            np.concatenate([np.array([x[-1],x[0]]), x[::-1]]),
+                            alpha=0.3, color=color, line_color=color)
+
+        # Add lines and whiskers (Development and Regeneration)
+        for i, (time, val) in enumerate(zip(times, values)):
+            lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+
+            if condition=='Development':
+                time_shift=time-width/4 
+            else:
+                time_shift=time+width/4 
+
+            # Whiskers
+            p.segment(x0=[time_shift], y0=[lower_bound], x1=[time_shift], y1=[upper_bound], color='black', line_width=2)
+            p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[lower_bound, lower_bound], line_width=2, color='black')
+            p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+            # Median
+            p.line(x=[time_shift - width / 4, time_shift + width / 4], y=[q2, q2], line_width=3, color='black')
+            p.scatter(x=[time_shift], y=[q2], size=10, color='black', marker='x')
+
+    # Configure the legend
+    p.legend.location = "top_left"
+
     # Show the plot
     show(p)
 

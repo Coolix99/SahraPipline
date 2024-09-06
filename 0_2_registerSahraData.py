@@ -31,6 +31,7 @@ def extract_info(s: str) -> Tuple[int, bool]:
     elif 'dev' in s:
         return hours, True
     else:
+        print(s)
         raise ValueError("Neither 'reg' nor 'dev' are present in the string.")
 
 
@@ -103,12 +104,12 @@ def register_finmask(skip_existing=True):
     
     raw_folders_list= [item for item in os.listdir(mask_folders_path) if os.path.isdir(os.path.join(mask_folders_path, item))]
     for raw_folder in raw_folders_list:
-        time, is_dev=extract_info(raw_folder)
-        print(time, is_dev)
+        
         img_folder_path=os.path.join(mask_folders_path,raw_folder)
         im_list = os.listdir(img_folder_path)
         for img_name in im_list:
             print(img_name)
+
             finmasks_folder_path=os.path.join(finmasks_path,os.path.splitext(img_name)[0])
             make_path(finmasks_folder_path)
             if (not get_JSON(finmasks_folder_path)=={}) and skip_existing:
@@ -118,7 +119,9 @@ def register_finmask(skip_existing=True):
                 im,voxel_size_um=getImage_Meta(os.path.join(img_folder_path,img_name))
             except:
                 continue
-        
+            time, is_dev=extract_info(img_name)
+            print(time, is_dev)
+
             im=process_3d_image(im>0)
 
             

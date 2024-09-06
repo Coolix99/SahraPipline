@@ -3,7 +3,8 @@ import os
 
 from config import *
 
-from plotMatPlotHelper import plot_single_timeseries,plot_double_timeseries
+#from plotMatPlotHelper import plot_single_timeseries,plot_double_timeseries
+from plotBokehHelper import plot_single_timeseries,plot_double_timeseries
 
 def getData():
     hdf5_file_path = os.path.join(Curv_Thick_path, 'scalarGrowthData.h5')
@@ -40,10 +41,10 @@ def main():
 
     #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 
-    #plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Int_dA_d / A', style='box', color='orange')
-    plot_double_timeseries(df, y_col='Volume', style='box')
-    plot_double_timeseries(df, y_col='Surface Area', style='box')
-    #plot_double_timeseries(df, y_col='Surface Area', style='violin')
+    #plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
+    #plot_double_timeseries(df, y_col='Volume', style='violin')
+    #plot_double_timeseries(df, y_col='Surface Area', style='box')
+    plot_double_timeseries(df, y_col='Surface Area', style='violin')
 
 
 
