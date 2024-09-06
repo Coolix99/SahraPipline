@@ -321,7 +321,7 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     
     findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
 
-    #plot_debugg(mesh_hirarchical[0],mesh_target)
+    plot_debugg(mesh_hirarchical[0],mesh_target)
     
 
     # for valid energy: (2a+6b+2c−d)=0
@@ -330,7 +330,7 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     c=1.0  
     d=2*a+4*b+2*c
     for level in range(len(mesh_hirarchical)):
-        all_sum_deriv=[]
+        #all_sum_deriv=[]
         #interative solving
         rate=start_rates[level]
         faces = mesh_hirarchical[level].faces.reshape((-1, 4))[:, 1:4]
@@ -355,12 +355,14 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             mesh_hirarchical[level].point_data["displacement"]=mesh_hirarchical[level].point_data["deformed"]-mesh_hirarchical[level].point_data["rotated"]
         #transfer result to next level
         if level<len(mesh_hirarchical)-1:
-            # print('before transfer')
-            # plot_debugg(mesh_hirarchical[level],mesh_target)
+            print('before transfer')
+            plot_debugg(mesh_hirarchical[level],mesh_target)
             transfer_displacement(mesh_hirarchical[level],mesh_hirarchical[level+1])   
+            print('transfered to',level+1)
+            plot_debugg(mesh_hirarchical[level+1],mesh_target)
             smoothDisplacement(mesh_hirarchical[level+1])
-            # print('transfered to',level+1)
-            # plot_debugg(mesh_hirarchical[level+1],mesh_target)
+            print('after smooth to',level+1)
+            plot_debugg(mesh_hirarchical[level+1],mesh_target)
 
 
         
@@ -468,7 +470,7 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
 
     
     print('found', N_bad)
-    return N_bad<25
+    return N_bad<1
 
 
 def main():

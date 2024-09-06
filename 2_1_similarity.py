@@ -88,14 +88,15 @@ def get_primitive_Graph(df):
         return None
 
     meshes = []
+    features_list=[]
     for row in df.itertuples():
         meshes.append(pv.read(os.path.join(FlatFin_path, row.folder_name, row.file_name)))
-
-    features_list = [calculate_mesh_features(mesh) for mesh in meshes]
-    feature_df = pd.DataFrame(features_list)[['surface_area', 'aspect_ratio']]
+        features_list.append(calculate_mesh_features(meshes[-1]))
+        features_list[-1]['folder_name']=row.folder_name
+    feature_df = pd.DataFrame(features_list)[['surface_area', 'aspect_ratio','folder_name']]
     
     scaler = StandardScaler()
-    feature_df_normalized = scaler.fit_transform(feature_df)
+    feature_df_normalized = scaler.fit_transform(feature_df[['surface_area', 'aspect_ratio']])
     
     df['x'] = feature_df_normalized[:, 0]
     df['y'] = feature_df_normalized[:, 1]
@@ -150,7 +151,7 @@ def get_primitive_Graph(df):
 
     print(graph)
 
-    return points, graph
+    return points, graph,feature_df
 
 
 
@@ -179,16 +180,28 @@ def make_primitive_Graph():
     print(df)
     
     make_path(Diffeo_path)
-    points, graph = get_primitive_Graph(df)
+    points, graph,feature_df = get_primitive_Graph(df)
+    print(feature_df)
+    
     # Create a new DataFrame to store edges
     edge_list = []
     for node, neighbors in graph.items():
         for neighbor in neighbors:
             if node < neighbor:  # To avoid duplicates
-                edge_list.append({
-                    'node_1': df.iloc[node]['folder_name'],
-                    'node_2': df.iloc[neighbor]['folder_name']
-                })
+                surface_area_1 = feature_df.iloc[node]['surface_area']
+                surface_area_2 = feature_df.iloc[neighbor]['surface_area']
+                
+                # Determine which node has the smaller surface area
+                if surface_area_1 < surface_area_2:
+                    edge_list.append({
+                        'node_1': feature_df.iloc[node]['folder_name'],
+                        'node_2': feature_df.iloc[neighbor]['folder_name']
+                    })
+                else:
+                    edge_list.append({
+                        'node_1': feature_df.iloc[neighbor]['folder_name'],
+                        'node_2': feature_df.iloc[node]['folder_name']
+                    })
 
     edges_df = pd.DataFrame(edge_list, columns=['node_1', 'node_2'])
 

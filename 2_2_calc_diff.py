@@ -198,6 +198,9 @@ def make_diffeo(f1,f2,group_path):
     try:
         diff_energy,a,b,c,d=findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
         print(diff_energy)
+        if not check_for_singularity(mesh_init.copy(),mesh_target):
+            print('Sigular diffeo, do not safe it')
+            return 
         
     except:
         print('fatal error')
@@ -206,9 +209,7 @@ def make_diffeo(f1,f2,group_path):
     #mesh_deformed=getDeformedMesh(mesh_init)
     #mesh_deformed.clear_point_data()
     
-    if not check_for_singularity(mesh_init.copy(),mesh_target):
-        print('Sigular diffeo, do not safe it')
-        return 
+    
 
     deformed_positions=mesh_init.point_data["deformed"]
 
