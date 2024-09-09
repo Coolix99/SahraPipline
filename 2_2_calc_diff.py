@@ -7,7 +7,7 @@ import hashlib
 from simple_file_checksum import get_checksum
 
 from sub_manifold import sub_manifold,sub_manifold_1_closed,sub_manifold_0
-from find_diffeo_hirarchical_soft import findDiffeo,check_for_singularity
+from find_diffeo_hirarchical_correct import findDiffeo,check_for_singularity
 from config import *
 from IO import *
 
@@ -196,7 +196,7 @@ def make_diffeo(f1,f2,group_path):
     #make_path(diffeo_dir_path)
     print('calculate',init_folder,target_folder)
     try:
-        diff_energy,a,b,c,d=findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
+        diff_energy,a,b,c=findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
         print(diff_energy)
         if not check_for_singularity(mesh_init.copy(),mesh_target):
             print('Sigular diffeo, do not safe it')
@@ -227,7 +227,7 @@ def make_diffeo(f1,f2,group_path):
     MetaData_Diffeo['init_folder']=init_folder
     MetaData_Diffeo['target_folder']=target_folder
     MetaData_Diffeo['diff_energy']=diff_energy.item()
-    MetaData_Diffeo['material coeff']=[a,b,c,d]
+    MetaData_Diffeo['material coeff']=[a,b,c]
     MetaData_Diffeo['input init checksum']=init_MetaData['Thickness_MetaData']['output Surface checksum']
     MetaData_Diffeo['input target checksum']=target_MetaData['Thickness_MetaData']['output Surface checksum']
     check_Diffeo=get_checksum(diffeo_file, algorithm="SHA1")

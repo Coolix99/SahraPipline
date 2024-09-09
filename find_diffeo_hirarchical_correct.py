@@ -177,53 +177,64 @@ def transfer_displacement(mesh_coarse ,mesh_fine):
     mesh_fine.point_data["displacement"] = data_array
     mesh_fine.point_data["deformed"] = mesh_fine.point_data["rotated"] + mesh_fine.point_data["displacement"]
 
+
 def compute_deformation_gradient_vectorized(X, x):
     """
-    Compute the deformation gradient F for each face.
+    Compute the simplified deformation gradient F (lambda tensor) for each triangle face.
     X and x are of shape (N_f, 3, 3), where N_f is the number of faces.
+    Returns a lambda tensor of shape (N_f, 2), where each entry contains [lambda1, lambda2].
     """
-    # Edge vectors in the reference and deformed configuration (N_f x 3 x 3)
-    DX1 = X[:, 1] - X[:, 0]  # First edge
-    DX2 = X[:, 2] - X[:, 0]  # Second edge
 
-    dx1 = x[:, 1] - x[:, 0]  # Deformed first edge
-    dx2 = x[:, 2] - x[:, 0]  # Deformed second edge
+    # Edge vectors in the reference and deformed configuration (N_f, 3)
+    DX1 = X[:, 1] - X[:, 0]  # First edge in the reference configuration
+    DX2 = X[:, 2] - X[:, 0]  # Second edge in the reference configuration
 
-    # Compute normal vector for the reference configuration
-    N_ref = jnp.cross(DX1, DX2)  # Cross product gives normal to the triangle
-    N_ref = N_ref / jnp.linalg.norm(N_ref, axis=-1, keepdims=True)  # Normalize
+    dx1 = x[:, 1] - x[:, 0]  # First edge in the deformed configuration
+    dx2 = x[:, 2] - x[:, 0]  # Second edge in the deformed configuration
 
-    # Compute normal vector for the deformed configuration
-    N_def = jnp.cross(dx1, dx2)  # Cross product gives deformed normal
-    N_def = N_def / jnp.linalg.norm(N_def, axis=-1, keepdims=True)  # Normalize
+    # Compute the scaling factor for the first edge (lambda1)
+    DX1_norm = jnp.linalg.norm(DX1, axis=-1)  # Shape (N_f,)
+    dx1_norm = jnp.linalg.norm(dx1, axis=-1)  # Shape (N_f,)
 
-    # Construct the 3x3 deformation gradient matrix
-    DX_full = jnp.stack([DX1, DX2, N_ref], axis=-1)  # Shape: (N_f, 3, 3)
-    dx_full = jnp.stack([dx1, dx2, N_def], axis=-1)  # Shape: (N_f, 3, 3)
+    lambda1 = dx1_norm / DX1_norm  # Shape (N_f,)
 
-    # Solve the system DX_full @ F.T = dx_full to get the deformation gradient F
-    F = jnp.einsum('...ij,...jk->...ik', dx_full, jnp.linalg.pinv(DX_full))
+    # Project the second edge orthogonally to the first edge and compute lambda2
+    DX2_proj = DX2 - (jnp.sum(DX2 * DX1, axis=-1, keepdims=True) / jnp.sum(DX1 * DX1, axis=-1, keepdims=True)) * DX1
+    dx2_proj = dx2 - (jnp.sum(dx2 * dx1, axis=-1, keepdims=True) / jnp.sum(dx1 * dx1, axis=-1, keepdims=True)) * dx1
 
-    return F
+    DX2_proj_norm = jnp.linalg.norm(DX2_proj, axis=-1)  # Shape (N_f,)
+    dx2_proj_norm = jnp.linalg.norm(dx2_proj, axis=-1)  # Shape (N_f,)
 
-def mooney_rivlin_energy(F, a, b, c, d):
+    lambda2 = dx2_proj_norm / DX2_proj_norm  # Shape (N_f,)
+
+    # Combine lambda1 and lambda2 into a tensor of shape (N_f, 2)
+    lambda_tensor = jnp.stack([lambda1, lambda2], axis=-1)  # Shape (N_f, 2)
+
+    return lambda_tensor
+
+
+def mooney_rivlin_energy(lambda_tensor, a, b, c):
     """
-    Compute the corrected Mooney–Rivlin energy for each face.
+    Compute the Mooney–Rivlin energy using the diagonal deformation gradient (lambda1, lambda2).
+    The lambda_tensor has shape (N_f, 2) where each row contains [lambda1, lambda2].
     """
-    
-    # First term: a * (||F||^2 - 3)
-    term1 = a * (jnp.sum(F**2, axis=(-2, -1)) - 3)
 
-    # Second term: b * (||Cof(F)||^2 - 3)
-    Cof_F = jnp.linalg.det(F)[:, None, None] * jnp.linalg.inv(F).transpose(0, 2, 1)
-    term2 = b * (jnp.sum(Cof_F**2, axis=(-2, -1)) - 3)
-    
-    # Third term: Γ(det(F)) = c * (det(F)^2 - 1) - d * log(det(F))
-    det_F = jnp.linalg.det(F)
-    term3 = c * (det_F*det_F - 1) - d * jnp.log(det_F)
+    # Extract lambda1 and lambda2
+    lambda1 = lambda_tensor[:, 0]
+    lambda2 = lambda_tensor[:, 1]
+
+    # First invariant: trace of  F = lambda1 + lambda2 
+    I1 = lambda1 + lambda2
+
+    # First term: a * (I1 - 2), where I1 is the sum of squared lambdas
+    term1 = a * (I1 - 2)
+
+    # Second term: Γ(det(F)) = c * (det(F)^2 - 1) - d * log(det(F))
+    det_F = lambda1 * lambda2
+    term2 = b * (det_F*det_F - 1) - c * jnp.log(det_F)
 
     # Total energy
-    W = term1 + term2 + term3
+    W = term1  + term2
 
     return W
 
@@ -242,16 +253,16 @@ def compute_triangle_areas(X):
 
     return areas
 
-@jit
-def total_energy(x, X, a, b, c,d):
+#@jit
+def total_energy(x, X, a, b, c):
     """
     Compute the total energy by integrating the energy over all faces using their areas.
     """
     # Compute deformation gradient F for each face
-    F = compute_deformation_gradient_vectorized(X, x)
-
+    F_diag = compute_deformation_gradient_vectorized(X, x)
+    
     # Compute the Mooney-Rivlin energy for each face
-    W = mooney_rivlin_energy(F, a, b, c,d)
+    W = mooney_rivlin_energy(F_diag, a, b, c)
   
     # Compute the areas of the triangles in the reference configuration
     areas = compute_triangle_areas(X)
@@ -262,13 +273,13 @@ def total_energy(x, X, a, b, c,d):
     return total_W
 
 @jit
-def compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c,d):
+def compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c):
     # Gather the original and deformed positions for each face
     X = vertex_points[faces]  # Shape: (N_f, 3, 3)
     x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
 
     # Gradient of total energy with respect to the deformed vertex positions
-    dW_x = grad(total_energy, argnums=0)(x, X, a, b, c,d)
+    dW_x = grad(total_energy, argnums=0)(x, X, a, b, c)
 
     # Initialize forces with zeros
     forces = jnp.zeros_like(deformed_vertex_points)
@@ -279,12 +290,13 @@ def compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c,d):
 
     return forces
 
-def total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c,d):
+@jit
+def total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c):
     X = vertex_points[faces] 
     x = deformed_vertex_points[faces]  
-    return np.array(total_energy(x, X, a, b, c,d))
+    return total_energy(x, X, a, b, c)
 
-def plot_debugg(mesh_init,mesh_target):
+def plot_debugg(mesh_init,mesh_target,show_target=True):
     faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
     init_vertex_points = mesh_init.points
     x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
@@ -309,7 +321,9 @@ def plot_debugg(mesh_init,mesh_target):
     points["vectors"] = N_def * arrow_scale
     points.set_active_vectors("vectors")
     p.add_mesh(points.arrows, color='red')
-    p.add_mesh(mesh_target, color='green', show_edges=True)
+    
+    if show_target:
+        p.add_mesh(mesh_target, color='green', show_edges=True)
     p.show()
 
 def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
@@ -321,14 +335,13 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     
     findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
 
-    plot_debugg(mesh_hirarchical[0],mesh_target)
+    #plot_debugg(mesh_hirarchical[0],mesh_target)
     
 
     # for valid energy: (2a+6b+2c−d)=0
     a=0.1
-    b=0.1
-    c=1.0  
-    d=2*a+4*b+2*c
+    b=1.0
+    c=a+2*b  
     for level in range(len(mesh_hirarchical)):
         #all_sum_deriv=[]
         #interative solving
@@ -340,7 +353,7 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             #calculate the forces
             
             deformed_vertex_points=mesh_hirarchical[level].point_data['deformed']
-            elastic_force=0.05*np.array(compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c,d))
+            elastic_force=0.05*np.array(compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c))
 
             old=mesh_hirarchical[level].point_data["deformed"].copy()
             projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
@@ -355,20 +368,20 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             mesh_hirarchical[level].point_data["displacement"]=mesh_hirarchical[level].point_data["deformed"]-mesh_hirarchical[level].point_data["rotated"]
         #transfer result to next level
         if level<len(mesh_hirarchical)-1:
-            print('before transfer')
-            plot_debugg(mesh_hirarchical[level],mesh_target)
+            # print('before transfer')
+            # plot_debugg(mesh_hirarchical[level],mesh_target,show_target=False)
             transfer_displacement(mesh_hirarchical[level],mesh_hirarchical[level+1])   
-            print('transfered to',level+1)
-            plot_debugg(mesh_hirarchical[level+1],mesh_target)
+            # print('transfered to',level+1)
+            # plot_debugg(mesh_hirarchical[level+1],mesh_target)
             smoothDisplacement(mesh_hirarchical[level+1])
-            print('after smooth to',level+1)
-            plot_debugg(mesh_hirarchical[level+1],mesh_target)
+            # print('after smooth to',level+1)
+            # plot_debugg(mesh_hirarchical[level+1],mesh_target)
 
 
         
 
         if level==len(mesh_hirarchical)-1:
-            return total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c,d), a,b,c,d
+            return np.array(total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c)), a,b,c
        
 @jit    
 def calc_normals(x):
@@ -469,8 +482,8 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
             N_bad+=1
 
     
-    print('found', N_bad)
-    return N_bad<1
+    print('found', N_bad, N_bad/len(centers_faces_deformed))
+    return N_bad/len(centers_faces_deformed)<0.01
 
 
 def main():
@@ -576,8 +589,8 @@ def main():
 
     import os
     from config import FlatFin_path
-    init_dir_path=os.path.join(FlatFin_path,'270524_sox10_claudin-gfp_72h_pecfin2_FlatFin')
-    target_dir_path=os.path.join(FlatFin_path,'270524_sox10_claudin-gfp_72h_pecfin5_FlatFin')
+    target_dir_path=os.path.join(FlatFin_path,'270524_sox10_claudin-gfp_72h_pecfin2_FlatFin')
+    init_dir_path=os.path.join(FlatFin_path,'270524_sox10_claudin-gfp_72h_pecfin5_FlatFin')
     mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target,init_MetaData,target_MetaData=getInput(init_dir_path,target_dir_path)
 
     findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
@@ -620,6 +633,35 @@ def main():
 
     return
 
+def test():
+    vertex_points = jnp.array([
+    [0.0, 0.0, 0.0],  # Vertex 0
+    [1.0, 0.0, 0.0],  # Vertex 1
+    [0.0, 1.0, 0.0]   # Vertex 2
+    ])
+
+    # Slightly deformed version of the triangle (deformed configuration)
+    deformed_vertex_points = jnp.array([
+        [0.0, 0.0, 0.0],  # Vertex 0 (same as reference)
+        [1.1, 0.0, 0.0],  # Vertex 1 slightly moved along x-axis
+        [0.0, 1.1, 0.0]   # Vertex 2 slightly moved along y-axis
+    ])
+
+    # Faces of the triangle (one triangle made of vertices 0, 1, 2)
+    faces = jnp.array([[0, 1, 2]])
+
+    # Parameters for Mooney-Rivlin material
+    a = 0.1
+    b = 1.0
+    c = a + 2 * b
+
+    # Compute the forces on the vertices
+    forces = compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c)
+
+    # Print the forces
+    print("Forces on vertices:")
+    print(forces)
 
 if __name__ == "__main__":
+    #test()
     main()
