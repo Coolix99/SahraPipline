@@ -8,6 +8,7 @@ from scipy.spatial import cKDTree
 
 from config import *
 from IO import *
+from find_diffeo_hirarchical_correct import check_for_singularity
 
 def check_folders(diffeos_df, group_df):
     # Extract folder names from group_df
@@ -162,9 +163,11 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
         print(used_diffeos_df)
         print(init_folder, target_folder)
         raise
-    print('TODO check singularity')
-    raise
-
+    start_surface.point_data["deformed"]=current_positions
+    if not check_for_singularity(start_surface,all_surfaces[path[-1]])<0.1:
+        print('singular path')
+        from find_diffeo_hirarchical_correct import plot_debugg
+        plot_debugg(start_surface,all_surfaces[path[-1]])
     return current_positions
 
 def make_Hist(group_df,diffeos_df):

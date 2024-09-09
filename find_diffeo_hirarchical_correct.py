@@ -212,6 +212,67 @@ def compute_deformation_gradient_vectorized(X, x):
 
     return lambda_tensor
 
+def compute_face_normals(X):
+    """
+    Compute the normal vectors for each face in the reference and deformed configurations.
+    X is of shape (N_f, 3, 3), where N_f is the number of faces.
+    Returns normals of shape (N_f, 3).
+    """
+    # Edge vectors
+    DX1 = X[:, 1] - X[:, 0]
+    DX2 = X[:, 2] - X[:, 0]
+    
+    # Compute the normal using the cross product of the two edge vectors
+    normals = jnp.cross(DX1, DX2)
+    # Normalize the normal vectors
+    normals = normals / jnp.linalg.norm(normals, axis=-1, keepdims=True)
+    
+    return normals
+
+def compute_cos_theta(vertex_points, deformed_vertex_points, faces, shared_edges,normals_ref):
+    """
+    Compute the energy contribution from edges where the normal vector changes.
+    This version uses vertex_points and deformed_vertex_points directly, without extracting subsets X and x.
+    Faces are of shape (N_f, 3, 3), and shared_edges is a JAX array of shared edge data.
+    """
+    # Compute normals for reference and deformed configurations
+    x = deformed_vertex_points[faces]  # Gather deformed vertex positions for faces
+
+    
+    normals_def = compute_face_normals(x)
+
+    # Extract shared edge information
+    face1_idx = shared_edges[:, 1,0]  # Indices of face1 in shared edges
+    face2_idx = shared_edges[:, 1,1]  # Indices of face2 in shared edges
+    edge_v1_idx = shared_edges[:, 0,0]  # Indices of the first vertex of shared edge
+    edge_v2_idx = shared_edges[:, 0,1]  # Indices of the second vertex of shared edge
+
+    # Get the edge vectors
+    edge_vec_ref = vertex_points[edge_v2_idx] - vertex_points[edge_v1_idx]
+    edge_vec_def = deformed_vertex_points[edge_v2_idx] - deformed_vertex_points[edge_v1_idx]
+
+    # Compute the cross product of n1 (normal of face1) and the shared edge vector
+    cross_ref = jnp.cross(normals_ref[face1_idx], edge_vec_ref)
+    cross_def = jnp.cross(normals_def[face1_idx], edge_vec_def)
+
+    # Normalize the cross product for reference configuration
+    cross_ref_norm = cross_ref / jnp.linalg.norm(cross_ref, axis=-1, keepdims=True)
+    cross_def_norm = cross_def / jnp.linalg.norm(cross_def, axis=-1, keepdims=True)
+
+    # Now compute the projections of n2 onto n1 and cross_ref_norm
+    # In the reference configuration
+    n1_dot_n2_ref = jnp.einsum('ij,ij->i', normals_ref[face2_idx], normals_ref[face1_idx])
+    n2_dot_cross_ref = jnp.einsum('ij,ij->i', normals_ref[face2_idx], cross_ref_norm)
+
+    # In the deformed configuration
+    n1_dot_n2_def = jnp.einsum('ij,ij->i', normals_def[face2_idx], normals_def[face1_idx])
+    n2_dot_cross_def = jnp.einsum('ij,ij->i', normals_def[face2_idx], cross_def_norm)
+
+    # Compute the cosine of the angle between n2 in the reference and deformed configurations
+    cos_theta = n1_dot_n2_ref * n1_dot_n2_def + n2_dot_cross_ref * n2_dot_cross_def
+
+    return cos_theta
+
 
 def mooney_rivlin_energy(lambda_tensor, a, b, c):
     """
@@ -253,48 +314,77 @@ def compute_triangle_areas(X):
 
     return areas
 
-#@jit
-def total_energy(x, X, a, b, c):
+def edge_bending_energy(cos_theta,k1,k2):
+    # Compute the energy contribution for the edges
+    edge_energy = -k1 * (cos_theta - 1) - k2 * (jnp.log(cos_theta + 1) - jnp.log(2))
+    return edge_energy
+
+def compute_edge_length(vertex_points, shared_edges):
+    """
+    Compute the lengths of edges specified in shared_edges.
+
+    Parameters:
+    - vertex_points: array of shape (N_v, 3), where N_v is the number of vertices.
+    - shared_edges: array of shape (N_e, 4), where N_e is the number of shared edges.
+        Each row contains (face1_idx, face2_idx, edge_v1_idx, edge_v2_idx).
+
+    Returns:
+    - edge_lengths: array of shape (N_e,), lengths of the shared edges.
+    """
+    # Extract the indices of the vertices forming the edges
+    edge_v1_idx = shared_edges[:, 0,0]  # Indices of the first vertex of shared edge
+    edge_v2_idx = shared_edges[:, 0,1]  # Indices of the second vertex of shared edge
+
+    # Get the positions of the vertices forming each edge
+    v1 = vertex_points[edge_v1_idx]
+    v2 = vertex_points[edge_v2_idx]
+
+    # Compute the edge vectors
+    edge_vectors = v2 - v1
+
+    # Compute the lengths of the edge vectors (edges)
+    edge_lengths = jnp.linalg.norm(edge_vectors, axis=-1)
+
+    return edge_lengths
+
+def total_energy(deformed_vertex_points,vertex_points,faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2):
     """
     Compute the total energy by integrating the energy over all faces using their areas.
     """
+    X = vertex_points[faces]  # Shape: (N_f, 3, 3)
+    x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
     # Compute deformation gradient F for each face
     F_diag = compute_deformation_gradient_vectorized(X, x)
     
     # Compute the Mooney-Rivlin energy for each face
     W = mooney_rivlin_energy(F_diag, a, b, c)
   
-    # Compute the areas of the triangles in the reference configuration
-    areas = compute_triangle_areas(X)
+    
     
     # Integrate the energy over the triangles by multiplying the energy by the areas
     total_W = jnp.sum(W * areas)
 
+    cos_theta = compute_cos_theta(vertex_points, deformed_vertex_points,faces,shared_edges,normals_ref)
+    W = edge_bending_energy(cos_theta,k1,k2)
+
+    
+    total_W = total_W+jnp.sum(W * length)
+
     return total_W
 
 @jit
-def compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c):
-    # Gather the original and deformed positions for each face
-    X = vertex_points[faces]  # Shape: (N_f, 3, 3)
-    x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
-
+def compute_forces(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2):    
     # Gradient of total energy with respect to the deformed vertex positions
-    dW_x = grad(total_energy, argnums=0)(x, X, a, b, c)
+    dW_x = grad(total_energy, argnums=0)(deformed_vertex_points,vertex_points,faces, shared_edges,areas,length,normals_ref,a, b, c,k1,k2)
+    return -dW_x
 
-    # Initialize forces with zeros
-    forces = jnp.zeros_like(deformed_vertex_points)
-
-    # Distribute forces back to vertices
-    for i in range(3):
-        forces = -forces.at[faces[:, i]].add(dW_x[:, i])
-
-    return forces
-
-@jit
-def total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c):
+def total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c,k1,k2):
     X = vertex_points[faces] 
-    x = deformed_vertex_points[faces]  
-    return total_energy(x, X, a, b, c)
+    shared_edges = find_shared_edges(np.array(faces))
+    areas = compute_triangle_areas(X)
+    length=compute_edge_length(vertex_points,shared_edges)
+    normals_ref = compute_face_normals(X)
+    return total_energy(deformed_vertex_points,vertex_points,faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2)
 
 def plot_debugg(mesh_init,mesh_target,show_target=True):
     faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
@@ -327,10 +417,10 @@ def plot_debugg(mesh_init,mesh_target,show_target=True):
     p.show()
 
 def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
-    N_iterations=[1000,500,500,100]
-    start_rates=[0.001,0.001,0.001,0.01]
-    target_reductions=[0.99,0.99,0.95]
-    force_surface_faktor=[1.0,3.0,3.0,5.0]
+    N_iterations=[100,500,500,100]
+    start_rates=[0.01,0.005,0.005,0.01]
+    target_reductions=[0.99,0.95,0.9]
+    force_surface_faktor=[0.2,0.5,0.9,0.95]
     mesh_hirarchical,sub_manifolds_hirarchical=makeHirarchicalGrids(mesh_init,sub_manifolds_init,mesh_target,target_reductions)
     
     findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
@@ -342,46 +432,64 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     a=0.1
     b=1.0
     c=a+2*b  
+    k1=1.0
+    k2=1.0
+
     for level in range(len(mesh_hirarchical)):
         #all_sum_deriv=[]
         #interative solving
         rate=start_rates[level]
         faces = mesh_hirarchical[level].faces.reshape((-1, 4))[:, 1:4]
         vertex_points=mesh_hirarchical[level].points
+        shared_edges = find_shared_edges(np.array(faces))
+        print(shared_edges.shape)
+        X = vertex_points[faces]
+        areas = compute_triangle_areas(X)
+        length=compute_edge_length(vertex_points,shared_edges)
+        normals_ref = compute_face_normals(X)
         for i in range(N_iterations[level]):
             #print(i)
             #calculate the forces
             
             deformed_vertex_points=mesh_hirarchical[level].point_data['deformed']
-            elastic_force=0.05*np.array(compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c))
+            elastic_force=np.array(compute_forces(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2))
 
+            #tangent_forces=getTangentComponent(elastic_force,mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level])
             old=mesh_hirarchical[level].point_data["deformed"].copy()
             projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
-            force_surface=(mesh_hirarchical[level].point_data["deformed"]-old)*force_surface_faktor[level]
-            
-            mesh_hirarchical[level].point_data["deformed"]=old+rate*(elastic_force+force_surface)
-            
+            force_surface=(mesh_hirarchical[level].point_data["deformed"]-old)
+            mesh_hirarchical[level].point_data["deformed"]=old+rate*(elastic_force*(1-force_surface_faktor[level])+force_surface*force_surface_faktor[level])
+            #mesh_hirarchical[level].point_data["deformed"]=mesh_hirarchical[level].point_data["deformed"]+rate*tangent_forces
+            #plot_debugg(mesh_hirarchical[level],mesh_target,show_target=False)
             if i%(N_iterations[level]//20)==0:
-                print(level,i,np.max(np.linalg.norm(elastic_force,axis=1)),np.max(np.linalg.norm(force_surface,axis=1)),np.max(np.linalg.norm(elastic_force+force_surface,axis=1)),rate)
+                print(level,i,np.max(np.linalg.norm(elastic_force,axis=1))*rate)
                 #plot_debugg(mesh_hirarchical[level],mesh_target)
             
             mesh_hirarchical[level].point_data["displacement"]=mesh_hirarchical[level].point_data["deformed"]-mesh_hirarchical[level].point_data["rotated"]
         #transfer result to next level
         if level<len(mesh_hirarchical)-1:
-            # print('before transfer')
-            # plot_debugg(mesh_hirarchical[level],mesh_target,show_target=False)
+            #print('before transfer')
+            #plot_debugg(mesh_hirarchical[level],mesh_target,show_target=False)
             transfer_displacement(mesh_hirarchical[level],mesh_hirarchical[level+1])   
             # print('transfered to',level+1)
             # plot_debugg(mesh_hirarchical[level+1],mesh_target)
             smoothDisplacement(mesh_hirarchical[level+1])
-            # print('after smooth to',level+1)
-            # plot_debugg(mesh_hirarchical[level+1],mesh_target)
+            #print('after smooth to',level+1)
+            #plot_debugg(mesh_hirarchical[level+1],mesh_target)
 
 
         
 
         if level==len(mesh_hirarchical)-1:
-            return np.array(total_energy_from_vertices(vertex_points,deformed_vertex_points,faces, a, b, c)), a,b,c
+            #plot_debugg(mesh_hirarchical[level],mesh_target)
+            energy=np.array(total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c,k1,k2))
+            old=mesh_hirarchical[level].point_data["deformed"].copy()
+            projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
+            dist_vec=mesh_hirarchical[level].point_data["deformed"]-old
+            dist=np.linalg.norm(dist_vec,axis=1)
+            print(dist.shape)
+            
+            return energy,np.max(dist),a,b,c,k1,k2
        
 @jit    
 def calc_normals(x):
@@ -398,7 +506,6 @@ def calc_normals(x):
     N_def = N_def / jnp.linalg.norm(N_def, axis=-1, keepdims=True)  # Normalize
 
     return N_def
-
 
 
 def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
@@ -480,10 +587,11 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
             # print(np.degrees(angle))
             # print(dot_product)
             N_bad+=1
-
-    
     print('found', N_bad, N_bad/len(centers_faces_deformed))
-    return N_bad/len(centers_faces_deformed)<0.01
+
+
+
+    return N_bad/len(centers_faces_deformed)
 
 
 def main():
@@ -633,30 +741,78 @@ def main():
 
     return
 
+from collections import defaultdict
+def find_shared_edges(faces):
+    """
+    Find shared edges between triangles in a mesh.
+    
+    Parameters:
+    faces (np.array): An array of shape (n, 3) where each row represents a triangle and 
+                       contains indices of the vertices that form the triangle.
+    
+    Returns:
+    shared_edges (list): A list of tuples, where each tuple contains:
+                         - A tuple representing the shared edge (two vertex indices)
+                         - A list of two face indices that share this edge
+    """
+    edge_face_map = defaultdict(list)
+
+    # Extract all edges from each face
+    for face_idx, face in enumerate(faces):
+        # Define edges of the current triangle
+        edges = [(face[i], face[(i+1) % 3]) for i in range(3)]
+        
+        # Store each edge (sorted, so that (v1, v2) == (v2, v1)) and the face index
+        for edge in edges:
+            sorted_edge = tuple(sorted(edge))
+            edge_face_map[sorted_edge].append(face_idx)
+
+    # Identify shared edges and the associated face indices
+    shared_edges = []
+    for edge, face_list in edge_face_map.items():
+        if len(face_list) > 1:
+            shared_edges.append((edge, face_list))
+
+    return jnp.array(shared_edges)
+
 def test():
     vertex_points = jnp.array([
     [0.0, 0.0, 0.0],  # Vertex 0
     [1.0, 0.0, 0.0],  # Vertex 1
-    [0.0, 1.0, 0.0]   # Vertex 2
+    [0.0, 1.0, 0.0],  # Vertex 2
+    [1.0, 1.0, 0.0]   # Vertex 3
     ])
 
     # Slightly deformed version of the triangle (deformed configuration)
     deformed_vertex_points = jnp.array([
         [0.0, 0.0, 0.0],  # Vertex 0 (same as reference)
-        [1.1, 0.0, 0.0],  # Vertex 1 slightly moved along x-axis
-        [0.0, 1.1, 0.0]   # Vertex 2 slightly moved along y-axis
+        [1.0, 0.0, 0.0],  # Vertex 1 slightly moved along x-axis
+        [0.0, 1.0, 0.0],   # Vertex 2 slightly moved along y-axis
+        [1.0, 1.0, 0.1]   # Vertex 3 slightly moved 
     ])
 
     # Faces of the triangle (one triangle made of vertices 0, 1, 2)
-    faces = jnp.array([[0, 1, 2]])
+    faces = jnp.array([[0, 1, 2],
+                       [1, 2, 3]])
 
+    shared_edges = find_shared_edges(np.array(faces))
+
+   
+    
     # Parameters for Mooney-Rivlin material
-    a = 0.1
-    b = 1.0
+    a = 0.1 *0
+    b = 1.0 *0
     c = a + 2 * b
+    k1=0.0
+    k2=1.0
 
     # Compute the forces on the vertices
-    forces = compute_forces(vertex_points, deformed_vertex_points, faces, a, b, c)
+    X = vertex_points[faces]
+    areas = compute_triangle_areas(X)
+    length=compute_edge_length(vertex_points,shared_edges)
+    print(length)
+    normals_ref = compute_face_normals(X)
+    forces = compute_forces(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2)
 
     # Print the forces
     print("Forces on vertices:")
