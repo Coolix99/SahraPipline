@@ -143,8 +143,7 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
     current_positions=start_surface.points
     
     for i in range(len(path)-1):
-        start_surface.point_data["deformed"]=current_positions
-        plot_debugg(start_surface,all_surfaces[path[i]])
+        
         init_folder=path[i]
         target_folder=path[i+1]
         order,diff_folder = check_order(used_diffeos_df, init_folder, target_folder)
@@ -155,12 +154,18 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
         if order==1:
             cell_index,current_positions = all_surfaces[path[i]].find_closest_cell(current_positions,return_closest_point=True)
             InterpolatedCoordinate_forward(current_positions,cell_index,diff_arr,all_surfaces[path[i]])
+            print('forward')
+            start_surface.point_data["deformed"]=current_positions
+            plot_debugg(start_surface,all_surfaces[path[i+1]])
             continue
         if order==-1:
             pull_back_surface:pv.PolyData=all_surfaces[path[i+1]].copy()
             pull_back_surface.points=diff_arr
             cell_index,current_positions = pull_back_surface.find_closest_cell(current_positions,return_closest_point=True)
             InterpolatedCoordinate_back(current_positions,cell_index,pull_back_surface,all_surfaces[path[i+1]])
+            print('back')
+            start_surface.point_data["deformed"]=current_positions
+            plot_debugg(start_surface,all_surfaces[path[i+1]])
             continue
         print('unexpected')
         print(used_diffeos_df)
