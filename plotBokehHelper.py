@@ -1,6 +1,6 @@
 import numpy as np
 from bokeh.plotting import figure, show
-from bokeh.models import ColumnDataSource, HoverTool, FactorRange
+from bokeh.models import ColumnDataSource, HoverTool, FactorRange, Div, Label
 from bokeh.palettes import Viridis256
 from bokeh.transform import linear_cmap
 from scipy.stats import gaussian_kde
@@ -219,7 +219,7 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
     # Show the plot
     show(p)
 
-def plot_double_timeseries(df, y_col=None, style='box'):
+def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None):
     """
     Create a time-series plot (box plot or violin plot) with individual scatter points, based on filtered data.
     The plot will be split in the middle: 
@@ -244,6 +244,12 @@ def plot_double_timeseries(df, y_col=None, style='box'):
     if y_col is None:
         raise ValueError("You must specify the column for the y-axis (y_col).")
     
+    if y_name is None:
+        y_name=y_col
+    
+    df=df.copy()
+    df[y_col]=df[y_col]*y_scaling
+
     # Filter data for 'Development' and 'Regeneration'
     df_dev = df[df['condition'] == 'Development'].copy()
     df_reg = df[df['condition'] == 'Regeneration'].copy()
@@ -275,27 +281,21 @@ def plot_double_timeseries(df, y_col=None, style='box'):
     scatter_source_reg = ColumnDataSource(df_reg)
 
     # Create figure with a shared numerical x-axis
-    p = figure(title=f"Double Time-series ({style.capitalize()} Plot) of {y_col} by Time",
+    p = figure(title=f"Double Time-series ({style.capitalize()} Plot) of {y_name} by Time",
                x_axis_label="Time (hpf)",
-               y_axis_label=y_col,
-               tools="pan,wheel_zoom,box_zoom,reset,save")
+               y_axis_label=y_name,
+               tools="pan,wheel_zoom,box_zoom,reset,save",
+                width=1000, height=600)
 
-    # Add hover tool for scatter plot
-    hover = HoverTool()
-    hover.tooltips = [
-        ("Time (hpf)", "@{time in hpf}"),
-        (y_col, f"@{{{y_col}}}"),
-        ("Condition", "@{condition}")
-    ]
-    p.add_tools(hover)
+    
 
     # Scatter plot for individual points (Development)
-    p.scatter(x='shifted_time', y=y_col, source=scatter_source_dev,
-              size=8, color='blue', alpha=0.6, legend_label='Development Points')
+    scatter_dev = p.scatter(x='shifted_time', y=y_col, source=scatter_source_dev,
+              size=8, color='blue', alpha=0.6, legend_label='Development')
 
     # Scatter plot for individual points (Regeneration)
-    p.scatter(x='shifted_time', y=y_col, source=scatter_source_reg,
-              size=8, color='orange', alpha=0.6, legend_label='Regeneration Points')
+    scatter_reg = p.scatter(x='shifted_time', y=y_col, source=scatter_source_reg,
+              size=8, color='orange', alpha=0.6, legend_label='Regeneration')
 
     # Box or violin plot for Development and Regeneration
     for condition, times, values, color in zip(['Development', 'Regeneration'],
@@ -354,6 +354,16 @@ def plot_double_timeseries(df, y_col=None, style='box'):
 
     # Configure the legend
     p.legend.location = "top_left"
+
+    # Add hover tool for scatter plot
+    hover = HoverTool(renderers=[scatter_dev,scatter_reg])
+    hover.tooltips = [
+        ("Time (hpf)", "@{time in hpf}"),
+        (y_name, f"@{{{y_col}}}"),
+        ("Condition", "@{condition}"),
+        ("Mask Folder", "@{Mask Folder}")
+    ]
+    p.add_tools(hover)
 
     # Show the plot
     show(p)

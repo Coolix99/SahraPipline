@@ -22,6 +22,7 @@ def getData():
     # Int_dA_d / A (Integrated Thickness / Surface Area)
     df['Int_dA_d / A'] = df['Integrated Thickness'] / df['Surface Area']
 
+
     return df
 
 
@@ -44,7 +45,8 @@ def main():
     #plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
     #plot_double_timeseries(df, y_col='Volume', style='violin')
     #plot_double_timeseries(df, y_col='Surface Area', style='box')
-    plot_double_timeseries(df, y_col='Surface Area', style='violin')
+    plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$')
+    plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$')
 
 
 

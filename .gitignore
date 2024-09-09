@@ -162,3 +162,11 @@ cython_debug/
 # own files
 config_machine.py
 *.html
+
+**
+!**/*.stan
+!**/*.ipynb
+!**/*.py
+!**/
+
+code/.ipynb_checkpoints
