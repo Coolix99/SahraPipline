@@ -3,7 +3,7 @@ import os
 from config_machine import *
 
 if(machine=='Home'):
-    Sahra_Shivani_path=(r'\\vs-grp07.zih.tu-dresden.de\max_kotz\sahra_shivani_data')
+    Sahra_Shivani_path=(r'C:\Users\kotzm\Documents\02_Data\sahra_shivani_data')
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
 

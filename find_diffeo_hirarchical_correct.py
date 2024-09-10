@@ -416,6 +416,21 @@ def plot_debugg(mesh_init,mesh_target,show_target=True):
         p.add_mesh(mesh_target, color='green', show_edges=True)
     p.show()
 
+def plot_desplace(mesh_init,vectors):
+    arrow_scale=10
+    p = pv.Plotter()
+    mesh_deformed=mesh_init.copy()
+    mesh_deformed.points=mesh_init.point_data["deformed"]
+    p.add_mesh(mesh_deformed, color='green', show_edges=True)
+    points=pv.PolyData(mesh_deformed.points)
+    points["vectors"] = vectors * arrow_scale
+    points.set_active_vectors("vectors")
+    p.add_mesh(points.arrows, color='red')
+
+    p.show()
+
+
+
 def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     N_iterations=[100,500,500,100]
     start_rates=[0.01,0.005,0.005,0.01]
@@ -491,6 +506,82 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             
             return energy,np.max(dist),a,b,c,k1,k2
        
+
+def improve_Diffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
+    N_iterations=100
+    rate=0.1
+    force_surface_faktor=0.95
+
+    #plot_debugg(mesh_hirarchical[0],mesh_target)
+    mesh_init['rotated']=mesh_init.points
+    mesh_target['rotated']=mesh_target.points
+
+    # for valid energy: c=a+2*b
+    a=0.1
+    b=1.0
+    c=a+2*b  
+    k1=1.0
+    k2=1.0
+
+   
+    #all_sum_deriv=[]
+    #interative solving
+
+    faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]
+    vertex_points=mesh_init.points
+    shared_edges = find_shared_edges(np.array(faces))
+    print(shared_edges.shape)
+    X = vertex_points[faces]
+    areas = compute_triangle_areas(X)
+    length=compute_edge_length(vertex_points,shared_edges)
+    normals_ref = compute_face_normals(X)
+    i=0
+    while True:
+        #print(i)
+        #calculate the forces
+        
+        deformed_vertex_points=mesh_init.point_data['deformed']
+        elastic_force=np.array(compute_forces(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2))
+
+        #tangent_forces=getTangentComponent(elastic_force,mesh_init,mesh_target,sub_manifolds_init)
+        old=mesh_init.point_data["deformed"].copy()
+        projectPoints(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
+        force_surface=(mesh_init.point_data["deformed"]-old)
+        steps=rate*(elastic_force*(1-force_surface_faktor)+force_surface*force_surface_faktor)
+        step_sizes=np.linalg.norm(steps,axis=1)
+        max_step=np.max(step_sizes)
+        if np.isnan(max_step):
+            print('nan detected')
+            return 
+        #steps[step_sizes > 0.1] = steps[step_sizes > 0.1] / step_sizes[step_sizes > 0.1][:, np.newaxis]*0.1
+        if max_step>0.1:
+                steps = steps / max_step*0.1
+        mesh_init.point_data["deformed"]=old+steps
+        #mesh_init.point_data["deformed"]=mesh_init.point_data["deformed"]+rate*tangent_forces
+        #plot_debugg(mesh_init,mesh_target,show_target=False)
+        if i%(N_iterations//5)==0:
+   
+            print(i,max_step)
+            plot_desplace(mesh_init,steps)
+            if max_step<100 and i>N_iterations:
+                break
+            if i>N_iterations*10:
+                break
+            #plot_debugg(mesh_init,mesh_target)
+        
+        mesh_init.point_data["displacement"]=mesh_init.point_data["deformed"]-mesh_init.point_data["rotated"]
+        i+=1
+    #plot_debugg(mesh_init,mesh_target)
+    energy=np.array(total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c,k1,k2))
+    old=mesh_init.point_data["deformed"].copy()
+    projectPoints(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
+    dist_vec=mesh_init.point_data["deformed"]-old
+    dist=np.linalg.norm(dist_vec,axis=1)
+    print(dist.shape)
+    
+    return energy,np.max(dist),a,b,c,k1,k2
+    
+
 @jit    
 def calc_normals(x):
     """

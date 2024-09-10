@@ -3,16 +3,18 @@ import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
 from sklearn.manifold import MDS
+import pyvista as pv
 import numpy as np
 from bokeh.plotting import figure, show
 from bokeh.models import ColumnDataSource, HoverTool, TapTool, CustomJS
 from bokeh.transform import factor_mark, linear_cmap
 from bokeh.palettes import Viridis256
 from bokeh.models import LinearColorMapper, ColorBar
-
+import shutil
 
 from config import *
 from IO import *
+from find_diffeo_hirarchical_correct import calc_normals
 
 def get_property_df():
     FlatFin_folder_list = os.listdir(FlatFin_path)
@@ -151,30 +153,113 @@ def main():
     # Show the plot
     show(p)
 
-def plot():
+def plot_debugg(mesh_init,mesh_target,ED_folder_path,show_target=True,):
+    faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
+    init_vertex_points = mesh_init.points
+    x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
+    N_init_1 = np.array(calc_normals(x))  # Normals on each face (N_f, 3)
+    N_init_2 = np.cross(mesh_init.point_data['direction_1'],mesh_init.point_data['direction_2'])
+    deformed_vertex_points = mesh_init.point_data["deformed"]
+    x = deformed_vertex_points[faces]  # Shape: (N_f, 3, 3)
+    N_def = np.array(calc_normals(x))
+    for i, face in enumerate(faces):
+        face_normals = N_init_2[face]
+        face_center_normal = np.mean(face_normals, axis=0)
+        if np.dot(N_init_1[i], face_center_normal) < 0:
+            # Flip both N_init_1 and N_def for consistency
+            N_init_1[i] = -N_init_1[i]
+            N_def[i] = -N_def[i]
+    arrow_scale=10
+    mesh_deformed=mesh_init.copy()
+    mesh_deformed.points=mesh_init.point_data["deformed"]
+    p = pv.Plotter()
+    p.add_mesh(mesh_deformed, color='red', show_edges=True)
+    points=pv.PolyData(mesh_deformed.cell_centers().points)
+    points["vectors"] = N_def * arrow_scale
+    points.set_active_vectors("vectors")
+    p.add_mesh(points.arrows, color='red')
+    
+    if show_target:
+        #mesh_target.points=mesh_target.points+np.array([0,0,50])
+        p.add_mesh(mesh_target, color='green', show_edges=True)
+
+
+
+    def key_callback(key):
+        print(key)
+        if key == 'd':
+            print(f"Deleting")
+            if os.path.exists(ED_folder_path):
+                try:
+                    shutil.rmtree(ED_folder_path)
+                except Exception as e:
+                    print(f"Error: {e}")
+            p.close()
+            return
+        if key == 'u':
+            print(f"unsure")
+            status_file = os.path.join(ED_folder_path, 'shown.txt')
+            if os.path.exists(status_file):
+                try:
+                    os.remove(status_file)
+                except Exception as e:
+                    print(f"Error: {e}") 
+            p.close()
+            p.interactor.terminate()
+            return
+
+
+    # Add the key press callback to the plotter
+    p.add_key_event('d', lambda: key_callback('d'))  # Bind 'd' to delete
+    p.add_key_event('u', lambda: key_callback('u'))  # Bind 'u' to skip
+    p.add_key_event('q', lambda: key_callback('q'))  # Bind 'q' to close without deleting
+
+    try:
+        p.show()
+    except Exception as e:
+        print(f"Error: {e}") 
+    print(f"done")
+    return
+
+def plot(skip_shown=True):
     ED_folder_list=[folder for folder in os.listdir(ElementaryDiffeos_path) if os.path.isdir(os.path.join(ElementaryDiffeos_path, folder))]
     #ED_folder_list=['diffeo_0a0502224f']
     for ED_folder in ED_folder_list:
         print(ED_folder)
-        # ED_folder_path=os.path.join(ElementaryDiffeos_path,ED_folder)
-        # MetaData=get_JSON(ED_folder_path)
-        # if not 'MetaData_Diffeo' in MetaData:
-        #     continue
+        ED_folder_path=os.path.join(ElementaryDiffeos_path,ED_folder)
+        MetaData=get_JSON(ED_folder_path)
+        if not 'MetaData_Diffeo' in MetaData:
+            continue
         
-        # Diffeo=np.load(os.path.join(ED_folder_path,MetaData['MetaData_Diffeo']["Diffeo file"]))
+        Diffeo=np.load(os.path.join(ED_folder_path,MetaData['MetaData_Diffeo']["Diffeo file"]))
 
-        # init_folder=MetaData['MetaData_Diffeo']['init_folder']
-        # target_folder=MetaData['MetaData_Diffeo']['target_folder']
+        init_folder=MetaData['MetaData_Diffeo']['init_folder']
+        target_folder=MetaData['MetaData_Diffeo']['target_folder']
 
-        # init_folder_dir=os.path.join(FlatFin_path,init_folder)
-        # init_mesh=pv.read(os.path.join(init_folder_dir,get_JSON(init_folder_dir)['Thickness_MetaData']['Surface file']))
+        status_file = os.path.join(ED_folder_path, 'shown.txt')
+        if skip_shown:    
+            if os.path.exists(status_file):
+                with open(status_file, 'r') as f:
+                    status = f.read().strip()
+                    if status == 'shown':
+                        print(f'Skipping {ED_folder}, already shown.')
+                        continue
 
-        # target_folder_dir=os.path.join(FlatFin_path,target_folder)
-        # target_mesh=pv.read(os.path.join(target_folder_dir,get_JSON(target_folder_dir)['Thickness_MetaData']['Surface file']))
+        init_folder_dir=os.path.join(FlatFin_path,init_folder)
+        init_mesh=pv.read(os.path.join(init_folder_dir,get_JSON(init_folder_dir)['Thickness_MetaData']['Surface file']))
 
-        # print(Diffeo.shape)
-        # print(init_mesh)
-        # print(target_mesh)
+        target_folder_dir=os.path.join(FlatFin_path,target_folder)
+        target_mesh=pv.read(os.path.join(target_folder_dir,get_JSON(target_folder_dir)['Thickness_MetaData']['Surface file']))
+
+        print(Diffeo.shape)
+        print(init_mesh)
+        print(target_mesh)
+        init_mesh.point_data['deformed']=Diffeo
+
+        with open(status_file, 'w') as f:
+            f.write('shown')
+
+        print(plot_debugg(init_mesh,target_mesh,ED_folder_path))
         # # init_mesh.plot()
         # # target_mesh.plot()
         # init_mesh.points=Diffeo
@@ -187,5 +272,5 @@ def plot():
 
 
 if __name__ == "__main__":
-    main()
-    #plot()
+    #main()
+    plot()

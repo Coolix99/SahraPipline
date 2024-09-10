@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import numpy as np
 
 from config import *
 
@@ -25,6 +26,39 @@ def getData():
 
     return df
 
+from scipy.integrate import solve_ivp
+rng = np.random.default_rng()
+def A_theor(t, A_0, g_0, alpha, beta, A_end,A_cut):
+    t48 = t - 48
+
+    def ode_system(t, y):
+        A, g = y
+        dAdt = g*A
+        if A < A_cut:
+            dgdt = -alpha * (g - beta * (A_end - A_cut) / A_end)
+        else:
+            dgdt = -alpha * (g - beta * (A_end - A) / A_end)
+        return [dAdt, dgdt]
+
+    # Initial conditions
+    y0 = [A_0, g_0]
+
+    # Solve the ODE
+    solution = solve_ivp(ode_system, [t48.min(), t48.max()], y0, t_eval=t48, method='RK45')
+    #print("Solver message:", solution.message)
+    return solution.y[0]
+
+def linCrit_ppc(x):
+    sigma = 0*np.abs(rng.normal(0, 2.0))
+    A_0 = 10**rng.normal(0.3, 0.15)
+    g_0 = np.abs(rng.normal(0, 0.1))
+    alpha = 10**rng.normal(-0.25, 0.25)
+    beta = (alpha/4)*10**rng.normal(0, 0.1)
+    A_end = 10**rng.normal(1.0, 0.1)
+    A_cut = 2 + 4*rng.beta(5.0,5.0)
+    #print(A_0, g_0,alpha, beta, A_end)
+    return (rng.normal(A_theor(x, A_0, g_0,alpha, beta, A_end,A_cut), sigma)/A_end,
+            {"A_0": A_0, "g_0": g_0, "alpha": alpha, "beta": beta, "A_end": A_end, "A_cut":A_cut})
 
 def main():
     df=getData()

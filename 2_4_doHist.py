@@ -8,7 +8,9 @@ from scipy.spatial import cKDTree
 
 from config import *
 from IO import *
-from find_diffeo_hirarchical_correct import check_for_singularity,plot_debugg
+from find_diffeo_hirarchical_correct import check_for_singularity,plot_debugg, improve_Diffeo
+from sub_manifold import sub_manifold,sub_manifold_1_closed,sub_manifold_0
+from boundary import getBoundary,path_surrounds_point
 
 
 def check_folders(diffeos_df, group_df):
@@ -154,18 +156,18 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
         if order==1:
             cell_index,current_positions = all_surfaces[path[i]].find_closest_cell(current_positions,return_closest_point=True)
             InterpolatedCoordinate_forward(current_positions,cell_index,diff_arr,all_surfaces[path[i]])
-            print('forward')
-            start_surface.point_data["deformed"]=current_positions
-            plot_debugg(start_surface,all_surfaces[path[i+1]])
+            # print('forward')
+            # start_surface.point_data["deformed"]=current_positions
+            # plot_debugg(start_surface,all_surfaces[path[i+1]])
             continue
         if order==-1:
             pull_back_surface:pv.PolyData=all_surfaces[path[i+1]].copy()
             pull_back_surface.points=diff_arr
             cell_index,current_positions = pull_back_surface.find_closest_cell(current_positions,return_closest_point=True)
             InterpolatedCoordinate_back(current_positions,cell_index,pull_back_surface,all_surfaces[path[i+1]])
-            print('back')
-            start_surface.point_data["deformed"]=current_positions
-            plot_debugg(start_surface,all_surfaces[path[i+1]])
+            # print('back')
+            # start_surface.point_data["deformed"]=current_positions
+            # plot_debugg(start_surface,all_surfaces[path[i+1]])
             continue
         print('unexpected')
         print(used_diffeos_df)
@@ -173,11 +175,20 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
         raise
     start_surface.point_data["deformed"]=current_positions
     plot_debugg(start_surface,all_surfaces[path[-1]])
-    if not check_for_singularity(start_surface,all_surfaces[path[-1]])<0.1:
+
+    indices_init = getBoundary(start_surface)
+    sub_manifolds_init:List[sub_manifold]=[sub_manifold_1_closed(start_surface, 'boundary', indices_init)]
+    indices_target = getBoundary(all_surfaces[path[-1]])
+    sub_manifolds_target:List[sub_manifold]=[sub_manifold_1_closed(all_surfaces[path[-1]], 'boundary', indices_target)]
+    print(current_positions)
+    improve_Diffeo(start_surface,all_surfaces[path[-1]],sub_manifolds_init,sub_manifolds_target)
+    
+    plot_debugg(start_surface,all_surfaces[path[-1]])
+
+    if not check_for_singularity(start_surface,all_surfaces[path[-1]])<0.01:
         print('singular path')
-        
         plot_debugg(start_surface,all_surfaces[path[-1]])
-    return current_positions
+    return start_surface.point_data["deformed"] 
 
 def make_Hist(group_df,diffeos_df):
     # print(group_df)
