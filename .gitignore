@@ -160,7 +160,6 @@ cython_debug/
 #.idea/
 
 # own files
-config_machine.py
 *.html
 
 **
@@ -168,5 +167,5 @@ config_machine.py
 !**/*.ipynb
 !**/*.py
 !**/
-
+config_machine.py 
 code/.ipynb_checkpoints
