@@ -5,7 +5,7 @@ from scipy.interpolate import griddata
 import matplotlib.pyplot as plt
 from scipy.spatial import cKDTree
 import jax.numpy as jnp
-from jax import grad, jit
+from jax import grad, jit,value_and_grad
 
 from sub_manifold import sub_manifold,sub_manifold_1_closed,sub_manifold_0
 from boundary import getBoundary,path_surrounds_point
@@ -373,10 +373,10 @@ def total_energy(deformed_vertex_points,vertex_points,faces,shared_edges,areas,l
     return total_W
 
 @jit
-def compute_forces(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2):    
+def compute_elastic_value_and_grad(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2):    
     # Gradient of total energy with respect to the deformed vertex positions
-    dW_x = grad(total_energy, argnums=0)(deformed_vertex_points,vertex_points,faces, shared_edges,areas,length,normals_ref,a, b, c,k1,k2)
-    return -dW_x
+    value, grad = value_and_grad(total_energy, argnums=0)(deformed_vertex_points,vertex_points,faces, shared_edges,areas,length,normals_ref,a, b, c,k1,k2)
+    return value, grad
 
 def total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c,k1,k2):
     X = vertex_points[faces] 
@@ -429,20 +429,62 @@ def plot_desplace(mesh_init,vectors):
 
     p.show()
 
+def total_value_grad(deformed_vertex_points,vertex_points,projected_vertex_points,rel_weigth,faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2):
+    value_elastic, grad_elastic=compute_elastic_value_and_grad(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2)
+    value_elastic=np.array(value_elastic)
+    grad_elastic=np.array(grad_elastic)
 
+    grad_surface=(deformed_vertex_points-projected_vertex_points)
+    value_surface=np.sum(grad_surface*grad_surface/2)
+
+    gradient=grad_elastic*(1-rel_weigth)+grad_surface*rel_weigth
+    value=value_elastic*(1-rel_weigth)+value_surface*rel_weigth
+    return value,gradient
+
+def wolfe_conditions(f_val_and_grad, x,val, grad, p, alpha, c1=1e-4, c2=0.9):
+    """Check Wolfe conditions"""
+    # Compute f(x + alpha * p) and its gradient
+    f_new, grad_new = f_val_and_grad(x + alpha * p)
+    
+    grad_dot_p=np.sum(grad*p)
+    
+    # Armijo condition (Wolfe condition 1)
+    armijo_cond = f_new <= val + c1 * alpha * grad_dot_p
+
+    # Curvature condition (Wolfe condition 2)
+    curvature_cond = np.sum(grad_new * p) >= c2 * grad_dot_p
+
+    return armijo_cond, curvature_cond
+
+def backtracking_line_search(f_val_and_grad, x, val,grad, p, alpha_init=10.0, c1=1e-4, c2=0.9, tau=0.5):
+    """Find step size satisfying Wolfe conditions using backtracking line search"""
+    alpha = alpha_init
+    while True:
+        armijo_cond, curvature_cond = wolfe_conditions(f_val_and_grad, x, val,grad, p, alpha, c1, c2)
+        if not curvature_cond:
+            alpha *=10
+            continue
+        if armijo_cond and curvature_cond:
+            break  # Found a step size satisfying both Wolfe conditions
+        # Reduce the step size if conditions are not met
+        alpha *= tau
+        if alpha < 1e-4:
+            print('waring: alpha becomes too small')
+            break
+    
+    return alpha
 
 def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
-    N_iterations=[100,500,500,100]
-    start_rates=[0.01,0.005,0.005,0.01]
-    target_reductions=[0.99,0.95,0.9]
-    force_surface_faktor=[0.2,0.5,0.9,0.95]
+    N_iterations=[10,10,10,10,10]
+    #start_rates=[0.01,0.005,0.005,0.01]
+    target_reductions=[0.99,0.99,0.95,0.9]
+    rel_weigth=[0.9,0.95,0.95,0.95,0.95]
     mesh_hirarchical,sub_manifolds_hirarchical=makeHirarchicalGrids(mesh_init,sub_manifolds_init,mesh_target,target_reductions)
     
     findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
 
     #plot_debugg(mesh_hirarchical[0],mesh_target)
     
-
     # for valid energy: (2a+6b+2c−d)=0
     a=0.1
     b=1.0
@@ -453,7 +495,7 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     for level in range(len(mesh_hirarchical)):
         #all_sum_deriv=[]
         #interative solving
-        rate=start_rates[level]
+        #rate=start_rates[level]
         faces = mesh_hirarchical[level].faces.reshape((-1, 4))[:, 1:4]
         vertex_points=mesh_hirarchical[level].points
         shared_edges = find_shared_edges(np.array(faces))
@@ -466,32 +508,59 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             #print(i)
             #calculate the forces
             
-            deformed_vertex_points=mesh_hirarchical[level].point_data['deformed']
-            elastic_force=np.array(compute_forces(vertex_points, deformed_vertex_points, faces,shared_edges,areas,length,normals_ref, a, b, c,k1,k2))
+            deformed_vertex_points=mesh_hirarchical[level].point_data["deformed"].copy()
 
-            #tangent_forces=getTangentComponent(elastic_force,mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level])
-            old=mesh_hirarchical[level].point_data["deformed"].copy()
             projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
-            force_surface=(mesh_hirarchical[level].point_data["deformed"]-old)
-            mesh_hirarchical[level].point_data["deformed"]=old+rate*(elastic_force*(1-force_surface_faktor[level])+force_surface*force_surface_faktor[level])
-            #mesh_hirarchical[level].point_data["deformed"]=mesh_hirarchical[level].point_data["deformed"]+rate*tangent_forces
-            #plot_debugg(mesh_hirarchical[level],mesh_target,show_target=False)
-            if i%(N_iterations[level]//20)==0:
-                plot_desplace(mesh_hirarchical[level],rate*(elastic_force*(1-force_surface_faktor[level])+force_surface*force_surface_faktor[level]))
-                print(level,i,np.max(np.linalg.norm(elastic_force,axis=1))*rate)
+            total_value_grad_lambda = lambda deformed_vertex_points: total_value_grad(
+                deformed_vertex_points,
+                vertex_points,
+                mesh_hirarchical[level].point_data["deformed"],
+                rel_weigth[level],
+                faces,
+                shared_edges,
+                areas,
+                length,
+                normals_ref,
+                a,
+                b,
+                c,
+                k1,
+                k2
+            )
+            value,gradient=total_value_grad_lambda(deformed_vertex_points)
+  
+            norm_grad=np.linalg.norm(gradient,axis=(0,1))
+            #max_gradvector=np.max(np.linalg.norm(gradient,axis=1))
+            #print('norm_grad',norm_grad)
+            #print('max_gradvector',max_gradvector)
+
+            p=-gradient/norm_grad
+
+            alpha = backtracking_line_search(total_value_grad_lambda, deformed_vertex_points, value,gradient, p)
+            alpha = alpha/2
+            print(alpha)
+
+            mesh_hirarchical[level].point_data["deformed"]=deformed_vertex_points+alpha*p
+
+            
+            if i%(N_iterations[level]//10)==0:
+                print(level,i,alpha,np.max(np.linalg.norm(alpha*p,axis=1)))
+                #plot_desplace(mesh_hirarchical[level],alpha*p)
+                #plot_debugg(mesh_hirarchical[level],mesh_target,show_target=True)
+                
                 #plot_debugg(mesh_hirarchical[level],mesh_target)
             
             mesh_hirarchical[level].point_data["displacement"]=mesh_hirarchical[level].point_data["deformed"]-mesh_hirarchical[level].point_data["rotated"]
         #transfer result to next level
         if level<len(mesh_hirarchical)-1:
-            #print('before transfer')
-            #plot_debugg(mesh_hirarchical[level],mesh_target,show_target=False)
+            # print('before transfer')
+            # plot_debugg(mesh_hirarchical[level],mesh_target,show_target=False)
             transfer_displacement(mesh_hirarchical[level],mesh_hirarchical[level+1])   
             # print('transfered to',level+1)
             # plot_debugg(mesh_hirarchical[level+1],mesh_target)
             smoothDisplacement(mesh_hirarchical[level+1])
-            #print('after smooth to',level+1)
-            #plot_debugg(mesh_hirarchical[level+1],mesh_target)
+            # print('after smooth to',level+1)
+            # plot_debugg(mesh_hirarchical[level+1],mesh_target)
 
 
         
@@ -863,8 +932,22 @@ def find_shared_edges(faces):
     shared_edges = []
     for edge, face_list in edge_face_map.items():
         if len(face_list) > 1:
-            shared_edges.append((edge, face_list))
-
+            shared_edges.append((edge, face_list[0:2]))
+    # print(shared_edges)
+    # def check_tuple_lengths(data):
+    #     for index, item in enumerate(data):
+    #         if len(item) != 2:
+    #             print(f"Error: Item at index {index} does not have exactly 2 elements.")
+    #             print(item)
+    #             return False
+    #         # Check the tuple and list lengths inside each item
+    #         if len(item[0]) != 2 or len(item[1]) != 2:
+    #             print(f"Error: Item at index {index} contains a tuple or list that doesn't have 2 elements.")
+    #             print(item)
+    #             return False
+    #     print("All items contain exactly two elements.")
+    #     return True
+    # print(check_tuple_lengths(shared_edges))
     return jnp.array(shared_edges)
 
 def test():

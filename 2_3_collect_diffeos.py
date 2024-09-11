@@ -205,7 +205,6 @@ def plot_debugg(mesh_init,mesh_target,ED_folder_path,show_target=True,):
                 except Exception as e:
                     print(f"Error: {e}") 
             p.close()
-            p.interactor.terminate()
             return
 
 

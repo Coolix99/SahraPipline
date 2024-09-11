@@ -7,7 +7,7 @@ import hashlib
 from simple_file_checksum import get_checksum
 
 from sub_manifold import sub_manifold,sub_manifold_1_closed,sub_manifold_0
-from find_diffeo_hirarchical_correct import findDiffeo,check_for_singularity
+from find_diffeo_hirarchical_gradient import findDiffeo,check_for_singularity
 from config import *
 from IO import *
 
@@ -198,7 +198,7 @@ def make_diffeo(f1,f2,group_path):
     try:
         diff_energy,max_dist,a,b,c,k1,k2=findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
         print(diff_energy,max_dist)
-        if not check_for_singularity(mesh_init.copy(),mesh_target)<0.001:
+        if not check_for_singularity(mesh_init.copy(),mesh_target)<0.005:
             print('Sigular diffeo, do not safe it')
             return 
         if not max_dist<20:
