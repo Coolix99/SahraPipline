@@ -133,57 +133,79 @@ def InterpolatedCoordinate_forward(current_positions,cell_index,diff_arr,orig_su
             orig_coords[k]=orig_surface.points[indx]
             diff_coord[k]=diff_arr[indx]
 
-        A = np.vstack([orig_coords[:, :2].T, np.ones(3)])
-        b = np.hstack([pos_inside[:2], 1])
+        # A = np.vstack([orig_coords[:, :2].T, np.ones(3)])
+        # b = np.hstack([pos_inside[:2], 1])
+        A = np.vstack([orig_coords.T, np.ones(3)])
+        b = np.hstack([pos_inside, 1])
         barycentric_coords = np.linalg.lstsq(A, b, rcond=None)[0]
         interpolated_vector = np.dot(barycentric_coords, diff_coord)
         current_positions[i]=interpolated_vector
         
 
 def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
-    start_surface=all_surfaces[path[0]]
+    start_surface=all_surfaces[path[0]].copy()
     current_positions=start_surface.points
     
     for i in range(len(path)-1):
-        
         init_folder=path[i]
         target_folder=path[i+1]
+   
+            
+
         order,diff_folder = check_order(used_diffeos_df, init_folder, target_folder)
-    
+       
+        
         diff_folder_path=os.path.join(ElementaryDiffeos_path,diff_folder)
         diff_arr=np.load(os.path.join(diff_folder_path,get_JSON(diff_folder_path)['MetaData_Diffeo']['Diffeo file']))
         
+       
         if order==1:
+  
+          
             cell_index,current_positions = all_surfaces[path[i]].find_closest_cell(current_positions,return_closest_point=True)
+
+           
             InterpolatedCoordinate_forward(current_positions,cell_index,diff_arr,all_surfaces[path[i]])
-            # print('forward')
-            # start_surface.point_data["deformed"]=current_positions
+
+            
+            start_surface.point_data["deformed"]=current_positions
+           
+           
             # plot_debugg(start_surface,all_surfaces[path[i+1]])
+            
+           
+            cell_index,point =all_surfaces[path[i+1]].find_closest_cell(current_positions,return_closest_point=True)
+        
+            if np.max(np.linalg.norm(current_positions-point,axis=1))>10:
+                start_surface.point_data["deformed"]=current_positions
+                plot_debugg(start_surface,all_surfaces[path[i+1]])
+                all_surfaces[path[i]].point_data["deformed"]=diff_arr
+                plot_debugg(all_surfaces[path[i]],all_surfaces[path[i+1]])
+
+
             continue
         if order==-1:
             pull_back_surface:pv.PolyData=all_surfaces[path[i+1]].copy()
             pull_back_surface.points=diff_arr
             cell_index,current_positions = pull_back_surface.find_closest_cell(current_positions,return_closest_point=True)
             InterpolatedCoordinate_back(current_positions,cell_index,pull_back_surface,all_surfaces[path[i+1]])
-            # print('back')
-            # start_surface.point_data["deformed"]=current_positions
+           
+            start_surface.point_data["deformed"]=current_positions
             # plot_debugg(start_surface,all_surfaces[path[i+1]])
+            cell_index,point =all_surfaces[path[i+1]].find_closest_cell(current_positions,return_closest_point=True)
+            if np.max(np.linalg.norm(current_positions-point,axis=1))>1:
+                print('back')
+                start_surface.point_data["deformed"]=current_positions
+                plot_debugg(start_surface,all_surfaces[path[i+1]])
             continue
         print('unexpected')
         print(used_diffeos_df)
         print(init_folder, target_folder)
         raise
-    start_surface.point_data["deformed"]=current_positions
-    plot_debugg(start_surface,all_surfaces[path[-1]])
+        
 
-    indices_init = getBoundary(start_surface)
-    sub_manifolds_init:List[sub_manifold]=[sub_manifold_1_closed(start_surface, 'boundary', indices_init)]
-    indices_target = getBoundary(all_surfaces[path[-1]])
-    sub_manifolds_target:List[sub_manifold]=[sub_manifold_1_closed(all_surfaces[path[-1]], 'boundary', indices_target)]
-    print(current_positions)
-    improve_Diffeo(start_surface,all_surfaces[path[-1]],sub_manifolds_init,sub_manifolds_target)
     
-    plot_debugg(start_surface,all_surfaces[path[-1]])
+    #plot_debugg(start_surface,all_surfaces[path[-1]])
 
     if not check_for_singularity(start_surface,all_surfaces[path[-1]])<0.01:
         print('singular path')
@@ -191,8 +213,6 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
     return start_surface.point_data["deformed"] 
 
 def make_Hist(group_df,diffeos_df):
-    # print(group_df)
-    # print(diffeos_df)
     
     # Execute the function
     if not check_folders(diffeos_df, group_df):
@@ -211,7 +231,8 @@ def make_Hist(group_df,diffeos_df):
         surface_file_name=get_JSON(folder_path)['Thickness_MetaData']['Surface file']
         mesh=pv.read(os.path.join(folder_path,surface_file_name))
         all_surfaces[folder_name]=mesh
-    
+        
+
     
 
     # used_diffeos_df = diffeos_df[diffeos_df['init_folder'].isin(unique_folders) | diffeos_df['target_folder'].isin(unique_folders)]
@@ -226,7 +247,7 @@ def make_Hist(group_df,diffeos_df):
     HistSurface=getHistSurface(all_surfaces[ref_fin])
     N=HistSurface.n_points
     
-    Hist_categories=['mean_curvature','gauss_curvature','thickness']
+    Hist_categories=['mean_curvature','gauss_curvature','thickness','curvature_tensor']
     n_categories=len(Hist_categories)
     Hist_data=np.empty((N, n_categories), dtype=object) 
     for i in range(N):
@@ -239,16 +260,11 @@ def make_Hist(group_df,diffeos_df):
         for k in range(n_categories):
             Hist_data[hist_ind,k].append(all_surfaces[ref_fin].point_data[Hist_categories[k]][i])
     
+    
     for start_fin in paths:
         print(paths[start_fin])
         res=calcDiffeo(paths[start_fin],diffeos_df,all_surfaces)
-        # plotter = pv.Plotter()
-        # plotter.add_mesh(all_surfaces[ref_fin], color='blue', label='Target')
-        # all_surfaces[start_fin].points=res
-        # plotter.add_mesh(all_surfaces[start_fin], color='red', label='Defomed')
-        # plotter.add_legend()
-        # plotter.show()
-    
+
         for i in range(res.shape[0]): 
             hist_ind=HistSurface.find_closest_point(res[i])
             for k in range(n_categories):
@@ -266,10 +282,7 @@ def make_Hist(group_df,diffeos_df):
         HistSurface.point_data[cat+'_avg']=avg_data[:,i]
         HistSurface.point_data[cat+'_std']=avg_data[:,i]
   
-    #print(HistSurface.point_data)
-    # plotter = pv.Plotter()
-    # plotter.add_mesh(HistSurface, scalars='thickness_avg', cmap='viridis', show_scalar_bar=True)
-    # plotter.show()
+
     return HistSurface,Hist_data
 
 def evalStatus_Hist(Hist_path_dir):

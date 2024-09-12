@@ -153,7 +153,7 @@ def main():
     # Show the plot
     show(p)
 
-def plot_debugg(mesh_init,mesh_target,ED_folder_path,show_target=True,):
+def plot_debugg(mesh_init,mesh_target,ED_folder_path,show_target=True):
     faces = mesh_init.faces.reshape((-1, 4))[:, 1:4]  # Extract triangular faces
     init_vertex_points = mesh_init.points
     x = init_vertex_points[faces]  # Shape: (N_f, 3, 3)
@@ -234,6 +234,12 @@ def plot(skip_shown=True):
 
         init_folder=MetaData['MetaData_Diffeo']['init_folder']
         target_folder=MetaData['MetaData_Diffeo']['target_folder']
+        if init_folder!='150624_sox10_claudin-gfp_48h_pecfin1_FlatFin' and  init_folder != '100724_reg_sox10_claudin-gfp_48h_pecfin1_FlatFin':
+            continue
+        if target_folder!='150624_sox10_claudin-gfp_48h_pecfin1_FlatFin' and target_folder != '100724_reg_sox10_claudin-gfp_48h_pecfin1_FlatFin':
+            continue
+        print('yes')
+        #continue
 
         status_file = os.path.join(ED_folder_path, 'shown.txt')
         if skip_shown:    
@@ -258,6 +264,8 @@ def plot(skip_shown=True):
         with open(status_file, 'w') as f:
             f.write('shown')
 
+        print(init_mesh.point_data["deformed"][:5,:])
+        print(target_mesh.points[:5,:])
         print(plot_debugg(init_mesh,target_mesh,ED_folder_path))
         # # init_mesh.plot()
         # # target_mesh.plot()

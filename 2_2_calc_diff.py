@@ -195,6 +195,7 @@ def make_diffeo(f1,f2,group_path):
 
     #make_path(diffeo_dir_path)
     print('calculate',init_folder,target_folder)
+    
     try:
         diff_energy,max_dist,a,b,c,k1,k2=findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target)
         print(diff_energy,max_dist)

@@ -273,7 +273,7 @@ def compute_cos_theta(vertex_points, deformed_vertex_points, faces, shared_edges
 
     return cos_theta
 
-
+#TODO check energy
 def mooney_rivlin_energy(lambda_tensor, a, b, c):
     """
     Compute the Mooney–Rivlin energy using the diagonal deformation gradient (lambda1, lambda2).
@@ -441,11 +441,12 @@ def total_value_grad(deformed_vertex_points,vertex_points,projected_vertex_point
     value=value_elastic*(1-rel_weigth)+value_surface*rel_weigth
     return value,gradient
 
-def wolfe_conditions(f_val_and_grad, x,val, grad, p, alpha, c1=1e-4, c2=0.9):
+def wolfe_conditions(f_val_and_grad, x,val, grad, p, alpha, c1=1e-4, c2=0.9,show=False):
     """Check Wolfe conditions"""
     # Compute f(x + alpha * p) and its gradient
     f_new, grad_new = f_val_and_grad(x + alpha * p)
-    
+    if show:
+        print(f_new,val)
     grad_dot_p=np.sum(grad*p)
     
     # Armijo condition (Wolfe condition 1)
@@ -456,11 +457,12 @@ def wolfe_conditions(f_val_and_grad, x,val, grad, p, alpha, c1=1e-4, c2=0.9):
 
     return armijo_cond, curvature_cond
 
-def backtracking_line_search(f_val_and_grad, x, val,grad, p, alpha_init=10.0, c1=1e-4, c2=0.9, tau=0.5):
+def backtracking_line_search(f_val_and_grad, x, val,grad, p, alpha_init=10.0, c1=1e-4, c2=0.9, tau=0.5,max_iter=10):
     """Find step size satisfying Wolfe conditions using backtracking line search"""
     alpha = alpha_init
-    while True:
+    for i in range(max_iter):
         armijo_cond, curvature_cond = wolfe_conditions(f_val_and_grad, x, val,grad, p, alpha, c1, c2)
+        #print(alpha,armijo_cond, curvature_cond)
         if not curvature_cond:
             alpha *=10
             continue
@@ -468,14 +470,22 @@ def backtracking_line_search(f_val_and_grad, x, val,grad, p, alpha_init=10.0, c1
             break  # Found a step size satisfying both Wolfe conditions
         # Reduce the step size if conditions are not met
         alpha *= tau
-        if alpha < 1e-4:
-            print('waring: alpha becomes too small')
+    alpha=10.0 
+    while True:
+        armijo_cond, _ = wolfe_conditions(f_val_and_grad, x, val,grad, p, alpha, c1, c2)
+        if armijo_cond :
+            break  # Found a step size satisfying one Wolfe conditions
+        # Reduce the step size if conditions are not met
+        alpha *= tau 
+        if alpha <1e-8:
+            raise
+            print('warning: alpha too small')
             break
     
     return alpha
 
 def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
-    N_iterations=[10,10,10,10,10]
+    N_iterations=[50,10,10,10,20]
     #start_rates=[0.01,0.005,0.005,0.01]
     target_reductions=[0.99,0.99,0.95,0.9]
     rel_weigth=[0.9,0.95,0.95,0.95,0.95]
@@ -483,7 +493,7 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
     
     findInitialGuess(mesh_hirarchical[0],mesh_target,sub_manifolds_hirarchical[0],sub_manifolds_target) #for first mesh
 
-    #plot_debugg(mesh_hirarchical[0],mesh_target)
+    plot_debugg(mesh_hirarchical[0],mesh_target)
     
     # for valid energy: (2a+6b+2c−d)=0
     a=0.1
@@ -511,6 +521,13 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
             deformed_vertex_points=mesh_hirarchical[level].point_data["deformed"].copy()
 
             projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
+
+            dist_vec=mesh_hirarchical[level].point_data["deformed"]-deformed_vertex_points
+            max_dist=np.max(np.linalg.norm(dist_vec,axis=1))
+            #print(max_dist)
+            if max_dist<20 and level==0:
+                break
+
             total_value_grad_lambda = lambda deformed_vertex_points: total_value_grad(
                 deformed_vertex_points,
                 vertex_points,
@@ -528,22 +545,24 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
                 k2
             )
             value,gradient=total_value_grad_lambda(deformed_vertex_points)
-  
+            if np.isnan(value) :
+                print('no valid energy')
+                raise
             norm_grad=np.linalg.norm(gradient,axis=(0,1))
             #max_gradvector=np.max(np.linalg.norm(gradient,axis=1))
             #print('norm_grad',norm_grad)
             #print('max_gradvector',max_gradvector)
 
             p=-gradient/norm_grad
-
+            #print(value)
             alpha = backtracking_line_search(total_value_grad_lambda, deformed_vertex_points, value,gradient, p)
             alpha = alpha/2
-            print(alpha)
+            #print(alpha)
 
             mesh_hirarchical[level].point_data["deformed"]=deformed_vertex_points+alpha*p
 
             
-            if i%(N_iterations[level]//10)==0:
+            if i%(N_iterations[level]//3)==0:
                 print(level,i,alpha,np.max(np.linalg.norm(alpha*p,axis=1)))
                 #plot_desplace(mesh_hirarchical[level],alpha*p)
                 #plot_debugg(mesh_hirarchical[level],mesh_target,show_target=True)
@@ -566,7 +585,7 @@ def findDiffeo(mesh_init,mesh_target,sub_manifolds_init,sub_manifolds_target):
         
 
         if level==len(mesh_hirarchical)-1:
-            #plot_debugg(mesh_hirarchical[level],mesh_target)
+            plot_debugg(mesh_hirarchical[level],mesh_target)
             energy=np.array(total_energy_from_vertices(vertex_points, deformed_vertex_points, faces, a, b, c,k1,k2))
             old=mesh_hirarchical[level].point_data["deformed"].copy()
             projectPoints(mesh_hirarchical[level],mesh_target,sub_manifolds_hirarchical[level],sub_manifolds_target)
@@ -739,8 +758,8 @@ def check_for_singularity(mesh_init:pv.PolyData, mesh_target:pv.PolyData):
 
         # Compare the angle between N_def and the closest target normal
         dot_product = np.dot(N_def[i], target_normal)
-        angle = np.arccos(np.clip(dot_product, -1.0, 1.0))
-        if np.degrees(angle) > 90:
+
+        if dot_product<-0.2:
             # print(N_def[i])
 
             # print(target_normal)
