@@ -4,9 +4,10 @@ from bokeh.models import ColumnDataSource, HoverTool, FactorRange, Div, Label
 from bokeh.palettes import Viridis256
 from bokeh.transform import linear_cmap
 from scipy.stats import gaussian_kde
+from scipy.stats import linregress
+from bokeh.layouts import column
 
-
-def plot_scatter(df, x_col, y_col, mode='category', tooltips=None):
+def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=False, show_div=False):
     """
     Create a scatter plot using Bokeh with flexible axis assignment and hover tools.
     
@@ -25,6 +26,10 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None):
     tooltips : list of tuples, optional (default=None)
         List of custom hover tooltips to show. If None, default hover tooltips are shown.
         Example: [("Column Name", "@column_name"), ...]
+    show_fit : bool, optional (default=False)
+        Whether to show the linear fit line.
+    show_div : bool, optional (default=False)
+        Whether to show the deviation scatter plot.
 
     Returns:
     --------
@@ -40,6 +45,7 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None):
     p = figure(title=f"{x_col} vs {y_col}",
                x_axis_label=x_col,
                y_axis_label=y_col,
+               width=700, height=400,
                tools="pan,wheel_zoom,box_zoom,reset,save")
     
     # Define default hover tooltips if not provided
@@ -58,8 +64,6 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None):
             ("Genotype", "@{genotype}")
         ]
     
-    hover = HoverTool(tooltips=tooltips)
-    p.add_tools(hover)
     
     # Plot based on mode
     if mode == 'category':  # Color by category (Development/Regeneration)
@@ -69,7 +73,7 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None):
             source_subset = ColumnDataSource(subset)
             
            # Use scatter() with marker shape and size
-            p.scatter(x=x_col, y=y_col, source=source_subset,
+            scatter_data=p.scatter(x=x_col, y=y_col, source=source_subset,
                       size=10, color=color, marker=shape, legend_label=condition, alpha=0.6)
     
     
@@ -82,15 +86,108 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None):
             source_subset = ColumnDataSource(subset)
             
             # Use scatter() with marker shape and size, color mapped by time
-            p.scatter(x=x_col, y=y_col, source=source_subset,
+            scatter_data=p.scatter(x=x_col, y=y_col, source=source_subset,
                       size=10, color=time_mapper, marker=shape, legend_label=condition, alpha=0.6)
     
+    hover = HoverTool(renderers=[scatter_data])
+    hover.tooltips = tooltips
+    p.add_tools(hover)
+
     # Configure legend
     p.legend.title = 'Condition'
     p.legend.location = "top_left"
     
+    if show_fit or show_div:
+        # Get x and y data
+        x_data = df[x_col]
+        y_data = df[y_col]
+        times = df['time in hpf']
+        # Perform linear regression (fit)
+        slope, intercept, r_value, p_value, std_err = linregress(x_data, y_data)
+        fit_line = slope * x_data + intercept
+        
+        # Define the direction vector (unit vector) along the line
+        n = np.array([1, slope]) / np.sqrt(1 + slope**2)  # Normalize to make it a unit vector
+        o = np.array([slope, -1]) / np.sqrt(1 + slope**2)  # Normalize to make it a unit vector, orthogonal to n
+        
+        # Point a on the line (we take the intercept point, where x = 0)
+        a = np.array([0, intercept])
+
+        # Plot linear fit line
+        if show_fit:
+            p.line(x_data, fit_line, line_width=2, color='black', legend_label='Linear Fit')
+
+        # Plot deviation if required
+        if show_div:
+            deviation_fig = figure(title=f"Deviation: {x_col} vs {y_col}",
+                                   x_axis_label='Orthogonal Position on Fit Line',
+                                   y_axis_label='Distance from Line',
+                                   tools="pan,wheel_zoom,box_zoom,reset,save",
+                                   width=700, height=400)
+            
+            # Initialize the array to store the orthogonal distances and positions
+            orthogonal_distances = []
+            positions = []
+
+            # Prepare lists for colors and shapes based on mode
+            colors_list = []
+            shapes_list = []
+            
+            # Create a new DataFrame to hold the deviation data
+            deviation_df = df.copy()
+
+            for i in range(len(x_data)):
+                # Point p (x_i, y_i)
+                p_point = np.array([x_data[i], y_data[i]])
+                
+                # Calculate the orthogonal distance using the vector formula
+                a_p = a - p_point
+                projection = np.dot(a_p, n) * n  # Project a_p onto the line
+                orthogonal_vector = a_p - projection  # Perpendicular vector
+                orthogonal_distance = np.dot(orthogonal_vector, o)
+                
+                orthogonal_distances.append(orthogonal_distance)
+                positions.append(-np.dot(a_p, n))
+
+                # Assign the same color and shape as the first plot based on mode
+                condition = df['condition'].iloc[i]
+                colors_list.append(colors[condition])
+                shapes_list.append(shapes[condition])
+           
+
+            # Add the deviation data to the deviation_df
+            deviation_df['time in hpf'] = times
+            deviation_df['position'] = positions
+            deviation_df['orthogonal_distance'] = orthogonal_distances
+            deviation_df['colors'] = colors_list
+            deviation_df['shapes'] = shapes_list
+
+            # Create a new ColumnDataSource for the deviation plot
+            deviation_source = ColumnDataSource(deviation_df)
+
+            # Scatter plot for orthogonal distances with matching color and shapes
+            if mode == 'category':
+                deviation_scatter = deviation_fig.scatter(x='position', y='orthogonal_distance',
+                                                        source=deviation_source, size=8,
+                                                        color='colors', marker='shapes', alpha=0.6)
+            elif mode == 'time':
+                deviation_scatter = deviation_fig.scatter(x='position', y='orthogonal_distance',
+                                                        source=deviation_source, size=8,
+                                                        color=time_mapper, marker='shapes', alpha=0.6)
+
+            # Add hover tool for the deviation plot
+            hover_deviation = HoverTool(renderers=[deviation_scatter])
+            hover_deviation.tooltips = tooltips
+            deviation_fig.add_tools(hover_deviation)
+
+            # Return both the main plot and the deviation plot in a vertical layout
+            layout = column(p, deviation_fig)
+            show(layout)
+            return
+
     # Show plot
     show(p)
+
 
 def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, style='box', color='blue', width=None):
     """

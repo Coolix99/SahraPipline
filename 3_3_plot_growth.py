@@ -4,8 +4,8 @@ import numpy as np
 
 from config import *
 
-#from plotMatPlotHelper import plot_single_timeseries,plot_double_timeseries
-from plotBokehHelper import plot_single_timeseries,plot_double_timeseries
+#from plotMatPlotHelper import 
+from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter
 
 def getData():
     hdf5_file_path = os.path.join(Curv_Thick_path, 'scalarGrowthData.h5')
@@ -65,22 +65,21 @@ def main():
     print(df)
 
     #Checks
-    # plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='category')
+    #plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='time',show_fit=True,show_div=True)
     # plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='time')
 
     # plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='category')
     # plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='time')
 
-    # plot_scatter(df, x_col='V / A', y_col='Int_dA_d / A', mode='category')
-    # plot_scatter(df, x_col='V / A', y_col='Int_dA_d / A', mode='time')
 
-    #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
+    # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 
-    #plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
-    #plot_double_timeseries(df, y_col='Volume', style='violin')
-    #plot_double_timeseries(df, y_col='Surface Area', style='box')
-    plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$')
-    plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$')
+    # #plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
+    # #plot_double_timeseries(df, y_col='Volume', style='violin')
+    # #plot_double_timeseries(df, y_col='Surface Area', style='box')
+    # plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$')
+    # plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$')
+    # plot_double_timeseries(df, y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$')
 
 
 

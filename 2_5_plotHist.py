@@ -146,11 +146,10 @@ def plotCompare2d():
         times.append(time)
         categories.append(category)
         meshs.append(mesh)
-    
     # Organize meshes by category and time
-    dev_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'dev']
-    reg_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'reg']
-    
+    dev_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'Development']
+    reg_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'Regeneration']
+
     dev_meshes.sort()
     reg_meshes.sort()
     
@@ -166,6 +165,7 @@ def plotCompare2d():
     global_min_max['gauss_curvature_avg']=(-0.0001, 0.0001)
     global_min_max['mean2-gauss'] = (-0.00003, 0.00003)
     from matplotlib.gridspec import GridSpec
+
     for key, nstd in zip(keys, nstds):
         print(key)
         vmin, vmax = global_min_max[key]
@@ -198,8 +198,8 @@ def plotCompare2d():
     
 
 def main():  
-    #plotCompare2d()
-    plotHistogramms(['time in hpf','condition'])
+    plotCompare2d()
+    #plotHistogramms(['time in hpf','condition'])
     #plotHistogramms(['condition'])
     #plotHistogramms(['time in hpf'])
     return
