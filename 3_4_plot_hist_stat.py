@@ -73,6 +73,7 @@ def getData():
 
 
 def main():
+    #TODO scatter check gauss_avg vs gaus from curvature_mean
     times,categories,meshes=getData()
     print(times,categories)
     #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'])

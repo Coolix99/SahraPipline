@@ -150,39 +150,23 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
         init_folder=path[i]
         target_folder=path[i+1]
    
-            
-
         order,diff_folder = check_order(used_diffeos_df, init_folder, target_folder)
-       
-        
         diff_folder_path=os.path.join(ElementaryDiffeos_path,diff_folder)
         diff_arr=np.load(os.path.join(diff_folder_path,get_JSON(diff_folder_path)['MetaData_Diffeo']['Diffeo file']))
         
        
         if order==1:
-  
-          
             cell_index,current_positions = all_surfaces[path[i]].find_closest_cell(current_positions,return_closest_point=True)
-
-           
             InterpolatedCoordinate_forward(current_positions,cell_index,diff_arr,all_surfaces[path[i]])
 
             
             start_surface.point_data["deformed"]=current_positions
            
-           
             # plot_debugg(start_surface,all_surfaces[path[i+1]])
             
-           
             cell_index,point =all_surfaces[path[i+1]].find_closest_cell(current_positions,return_closest_point=True)
         
-            if np.max(np.linalg.norm(current_positions-point,axis=1))>10:
-                start_surface.point_data["deformed"]=current_positions
-                plot_debugg(start_surface,all_surfaces[path[i+1]])
-                all_surfaces[path[i]].point_data["deformed"]=diff_arr
-                plot_debugg(all_surfaces[path[i]],all_surfaces[path[i+1]])
-
-
+        
             continue
         if order==-1:
             pull_back_surface:pv.PolyData=all_surfaces[path[i+1]].copy()
@@ -193,10 +177,7 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
             start_surface.point_data["deformed"]=current_positions
             # plot_debugg(start_surface,all_surfaces[path[i+1]])
             cell_index,point =all_surfaces[path[i+1]].find_closest_cell(current_positions,return_closest_point=True)
-            if np.max(np.linalg.norm(current_positions-point,axis=1))>1:
-                print('back')
-                start_surface.point_data["deformed"]=current_positions
-                plot_debugg(start_surface,all_surfaces[path[i+1]])
+            
             continue
         print('unexpected')
         print(used_diffeos_df)

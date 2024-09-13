@@ -203,6 +203,7 @@ def main():
     # Load data
     times, categories, meshes = getData()
     print(meshes[0].point_data)
+    
     return
     # Specify the keys (metrics) to plot
     keys = ['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
