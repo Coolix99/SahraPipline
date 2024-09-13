@@ -319,7 +319,7 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
     # Show the plot
     show(p)
 
-def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None,test_significance=True,show_n=True,y0=None):
+def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None,test_significance=True,show_n=True,y0=None,fit_results=None):
     """
     Create a time-series plot (box plot or violin plot) with individual scatter points, based on filtered data.
     The plot will be split in the middle: 
@@ -390,6 +390,7 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
                    y_axis_label=y_name,
                    tools="pan,wheel_zoom,box_zoom,reset,save",
                    width=1000, height=600)
+    
     else:
         # Set the y-range manually if y0 is specified
         p = figure(title=f"Double Time-series ({style.capitalize()} Plot) of {y_name} by Time",
@@ -406,6 +407,24 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
     # Scatter plot for individual points (Regeneration)
     scatter_reg = p.scatter(x='shifted_time', y=y_col, source=scatter_source_reg,
               size=8, color='orange', alpha=0.6, legend_label='Regeneration')
+
+    if fit_results  is not None:
+        for condition, color in zip(['Development', 'Regeneration'], ['blue', 'orange']):
+            # Fit results for the given condition
+            t_values = fit_results[f't_values']  # Theoretical fit values
+            fit_noisy_vals = fit_results[f'{condition}']  # Noisy fit values
+            
+            # Compute mean and percentiles for the fits
+            fit_mean = np.mean(fit_noisy_vals, axis=0)
+            fit_25, fit_75 = np.percentile(fit_noisy_vals, [25, 75], axis=0)
+            fit_10, fit_90 = np.percentile(fit_noisy_vals, [10, 90], axis=0)
+
+            # Plot mean as a solid line
+            p.line(t_values, fit_mean, color=color, line_width=2, legend_label=f'{condition} Fit')
+
+            # Plot shaded regions for 25/75 and 10/90 percentiles
+            p.varea(x=t_values, y1=fit_25, y2=fit_75, color=color, alpha=0.2)
+            p.varea(x=t_values, y1=fit_10, y2=fit_90, color=color, alpha=0.1)
 
     if test_significance:
         for time in all_times:
@@ -832,11 +851,6 @@ def plot_scatter_quantities(times, categories, meshes, x_quantity, y_quantity, m
 
     # Show the plot
     show(p)
-
-from bokeh.plotting import figure, show
-from bokeh.models import HoverTool
-import numpy as np
-import pyvista as pv
 
 def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_size=0.001, rel_aspect_scale=1.0):
     """
