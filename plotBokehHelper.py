@@ -6,6 +6,7 @@ from bokeh.transform import linear_cmap
 from scipy.stats import gaussian_kde
 from scipy.stats import linregress
 from bokeh.layouts import column
+from scipy import stats
 
 def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=False, show_div=False):
     """
@@ -316,7 +317,7 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
     # Show the plot
     show(p)
 
-def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None):
+def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None,test_significance=True,show_n=True,y0=None):
     """
     Create a time-series plot (box plot or violin plot) with individual scatter points, based on filtered data.
     The plot will be split in the middle: 
@@ -377,14 +378,24 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
     scatter_source_dev = ColumnDataSource(df_dev)
     scatter_source_reg = ColumnDataSource(df_reg)
 
-    # Create figure with a shared numerical x-axis
-    p = figure(title=f"Double Time-series ({style.capitalize()} Plot) of {y_name} by Time",
-               x_axis_label="Time (hpf)",
-               y_axis_label=y_name,
-               tools="pan,wheel_zoom,box_zoom,reset,save",
-                width=1000, height=600)
+    max_y_value = max(df[y_col].max(), df[y_col].max()) * 1.2
 
-    
+    # Create figure with a shared numerical x-axis
+    if y0 is None:
+        # Let Bokeh automatically decide the y-range
+        p = figure(title=f"Double Time-series ({style.capitalize()} Plot) of {y_name} by Time",
+                   x_axis_label="Time (hpf)",
+                   y_axis_label=y_name,
+                   tools="pan,wheel_zoom,box_zoom,reset,save",
+                   width=1000, height=600)
+    else:
+        # Set the y-range manually if y0 is specified
+        p = figure(title=f"Double Time-series ({style.capitalize()} Plot) of {y_name} by Time",
+                   x_axis_label="Time (hpf)",
+                   y_axis_label=y_name,
+                   y_range=(y0, max_y_value),  # Set both the lower and upper bounds
+                   tools="pan,wheel_zoom,box_zoom,reset,save",
+                   width=1000, height=600)
 
     # Scatter plot for individual points (Development)
     scatter_dev = p.scatter(x='shifted_time', y=y_col, source=scatter_source_dev,
@@ -393,6 +404,47 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
     # Scatter plot for individual points (Regeneration)
     scatter_reg = p.scatter(x='shifted_time', y=y_col, source=scatter_source_reg,
               size=8, color='orange', alpha=0.6, legend_label='Regeneration')
+
+    if test_significance:
+        for time in all_times:
+            if time in grouped_dev.groups.keys() and time in grouped_reg.groups.keys():
+                dev_vals = grouped_dev.get_group(time)[y_col].values
+                reg_vals = grouped_reg.get_group(time)[y_col].values
+
+                # Perform t-test
+                #t_stat, p_value = stats.ttest_ind(dev_vals, reg_vals, equal_var=False)
+                t_stat, p_value = stats.mannwhitneyu(dev_vals, reg_vals, alternative='two-sided')
+                print(f"Time: {time}, p-value: {p_value}")
+
+                # Add stars for significance level
+                if p_value < 0.001:
+                    star_label = '***'
+                elif p_value < 0.01:
+                    star_label = '**'
+                elif p_value < 0.05:
+                    star_label = '*'
+                else:
+                    star_label = ''
+
+                if star_label:
+                    p.text(x=[time], y=[max(np.max(dev_vals), np.max(reg_vals)) * 1.05], 
+                           text=[star_label], text_font_size='16pt', text_color='black')
+
+    if show_n:
+        for time in all_times:
+            n_dev = len(grouped_dev.get_group(time)[y_col]) if time in grouped_dev.groups else 0
+            n_reg = len(grouped_reg.get_group(time)[y_col]) if time in grouped_reg.groups else 0
+            y_pos=max([max(grouped_dev.get_group(time)[y_col]),max(grouped_reg.get_group(time)[y_col])])*1.1
+            # Show number of samples for Development
+            if n_dev > 0:
+                p.text(x=[time - width / 2], y=y_pos,
+                       text=[f"n={n_dev}"], text_font_size="10pt", text_color="blue")
+
+            # Show number of samples for Regeneration
+            if n_reg > 0:
+                p.text(x=[time + width / 2], y=y_pos,
+                       text=[f"n={n_reg}"], text_font_size="10pt", text_color="orange")
+
 
     # Box or violin plot for Development and Regeneration
     for condition, times, values, color in zip(['Development', 'Regeneration'],
@@ -434,7 +486,7 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
         # Add lines and whiskers (Development and Regeneration)
         for i, (time, val) in enumerate(zip(times, values)):
             lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
-
+            print(lower_bound, q1, q2, q3, upper_bound)
             if condition=='Development':
                 time_shift=time-width/4 
             else:
@@ -465,3 +517,78 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
     # Show the plot
     show(p)
 
+def plot_explanation(lower_bound, q1, q2, q3, upper_bound, plot_type='whiskers', title="Explanation Plot"):
+    """
+    Create a simple explanation plot to visualize whiskers, box, or violin plots with labeled percentiles.
+    
+    Parameters:
+    -----------
+    lower_bound : float
+        The lower bound (10th percentile).
+    q1 : float
+        The first quartile (25th percentile).
+    q2 : float
+        The median (50th percentile).
+    q3 : float
+        The third quartile (75th percentile).
+    upper_bound : float
+        The upper bound (90th percentile).
+    plot_type : str, optional (default='whiskers')
+        The plot type: 'whiskers', 'box', or 'violin'.
+    title : str, optional (default='Explanation Plot')
+        Title of the plot.
+
+    Returns:
+    --------
+    None
+    Displays an interactive explanation plot in the browser.
+    """
+
+    # Create figure without axes, title, and grid lines
+    p = figure(title=title, width=200, height=250, x_range=(-0.3, 0.5))
+    p.axis.visible = False
+    p.grid.visible = False
+    
+    # Define the time_shift as a constant, since there's only one plot element
+    time_shift = 0
+    # Whiskers
+    p.segment(x0=[time_shift], y0=[lower_bound], x1=[time_shift], y1=[upper_bound], color='black', line_width=2)
+    p.line(x=[time_shift - 0.1, time_shift + 0.1], y=[lower_bound, lower_bound], line_width=2, color='black')
+    p.line(x=[time_shift - 0.1, time_shift + 0.1], y=[upper_bound, upper_bound], line_width=2, color='black')
+    # Median
+    p.line(x=[time_shift - 0.2, time_shift + 0.2], y=[q2, q2], line_width=3, color='black')
+    p.scatter(x=[time_shift], y=[q2], size=10, color='black', marker='x')
+    if plot_type == 'box':
+        # Box plot (quartiles)
+        if plot_type == 'box':
+            p.vbar(x=time_shift, width=0.2, bottom=q1, top=q3, color="gray", alpha=0.4)
+        
+    elif plot_type == 'violin':
+        # Simulate some sample data based on percentiles
+        data = np.random.normal(loc=q2, scale=(upper_bound - lower_bound) / 4, size=10)
+        kde = gaussian_kde(data, bw_method=0.3)
+        y_vals = np.linspace(lower_bound * 0.7, upper_bound * 1.3, 100)
+        kde_values = kde(y_vals)
+
+        # Normalize the kde_values to fit the desired width in screen units
+        kde_values = kde_values / kde_values.max() * 0.2
+
+        # Draw a violin plot (mirrored KDE)
+        p.patch(np.concatenate([time_shift - kde_values, (time_shift + kde_values)[::-1]]),
+                np.concatenate([y_vals, y_vals[::-1]]),
+                alpha=0.3, color='gray', line_color='gray')
+
+    # Add labels for percentiles
+    p.text(x=[time_shift + 0.2, time_shift + 0.2, time_shift + 0.2],
+           y=[lower_bound, q2, upper_bound],
+           text=['10th %',  '50th %',  '90th %'], text_align="left", text_baseline="middle")
+    
+    if plot_type == 'box':
+        p.text(x=[time_shift + 0.2, time_shift + 0.2],
+           y=[q1, q3],
+           text=['25th %', '75th %'], text_align="left", text_baseline="middle")
+
+    # Show the plot
+    show(p)
+
+    

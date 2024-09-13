@@ -5,7 +5,7 @@ import numpy as np
 from config import *
 
 #from plotMatPlotHelper import 
-from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter
+from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter,plot_explanation
 
 def getData():
     hdf5_file_path = os.path.join(Curv_Thick_path, 'scalarGrowthData.h5')
@@ -61,6 +61,10 @@ def linCrit_ppc(x):
             {"A_0": A_0, "g_0": g_0, "alpha": alpha, "beta": beta, "A_end": A_end, "A_cut":A_cut})
 
 def main():
+    # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='whiskers', title="Whiskers Explanation")
+    # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='box', title="Box Plot Explanation")
+    # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='violin', title="Violin Plot Explanation")
+    
     df=getData()
     print(df)
 
@@ -74,12 +78,12 @@ def main():
 
     # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 
-    # #plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
+    # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
     # #plot_double_timeseries(df, y_col='Volume', style='violin')
     # #plot_double_timeseries(df, y_col='Surface Area', style='box')
-    # plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$')
-    # plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$')
-    # plot_double_timeseries(df, y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$')
+    plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',y0=0)
+    plot_double_timeseries(df, y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',y0=0)
 
 
 
