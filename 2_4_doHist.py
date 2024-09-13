@@ -209,7 +209,7 @@ def calcDiffeo(path,used_diffeos_df,all_surfaces:List[pv.PolyData]):
 
     if not check_for_singularity(start_surface,all_surfaces[path[-1]])<0.01:
         print('singular path')
-        plot_debugg(start_surface,all_surfaces[path[-1]])
+        #plot_debugg(start_surface,all_surfaces[path[-1]])
     return start_surface.point_data["deformed"] 
 
 def make_Hist(group_df,diffeos_df):
@@ -244,46 +244,54 @@ def make_Hist(group_df,diffeos_df):
     #     used_diffeos_df.at[index, 'diffeo_array'] = np.load(os.path.join(diff_folder_path,diff_file_name))
 
 
-    HistSurface=getHistSurface(all_surfaces[ref_fin])
-    N=HistSurface.n_points
-    
-    Hist_categories=['mean_curvature','gauss_curvature','thickness','curvature_tensor']
-    n_categories=len(Hist_categories)
-    Hist_data=np.empty((N, n_categories), dtype=object) 
-    for i in range(N):
-        for j in range(n_categories):
-            Hist_data[i, j] = []
+    HistSurface = getHistSurface(all_surfaces[ref_fin])
+    N = HistSurface.n_points
 
-    ref_points=all_surfaces[ref_fin].points
+    Hist_categories = ['mean_curvature', 'gauss_curvature', 'thickness', 'curvature_tensor']
+    #n_categories = len(Hist_categories)
+
+    # Hist_data as a dict to handle different shapes
+    Hist_data = {cat: np.empty(N, dtype=object) for cat in Hist_categories}
+    
+    # Initialize each element of Hist_data with empty lists
+    for cat in Hist_categories:
+        for i in range(N):
+            Hist_data[cat][i] = []
+
+    ref_points = all_surfaces[ref_fin].points
     for i in range(ref_points.shape[0]):
-        hist_ind=HistSurface.find_closest_point(ref_points[i])
-        for k in range(n_categories):
-            Hist_data[hist_ind,k].append(all_surfaces[ref_fin].point_data[Hist_categories[k]][i])
-    
-    
+        hist_ind = HistSurface.find_closest_point(ref_points[i])
+        for cat in Hist_categories:
+            Hist_data[cat][hist_ind].append(all_surfaces[ref_fin].point_data[cat][i])
+
+    # Loop over other surfaces and add data to Hist_data
     for start_fin in paths:
         print(paths[start_fin])
-        res=calcDiffeo(paths[start_fin],diffeos_df,all_surfaces)
+        res = calcDiffeo(paths[start_fin], diffeos_df, all_surfaces)
 
         for i in range(res.shape[0]): 
-            hist_ind=HistSurface.find_closest_point(res[i])
-            for k in range(n_categories):
-                Hist_data[hist_ind,k].append(all_surfaces[start_fin].point_data[Hist_categories[k]][i])
+            hist_ind = HistSurface.find_closest_point(res[i])
+            for cat in Hist_categories:
+                Hist_data[cat][hist_ind].append(all_surfaces[start_fin].point_data[cat][i])
 
-    
-    avg_data=np.zeros_like(Hist_data,dtype=float)
-    std_data=np.zeros_like(Hist_data,dtype=float)
-    for i in range(Hist_data.shape[0]):
-        for j in range(Hist_data.shape[1]):
-            avg_data[i,j]=np.average(Hist_data[i,j])
-            std_data[i,j]=np.std(Hist_data[i,j])
-    for i in range(n_categories):
-        cat=Hist_categories[i]
-        HistSurface.point_data[cat+'_avg']=avg_data[:,i]
-        HistSurface.point_data[cat+'_std']=avg_data[:,i]
+    # Initialize avg_data and std_data dictionaries
+    avg_data = {cat: np.zeros((N, ) + all_surfaces[ref_fin].point_data[cat].shape[1:], dtype=float) for cat in Hist_categories}
+    std_data = {cat: np.zeros((N, ) + all_surfaces[ref_fin].point_data[cat].shape[1:], dtype=float) for cat in Hist_categories}
+
+    # Compute avg and std for each category
+    for cat in Hist_categories:
+        for i in range(N):
+            stacked_data = np.array(Hist_data[cat][i])
+            avg_data[cat][i] = np.mean(stacked_data, axis=0)
+            std_data[cat][i] = np.std(stacked_data, axis=0)
   
 
-    return HistSurface,Hist_data
+    # Add avg and std data to the HistSurface
+    for cat in Hist_categories:
+        HistSurface.point_data[cat + '_avg'] = avg_data[cat]
+        HistSurface.point_data[cat + '_std'] = std_data[cat]
+    print(HistSurface.point_data)
+    return HistSurface, Hist_data
 
 def evalStatus_Hist(Hist_path_dir):
     return
