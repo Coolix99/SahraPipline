@@ -8,7 +8,7 @@ from config import *
 from IO import *
 
 #from plotMatPlotHelper import 
-from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter,plot_explanation
+from plotBokehHelper import plot_histograms_bokeh,plot_scatter_quantities,plot_density_hexbin
 
 def extract_category_and_number(input_string):
     # Define the regex pattern to match the required format
@@ -75,7 +75,20 @@ def getData():
 def main():
     times,categories,meshes=getData()
     print(times,categories)
+    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'])
+    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
 
+    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['gauss_curvature_avg'])
+    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
+
+    # plot_scatter_quantities(times, categories, meshes,
+    #                         x_quantity='mean_curvature_avg',
+    #                         y_quantity='gauss_curvature_avg',
+    #                         mode='time')
+    
+    plot_density_hexbin(times, categories, meshes,
+                        x_quantity='mean_curvature_avg',
+                        y_quantity='gauss_curvature_avg',rel_aspect_scale=0.5,rel_size=0.002)
 
 
 

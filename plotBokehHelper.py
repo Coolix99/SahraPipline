@@ -7,6 +7,8 @@ from scipy.stats import gaussian_kde
 from scipy.stats import linregress
 from bokeh.layouts import column
 from scipy import stats
+from bokeh.layouts import gridplot
+
 
 def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=False, show_div=False):
     """
@@ -591,4 +593,328 @@ def plot_explanation(lower_bound, q1, q2, q3, upper_bound, plot_type='whiskers',
     # Show the plot
     show(p)
 
+def plot_histograms_bokeh(times, categories, meshes, quantities_to_plot=None, combinations=None):
+    """
+    Plot concatenated histograms of specified quantities from meshes, with options to combine times and categories.
+
+    Parameters:
+    -----------
+    times : list
+        A list of time points corresponding to each mesh.
+    categories : list
+        A list of categories ('Development', 'Regeneration') corresponding to each mesh.
+    meshes : list
+        A list of pyvista PolyData meshes containing point data.
+    quantities_to_plot : list or None
+        List of quantities to be plotted. If None, all available quantities will be plotted.
+    combinations : dict or None
+        A dictionary specifying how to combine data:
+        - 'combine_times_per_category': If True, combine all times for each category.
+        - 'combine_categories_per_time': If True, combine both categories for each time.
+        - If None, do not combine and plot each time-category pair separately.
+
+    """
+    # Define the available quantities to be plotted
+    available_quantities = ['mean_curvature_avg', 'gauss_curvature_avg', 'thickness_avg', 
+                            'mean_curvature_std', 'gauss_curvature_std', 'thickness_std']
     
+    # Use only specified quantities or default to all if none are provided
+    if quantities_to_plot is None:
+        quantities_to_plot = available_quantities
+    else:
+        # Filter only the valid quantities from the provided list
+        quantities_to_plot = [q for q in quantities_to_plot if q in available_quantities]
+        if not quantities_to_plot:
+            raise ValueError(f"No valid quantities selected. Available quantities: {available_quantities}")
+    
+    # Normalize time values for color coding
+    unique_times = sorted(set(times))
+    time_colors = {time: Viridis256[int(255 * i / (len(unique_times) - 1))] for i, time in enumerate(unique_times)}
+    
+    # Define line styles for different conditions
+    line_styles = {
+        'Development': 'solid',
+        'Regeneration': 'dashed'
+    }
+    
+    # Prepare data based on combination settings
+    combined_data = []
+    
+    if combinations is not None and combinations.get('combine_times_per_category', False):
+        # Combine all times for each category
+        for category in ['Development', 'Regeneration']:
+            combined_data.append({
+                'time': 'All Times',
+                'category': category,
+                'meshes': [mesh.point_data for i, mesh in enumerate(meshes) if categories[i] == category]
+            })
+    elif combinations is not None and combinations.get('combine_categories_per_time', False):
+        # Combine both categories for each time
+        for time in unique_times:
+            combined_data.append({
+                'time': time,
+                'category': 'Both',
+                'meshes': [mesh.point_data for i, mesh in enumerate(meshes) if times[i] == time]
+            })
+    elif combinations is not None and combinations.get('combine_times_per_category', False) and combinations.get('combine_categories_per_time', False):
+        # Combine all times and both categories into one dataset
+        combined_data.append({
+            'time': 'All Times',
+            'category': 'Both',
+            'meshes': [mesh.point_data for mesh in meshes]
+        })
+    else:
+        # No combination: use individual time-category pairs
+        for i, mesh in enumerate(meshes):
+            combined_data.append({
+                'time': times[i],
+                'category': categories[i],
+                'meshes': [mesh.point_data]
+            })
+    
+    # Create a list to hold figures for gridplot
+    figures = []
+    
+    # Create histograms for each selected quantity
+    for quantity in quantities_to_plot:
+        p = figure(title=f"Histogram of {quantity}",
+                   x_axis_label=quantity, y_axis_label='Density', width=1000, height=600)
+        
+        # Enable hover tool
+        hover = HoverTool(tooltips=[
+            ("Time", "@time"),
+            ("Condition", "@condition")
+        ])
+        p.add_tools(hover)
+        
+        # Plot histograms based on the prepared data
+        for data in combined_data:
+            concatenated_data = []
+            
+            # Concatenate data for the current quantity across all meshes in the group
+            for mesh_point_data in data['meshes']:
+                if quantity in mesh_point_data:
+                    concatenated_data.extend(mesh_point_data[quantity])
+            
+            if concatenated_data:
+                # Create histogram data
+                hist, edges = np.histogram(concatenated_data, bins=30, density=True)
+                
+                # Create a ColumnDataSource for the Bokeh plot
+                source = ColumnDataSource(data={
+                    'top': hist,
+                    'left': edges[:-1],
+                    'right': edges[1:],
+                    'time': [data['time']] * len(hist),
+                    'condition': [data['category']] * len(hist)
+                })
+                
+                # Use color for time and line style for category
+                color = time_colors[data['time']] if data['time'] != 'All Times' else 'black'
+                line_dash = line_styles[data['category']] if data['category'] != 'Both' else 'solid'
+                
+                # Add the histogram to the plot
+                p.quad(top='top', bottom=0, left='left', right='right',
+                       line_color=color, fill_color=None,
+                       line_dash=line_dash, line_width=2, source=source,
+                       legend_label=f'{data["category"]} (Time: {data["time"]})')
+        
+        # Add to figures list for gridplot
+        p.legend.location = "top_right"
+        p.legend.click_policy = "hide"
+        figures.append(p)
+    
+    # Arrange plots in a grid (pass figures directly, no nested list)
+    grid = gridplot(figures, ncols=1)
+    
+    # Show the grid of histograms
+    show(grid)
+
+def plot_scatter_quantities(times, categories, meshes, x_quantity, y_quantity, mode='category'):
+    """
+    Create a scatter plot of two specified quantities using Bokeh, with color-coding and hover tools.
+
+    Parameters:
+    -----------
+    times : list
+        A list of time points corresponding to each mesh.
+    categories : list
+        A list of categories ('Development', 'Regeneration') corresponding to each mesh.
+    meshes : list
+        A list of pyvista PolyData meshes containing point data.
+    x_quantity : str
+        The quantity to plot on the x-axis (e.g., 'gauss_curvature_avg').
+    y_quantity : str
+        The quantity to plot on the y-axis (e.g., 'mean_curvature_avg').
+    mode : str, optional (default='category')
+        Determines how the plot is color-coded and shaped.
+        'category' : Colors the plot based on the 'condition' (Development or Regeneration).
+        'time'     : Colors the plot based on 'time' and shapes by the 'condition'.
+
+    Returns:
+    --------
+    None
+    Displays an interactive scatter plot.
+    """
+    
+    # Extract the relevant data
+    data = {
+        'x': [],
+        'y': [],
+        'time': [],
+        'condition': []
+    }
+
+    for i, mesh in enumerate(meshes):
+        if x_quantity in mesh.point_data and y_quantity in mesh.point_data:
+            x_data = mesh.point_data[x_quantity]
+            y_data = mesh.point_data[y_quantity]
+            n_points = len(x_data)
+            
+            # Append the data
+            data['x'].extend(x_data)
+            data['y'].extend(y_data)
+            data['time'].extend([times[i]] * n_points)
+            data['condition'].extend([categories[i]] * n_points)
+
+    # Create a ColumnDataSource for Bokeh
+    source = ColumnDataSource(data=data)
+
+    # Define color palettes and marker shapes
+    colors = {'Development': 'blue', 'Regeneration': 'orange'}
+    shapes = {'Development': 'circle', 'Regeneration': 'triangle'}
+
+    # Create the figure
+    p = figure(title=f"{x_quantity} vs {y_quantity}",
+               x_axis_label=x_quantity,
+               y_axis_label=y_quantity,
+               width=1000, height=800,
+               tools="pan,wheel_zoom,box_zoom,reset,save")
+
+    # Plot based on mode
+    if mode == 'category':  # Color by category (Development/Regeneration)
+        for condition, color in colors.items():
+            shape = shapes[condition]
+            subset = source.to_df()[source.to_df()['condition'] == condition]
+            source_subset = ColumnDataSource(subset)
+            
+            # Scatter plot for each condition with specific color and shape
+            p.scatter(x='x', y='y', source=source_subset,
+                      size=10, color=color, marker=shape,
+                      legend_label=condition, alpha=0.6)
+
+    elif mode == 'time':  # Color by time, shape by condition
+        time_mapper = linear_cmap(field_name='time', palette=Viridis256,
+                                  low=min(data['time']), high=max(data['time']))
+        
+        for condition, shape in shapes.items():
+            subset = source.to_df()[source.to_df()['condition'] == condition]
+            source_subset = ColumnDataSource(subset)
+            
+            # Scatter plot with color mapped by time and shaped by condition
+            p.scatter(x='x', y='y', source=source_subset,
+                      size=10, color=time_mapper, marker=shape,
+                      legend_label=condition, alpha=0.6)
+
+    # Add hover tool
+    hover = HoverTool()
+    hover.tooltips = [
+        (x_quantity, "@x"),
+        (y_quantity, "@y"),
+        ("Time", "@time"),
+        ("Condition", "@condition")
+    ]
+    p.add_tools(hover)
+
+    # Configure legend
+    p.legend.title = 'Condition'
+    p.legend.location = "top_left"
+
+    # Show the plot
+    show(p)
+
+from bokeh.plotting import figure, show
+from bokeh.models import HoverTool
+import numpy as np
+import pyvista as pv
+
+def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_size=0.001, rel_aspect_scale=1.0):
+    """
+    Create a hexbin density plot of two specified quantities using Bokeh, with color-coding and hover tools.
+    Trim the data to the 1st and 99th percentiles and set the aspect ratio.
+
+    Parameters:
+    -----------
+    times : list
+        A list of time points corresponding to each mesh.
+    categories : list
+        A list of categories ('Development', 'Regeneration') corresponding to each mesh.
+    meshes : list
+        A list of pyvista PolyData meshes containing point data.
+    x_quantity : str
+        The quantity to plot on the x-axis (e.g., 'gauss_curvature_avg').
+    y_quantity : str
+        The quantity to plot on the y-axis (e.g., 'mean_curvature_avg').
+    rel_size : float, optional (default=0.01)
+        The relative size of the hexagons in the hexbin plot.
+    rel_aspect_scale
+
+    Returns:
+    --------
+    None
+    Displays an interactive hexbin density plot.
+    """
+    
+    # Extract the relevant data
+    x_data = []
+    y_data = []
+
+    for i, mesh in enumerate(meshes):
+        if x_quantity in mesh.point_data and y_quantity in mesh.point_data:
+            x_data.extend(mesh.point_data[x_quantity])
+            y_data.extend(mesh.point_data[y_quantity])
+
+    # Convert to NumPy arrays
+    x_data = np.array(x_data)
+    y_data = np.array(y_data)
+
+    # Trim data to 1st and 99th percentiles for both x and y axes
+    x_min, x_max = np.percentile(x_data, [5, 95])
+    y_min, y_max = np.percentile(y_data, [5, 95])
+
+    # Calculate size of hexagons relative to the data range
+    size = rel_size * np.sqrt((x_max - x_min) * (y_max - y_min))
+
+    # Calculate aspect scale if not provided
+    aspect_scale = rel_aspect_scale*(y_max - y_min)/(x_max - x_min) 
+
+    # # Filter data based on these percentiles
+    # x_data_trimmed = x_data[(x_data >= x_min) & (x_data <= x_max)]
+    # y_data_trimmed = y_data[(y_data >= y_min) & (y_data <= y_max)]
+
+    # Calculate plot dimensions
+    plot_width = 700
+    plot_height = 700
+
+    # Create the figure with trimmed ranges
+    p = figure(title=f"{x_quantity} vs {y_quantity} (Hexbin Density)",
+               x_axis_label=x_quantity, y_axis_label=y_quantity,
+               width=plot_width, height=plot_height,
+               x_range=(x_min, x_max), y_range=(y_min, y_max),
+               tools="pan,wheel_zoom,box_zoom,reset,save")
+
+    # Compute hexbin with aspect ratio adjustment
+    bins = p.hexbin(x_data, y_data, size=size, hover_color="pink", hover_alpha=0.8, aspect_scale=aspect_scale)
+
+    # Add scatter points (optional, if you want to see the raw points)
+    p.circle(x_data, y_data, color="black", size=1)
+
+    # Add hover tool for hexbin counts
+    hover = HoverTool(tooltips=[("Count", "@c")], mode='mouse', point_policy='follow_mouse')
+    p.add_tools(hover)
+
+    # Show the plot
+    show(p)
+
+
+
