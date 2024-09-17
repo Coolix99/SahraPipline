@@ -8,6 +8,7 @@ from scipy.stats import linregress
 from bokeh.layouts import column
 from scipy import stats
 from bokeh.layouts import gridplot
+from scipy.stats import mannwhitneyu
 
 
 def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=False, show_div=False):
@@ -957,3 +958,182 @@ def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_s
 
 
 
+def plot_compare_timeseries(df1, df2, category='Development', y_col=None, style='box', y_scaling=1.0, y_name=None,
+                            test_significance=True, show_n=True, y0=None, tight_style=True):
+    """
+    Compare two time-series dataframes for a specific category using box plots or violin plots.
+    
+    Parameters:
+    -----------
+    df1, df2 : pd.DataFrame
+        The input DataFrames containing the data to plot.
+    category : str
+        The category to compare (e.g., 'Development', 'Regeneration').
+    y_col : str
+        The column name from `df1` and `df2` to use for the y-axis (quantity of interest).
+    style : str, optional (default='box')
+        The plot style: 'box' for box plot or 'violin' for violin plot.
+    
+    Returns:
+    --------
+    None
+    Displays an interactive time-series plot with scatter points and optional fit results.
+    """
+    
+    if y_col is None:
+        raise ValueError("You must specify the column for the y-axis (y_col).")
+    
+    if y_name is None:
+        y_name = y_col
+    
+    # Scale the data
+    df1 = df1.copy()
+    df2 = df2.copy()
+    df1[y_col] = df1[y_col] * y_scaling
+    df2[y_col] = df2[y_col] * y_scaling
+
+    # Filter data for the specific category
+    df1_filtered = df1[df1['condition'] == category].copy()
+    df2_filtered = df2[df2['condition'] == category].copy()
+
+    # Ensure 'time in hpf' exists and is integer
+    df1_filtered['time in hpf'] = df1_filtered['time in hpf'].astype(int)
+    df2_filtered['time in hpf'] = df2_filtered['time in hpf'].astype(int)
+
+    # Group data by 'time in hpf' for both dataframes
+    grouped_df1 = df1_filtered.groupby('time in hpf')
+    grouped_df2 = df2_filtered.groupby('time in hpf')
+
+    # Extract unique times and prepare data
+    times_df1 = sorted(list(grouped_df1.groups.keys()))
+    values_df1 = [grouped_df1.get_group(time)[y_col].values for time in times_df1]
+    times_df2 = sorted(list(grouped_df2.groups.keys()))
+    values_df2 = [grouped_df2.get_group(time)[y_col].values for time in times_df2]
+
+    # Define plot width
+    all_times = sorted(set(times_df1).union(set(times_df2)))
+    width = 0.8 * min(np.diff(all_times)) if len(all_times) > 1 else 1
+    
+    # Apply the shift for scatter points
+    df1_filtered['shifted_time'] = df1_filtered['time in hpf'] - width * 0.0
+    df2_filtered['shifted_time'] = df2_filtered['time in hpf'] + width * 0.0
+
+    # Create a ColumnDataSource for scatter plot
+    scatter_source_df1 = ColumnDataSource(df1_filtered)
+    scatter_source_df2 = ColumnDataSource(df2_filtered)
+
+    max_y_value = max(df1_filtered[y_col].max(), df2_filtered[y_col].max()) * 1.2
+
+    # Create figure with a shared numerical x-axis
+    if y0 is None:
+        # Let Bokeh automatically decide the y-range
+        p = figure(title=f"Time-series Comparison ({style.capitalize()} Plot) of {y_name} by Time",
+                   x_axis_label="Time (hpf)",
+                   y_axis_label=y_name,
+                   tools="pan,wheel_zoom,box_zoom,reset,save",
+                   width=1000, height=600)
+    else:
+        # Set the y-range manually if y0 is specified
+        p = figure(title=f"Time-series Comparison ({style.capitalize()} Plot) of {y_name} by Time",
+                   x_axis_label="Time (hpf)",
+                   y_axis_label=y_name,
+                   y_range=(y0, max_y_value),  # Set both the lower and upper bounds
+                   tools="pan,wheel_zoom,box_zoom,reset,save",
+                   width=1000, height=600)
+
+    # Scatter plot for individual points (df1 and df2)
+    scatter_df1 = p.scatter(x='shifted_time', y=y_col, source=scatter_source_df1,
+                            size=8, color='blue', alpha=0.6, legend_label='DataFrame 1')
+    scatter_df2 = p.scatter(x='shifted_time', y=y_col, source=scatter_source_df2,
+                            size=8, color='green', alpha=0.6, legend_label='DataFrame 2')
+
+    
+    # Test significance
+    if test_significance:
+        for time in all_times:
+            if time in grouped_df1.groups.keys() and time in grouped_df2.groups.keys():
+                vals_df1 = grouped_df1.get_group(time)[y_col].values
+                vals_df2 = grouped_df2.get_group(time)[y_col].values
+
+                # Perform Mann-Whitney U test
+                t_stat, p_value = mannwhitneyu(vals_df1, vals_df2, alternative='two-sided')
+                print(f"Time: {time}, p-value: {p_value}")
+
+                # Add stars for significance level
+                if p_value < 0.001:
+                    star_label = '***'
+                elif p_value < 0.01:
+                    star_label = '**'
+                elif p_value < 0.05:
+                    star_label = '*'
+                else:
+                    star_label = ''
+
+                if star_label:
+                    p.text(x=[time], y=[max(np.max(vals_df1), np.max(vals_df2)) * 1.05], 
+                           text=[star_label], text_font_size='16pt', text_color='black')
+
+    # Show number of samples if show_n is enabled
+    if show_n:
+        for time in all_times:
+            n_df1 = len(grouped_df1.get_group(time)[y_col]) if time in grouped_df1.groups else 0
+            n_df2 = len(grouped_df2.get_group(time)[y_col]) if time in grouped_df2.groups else 0
+            y_pos = max([max(grouped_df1.get_group(time)[y_col]), max(grouped_df2.get_group(time)[y_col])]) * 1.1
+
+            # Show number of samples for DataFrame 1
+            if n_df1 > 0:
+                p.text(x=[time - width / 2], y=y_pos,
+                       text=[f"n={n_df1}"], text_font_size="10pt", text_color="blue")
+
+            # Show number of samples for DataFrame 2
+            if n_df2 > 0:
+                p.text(x=[time + width / 2], y=y_pos,
+                       text=[f"n={n_df2}"], text_font_size="10pt", text_color="green")
+
+    # Box or violin plot for DataFrame 1 and DataFrame 2
+    for df, times, values, color in zip([df1_filtered, df2_filtered],
+                                        [times_df1, times_df2],
+                                        [values_df1, values_df2],
+                                        ['blue', 'green']):
+        if style == 'box':
+            # Add box plots
+            for i, (time, val) in enumerate(zip(times, values)):
+                lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+
+                # Box for quartiles
+                time_shift = time - width / 4 if color == 'blue' else time + width / 4
+                p.vbar(x=time_shift, width=width / 2, bottom=q1, top=q3, color=color, alpha=0.4)
+
+        elif style == 'violin':
+            # Add violin plots
+            for i, (time, val) in enumerate(zip(times, values)):
+                kde = gaussian_kde(val, bw_method=0.3)
+                x = np.linspace(min(val)*0.8, max(val)*1.2, 100)
+                kde_values = kde(x)
+                kde_values = kde_values / kde_values.max() * width * 0.5
+                
+                if color == 'blue':
+                    p.patch(np.concatenate([time - kde_values, np.array([time, time])]),
+                            np.concatenate([x, np.array([x[-1], x[0]])]),
+                            alpha=0.3, color=color, line_color=color)
+                else:
+                    p.patch(np.concatenate([np.array([time, time]), (time + kde_values)[::-1]]),
+                            np.concatenate([np.array([x[-1], x[0]]), x[::-1]]),
+                            alpha=0.3, color=color, line_color=color)
+        
+
+    # Configure the legend
+    p.legend.location = "top_left"
+
+    # Add hover tool for scatter plot
+    hover = HoverTool(renderers=[scatter_df1, scatter_df2])
+    hover.tooltips = [
+        ("Time (hpf)", "@{time in hpf}"),
+        (y_name, f"@{{{y_col}}}"),
+        ("Condition", "@{condition}"),
+        ("Mask Folder", "@{Mask Folder}")
+    ]
+    p.add_tools(hover)
+
+    # Show the plot
+    show(p)

@@ -5,7 +5,7 @@ import numpy as np
 from config import *
 
 #from plotMatPlotHelper import 
-from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter,plot_explanation
+from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter,plot_explanation,plot_compare_timeseries
 
 def getData_SS():
     hdf5_file_path = os.path.join(Curv_Thick_path, 'scalarGrowthData.h5')
@@ -31,37 +31,45 @@ def getData_Lucas():
 
     # Load the DataFrame from the HDF5 file
     df = pd.read_hdf(hdf5_file_path, key='data')
+    print(df)
+    # 1. Ensure all rows have 'Lucas' as the experimentalist
+    df = df[df['experimentalist'] == 'Lucas']
+
+    # 2. Remove unwanted columns
+    df = df.drop(columns=['ED_area', 'ED_PD', 'ED_AP'])
+
+    # 3. Rename columns to match df_SS
+    df.rename(columns={
+        'LM_folder': 'Mask Folder',
+        'is control': 'condition',
+        'total_area': 'Surface Area',
+        'total_PD': 'L PD',
+        'total_AP': 'L AP'
+    }, inplace=True)
+
+    # 4. Filter only rows where 'genotype' is 'WT'
+    df = df[df['genotype'] == 'WT']
+
+    # 5. Map 'condition' from True/False to 'Development'/'Regeneration'
+    df['condition'] = df['condition'].map({True: 'Development', False: 'Regeneration'})
+
+    # 6. Calculate additional columns as in df_SS
+    df['L AP * L PD'] = df['L AP'] * df['L PD']
+    return df
+
 
 def main():
     df_Lucas=getData_Lucas()
     print(df_Lucas)
-    return
+    
     df_SS=getData_SS()
     print(df_SS)
 
     
 
-    #Checks
-    # plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='category',show_fit=True,show_div=True)
-    # plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='time',show_fit=True,show_div=True)
+    plot_compare_timeseries(df_Lucas, df_SS, category='Development', y_col='Surface Area', style='box')
 
-    # plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='category',show_fit=True,show_div=True)
-    # plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='time',show_fit=True,show_div=True)
-
-    # plot_scatter(df, x_col='L AP', y_col='L PD', mode='category',show_fit=True,show_div=True)
-    # plot_scatter(df, x_col='L AP', y_col='L PD', mode='time',show_fit=True,show_div=True)
-
-    # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
-
-    # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
-    # plot_double_timeseries(df, y_col='Volume', style='violin')
-    # plot_double_timeseries(df, y_col='Surface Area', style='box')
-    # fit={
-    #     't_values':t_values,
-    #     'Development': results['A_Development_noisy'],
-    #     'Regeneration': results['A_Regeneration_noisy']
-    # }
-    # plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0,fit_results=fit)
+    #plot_compare_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0,fit_results=fit)
     # plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
     # plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,y0=0)
     # plot_double_timeseries(df, y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,y0=0)
