@@ -76,11 +76,11 @@ def main():
     #TODO scatter check gauss_avg vs gaus from curvature_mean
     times,categories,meshes=getData()
     print(times,categories)
-    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'])
-    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
+    plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'])
+    plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
 
-    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['gauss_curvature_avg'])
-    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
+    plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['gauss_curvature_avg'])
+    plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
 
     # plot_scatter_quantities(times, categories, meshes,
     #                         x_quantity='mean_curvature_avg',

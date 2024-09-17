@@ -11,7 +11,7 @@ from bokeh.layouts import gridplot
 from scipy.stats import mannwhitneyu
 
 
-def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=False, show_div=False):
+def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=False, show_div='Residual'):
     """
     Create a scatter plot using Bokeh with flexible axis assignment and hover tools.
     
@@ -122,10 +122,77 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
             p.line(x_data, fit_line, line_width=2, color='black', legend_label='Linear Fit')
 
         # Plot deviation if required
-        if show_div:
+        if show_div=='PCA':
             deviation_fig = figure(title=f"Deviation: {x_col} vs {y_col}",
                                    x_axis_label='Orthogonal Position on Fit Line',
                                    y_axis_label='Distance from Line',
+                                   tools="pan,wheel_zoom,box_zoom,reset,save",
+                                   width=700, height=400)
+            
+            # Initialize the array to store the orthogonal distances and positions
+            orthogonal_distances = []
+            positions = []
+
+            # Prepare lists for colors and shapes based on mode
+            colors_list = []
+            shapes_list = []
+            
+            # Create a new DataFrame to hold the deviation data
+            deviation_df = df.copy()
+
+            for i in range(len(x_data)):
+                # Point p (x_i, y_i)
+                p_point = np.array([x_data[i], y_data[i]])
+                
+                # Calculate the orthogonal distance using the vector formula
+                a_p = a - p_point
+                projection = np.dot(a_p, n) * n  # Project a_p onto the line
+                orthogonal_vector = a_p - projection  # Perpendicular vector
+                orthogonal_distance = np.dot(orthogonal_vector, o)
+                
+                orthogonal_distances.append(orthogonal_distance)
+                positions.append(-np.dot(a_p, n))
+
+                # Assign the same color and shape as the first plot based on mode
+                condition = df['condition'].iloc[i]
+                colors_list.append(colors[condition])
+                shapes_list.append(shapes[condition])
+           
+
+            # Add the deviation data to the deviation_df
+            deviation_df['time in hpf'] = times
+            deviation_df['position'] = positions
+            deviation_df['orthogonal_distance'] = orthogonal_distances
+            deviation_df['colors'] = colors_list
+            deviation_df['shapes'] = shapes_list
+
+            # Create a new ColumnDataSource for the deviation plot
+            deviation_source = ColumnDataSource(deviation_df)
+
+            # Scatter plot for orthogonal distances with matching color and shapes
+            if mode == 'category':
+                deviation_scatter = deviation_fig.scatter(x='position', y='orthogonal_distance',
+                                                        source=deviation_source, size=8,
+                                                        color='colors', marker='shapes', alpha=0.6)
+            elif mode == 'time':
+                deviation_scatter = deviation_fig.scatter(x='position', y='orthogonal_distance',
+                                                        source=deviation_source, size=8,
+                                                        color=time_mapper, marker='shapes', alpha=0.6)
+
+            # Add hover tool for the deviation plot
+            hover_deviation = HoverTool(renderers=[deviation_scatter])
+            hover_deviation.tooltips = tooltips
+            deviation_fig.add_tools(hover_deviation)
+
+            # Return both the main plot and the deviation plot in a vertical layout
+            layout = column(p, deviation_fig)
+            show(layout)
+            return
+        
+        elif show_div=='Residual':
+            deviation_fig = figure(title=f"Deviation: {x_col} vs {y_col}",
+                                   x_axis_label=x_col,
+                                   y_axis_label='Residual',
                                    tools="pan,wheel_zoom,box_zoom,reset,save",
                                    width=700, height=400)
             
@@ -957,9 +1024,9 @@ def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_s
     show(p)
 
 
-
 def plot_compare_timeseries(df1, df2, category='Development', y_col=None, style='box', y_scaling=1.0, y_name=None,
-                            test_significance=True, show_n=True, y0=None, tight_style=True):
+                            test_significance=True, show_n=True, y0=None, tight_style=True, 
+                            label_df1="DataFrame 1", label_df2="DataFrame 2"):
     """
     Compare two time-series dataframes for a specific category using box plots or violin plots.
     
@@ -973,7 +1040,9 @@ def plot_compare_timeseries(df1, df2, category='Development', y_col=None, style=
         The column name from `df1` and `df2` to use for the y-axis (quantity of interest).
     style : str, optional (default='box')
         The plot style: 'box' for box plot or 'violin' for violin plot.
-    
+    label_df1, label_df2 : str, optional (default='DataFrame 1', 'DataFrame 2')
+        Labels to display in the plot legend for the two dataframes.
+
     Returns:
     --------
     None
@@ -1043,9 +1112,9 @@ def plot_compare_timeseries(df1, df2, category='Development', y_col=None, style=
 
     # Scatter plot for individual points (df1 and df2)
     scatter_df1 = p.scatter(x='shifted_time', y=y_col, source=scatter_source_df1,
-                            size=8, color='blue', alpha=0.6, legend_label='DataFrame 1')
+                            size=8, color='blue', alpha=0.6, legend_label=label_df1)
     scatter_df2 = p.scatter(x='shifted_time', y=y_col, source=scatter_source_df2,
-                            size=8, color='green', alpha=0.6, legend_label='DataFrame 2')
+                            size=8, color='green', alpha=0.6, legend_label=label_df2)
 
     
     # Test significance
@@ -1073,28 +1142,12 @@ def plot_compare_timeseries(df1, df2, category='Development', y_col=None, style=
                     p.text(x=[time], y=[max(np.max(vals_df1), np.max(vals_df2)) * 1.05], 
                            text=[star_label], text_font_size='16pt', text_color='black')
 
-    # Show number of samples if show_n is enabled
-    if show_n:
-        for time in all_times:
-            n_df1 = len(grouped_df1.get_group(time)[y_col]) if time in grouped_df1.groups else 0
-            n_df2 = len(grouped_df2.get_group(time)[y_col]) if time in grouped_df2.groups else 0
-            y_pos = max([max(grouped_df1.get_group(time)[y_col]), max(grouped_df2.get_group(time)[y_col])]) * 1.1
-
-            # Show number of samples for DataFrame 1
-            if n_df1 > 0:
-                p.text(x=[time - width / 2], y=y_pos,
-                       text=[f"n={n_df1}"], text_font_size="10pt", text_color="blue")
-
-            # Show number of samples for DataFrame 2
-            if n_df2 > 0:
-                p.text(x=[time + width / 2], y=y_pos,
-                       text=[f"n={n_df2}"], text_font_size="10pt", text_color="green")
-
     # Box or violin plot for DataFrame 1 and DataFrame 2
-    for df, times, values, color in zip([df1_filtered, df2_filtered],
-                                        [times_df1, times_df2],
-                                        [values_df1, values_df2],
-                                        ['blue', 'green']):
+    for df, times, values, color, label in zip([df1_filtered, df2_filtered],
+                                               [times_df1, times_df2],
+                                               [values_df1, values_df2],
+                                               ['blue', 'green'],
+                                               [label_df1, label_df2]):
         if style == 'box':
             # Add box plots
             for i, (time, val) in enumerate(zip(times, values)):
@@ -1120,7 +1173,47 @@ def plot_compare_timeseries(df1, df2, category='Development', y_col=None, style=
                     p.patch(np.concatenate([np.array([time, time]), (time + kde_values)[::-1]]),
                             np.concatenate([np.array([x[-1], x[0]]), x[::-1]]),
                             alpha=0.3, color=color, line_color=color)
-        
+
+        # Add lines and whiskers (Development and Regeneration)
+        if tight_style:
+            for i, (time, val) in enumerate(zip(times, values)):
+                lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+                print(lower_bound, q1, q2, q3, upper_bound)
+                if color=='blue':
+                    # Whiskers
+                    p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
+                    p.line(x=[time - width / 3, time ], y=[lower_bound, lower_bound], line_width=2, color='black')
+                    p.line(x=[time - width / 3, time ], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+                    # Median
+                    p.line(x=[time - width / 2, time], y=[q2, q2], line_width=3, color='black')
+                    p.scatter(x=[time], y=[q2], size=10, color='black', marker='x')
+                else:
+                    # Whiskers
+                    p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
+                    p.line(x=[time , time + width / 3], y=[lower_bound, lower_bound], line_width=2, color='black')
+                    p.line(x=[time , time + width / 3], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+                    # Median
+                    p.line(x=[time , time + width / 2], y=[q2, q2], line_width=3, color='black')
+                    p.scatter(x=[time], y=[q2], size=10, color='black', marker='x')
+        else:
+            for i, (time, val) in enumerate(zip(times, values)):
+                lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+                print(lower_bound, q1, q2, q3, upper_bound)
+                if color=='blue':
+                    time_shift=time-width/4 
+                else:
+                    time_shift=time+width/4 
+
+                # Whiskers
+                p.segment(x0=[time_shift], y0=[lower_bound], x1=[time_shift], y1=[upper_bound], color='black', line_width=2)
+                p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[lower_bound, lower_bound], line_width=2, color='black')
+                p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+                # Median
+                p.line(x=[time_shift - width / 4, time_shift + width / 4], y=[q2, q2], line_width=3, color='black')
+                p.scatter(x=[time_shift], y=[q2], size=10, color='black', marker='x')
 
     # Configure the legend
     p.legend.location = "top_left"
