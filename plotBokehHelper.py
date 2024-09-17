@@ -178,45 +178,47 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
                                                         source=deviation_source, size=8,
                                                         color=time_mapper, marker='shapes', alpha=0.6)
 
-            # Add hover tool for the deviation plot
-            hover_deviation = HoverTool(renderers=[deviation_scatter])
-            hover_deviation.tooltips = tooltips
-            deviation_fig.add_tools(hover_deviation)
-
-            # Return both the main plot and the deviation plot in a vertical layout
-            layout = column(p, deviation_fig)
-            show(layout)
-            return
         
         elif show_div=='Residual':
             residuals = y_data - fit_line
+            df['Residual'] = residuals
 
             # Create a new figure for residuals
-            residual_fig = figure(title=f"Residuals: {x_col} vs {y_col}",
+            deviation_fig = figure(title=f"Residuals: {x_col} vs {y_col}",
                                   x_axis_label=x_col,
                                   y_axis_label='Residuals',
                                   tools="pan,wheel_zoom,box_zoom,reset,save",
-                                  width=700, height=400)
+                                  width=700, height=200)
 
             # Plot residuals based on mode
-            if mode == 'category':  # Color by category
+            if mode == 'category':  # Color by category (Development/Regeneration)
                 for condition, color in colors.items():
                     shape = shapes[condition]
                     subset = df[df['condition'] == condition]
-                    residuals_subset = residuals[subset.index]
-                    residual_fig.scatter(x=subset[x_col], y=residuals_subset, size=10,
-                                         color=color, marker=shape, alpha=0.6, legend_label=condition)
+                    source_subset = ColumnDataSource(subset)
+                    
+                # Use scatter() with marker shape and size
+                    deviation_scatter=deviation_fig.scatter(x=x_col, y='Residual', source=source_subset,
+                            size=10, color=color, marker=shape, alpha=0.6)
+            
             elif mode == 'time':  # Color by time, shape by category
                 for condition, shape in shapes.items():
                     subset = df[df['condition'] == condition]
-                    residuals_subset = residuals[subset.index]
-                    residual_fig.scatter(x=subset[x_col], y=residuals_subset, size=10,
-                                         color=time_mapper, marker=shape, alpha=0.6, legend_label=condition)
+                    source_subset = ColumnDataSource(subset)
+                    
+                    # Use scatter() with marker shape and size, color mapped by time
+                    deviation_scatter=deviation_fig.scatter(x=x_col, y='Residual', source=source_subset,
+                            size=10, color=time_mapper, marker=shape, alpha=0.6)
+                   
+                  
+        hover_deviation = HoverTool(renderers=[deviation_scatter])
+        hover_deviation.tooltips = tooltips
+        deviation_fig.add_tools(hover_deviation)
 
-            # Show both the main plot and the residuals plot
-            layout = column(p, residual_fig)
-            show(layout)
-            return
+        deviation_fig.line(x=[x_data.min(), x_data.max()], y=[0, 0], color="black", line_width=2)
+        layout = column(p, deviation_fig)
+        show(layout)
+        return
 
 
     # Show plot
