@@ -29,11 +29,10 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
         'time'     : Colors the plot based on 'time in hpf' column and shapes by the 'condition'.
     tooltips : list of tuples, optional (default=None)
         List of custom hover tooltips to show. If None, default hover tooltips are shown.
-        Example: [("Column Name", "@column_name"), ...]
     show_fit : bool, optional (default=False)
         Whether to show the linear fit line.
-    show_div : bool, optional (default=False)
-        Whether to show the deviation scatter plot.
+    show_div : str, optional (default='Residual')
+        Whether to show the deviation scatter plot. Options are 'Residual' or 'PCA'.
 
     Returns:
     --------
@@ -190,71 +189,35 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
             return
         
         elif show_div=='Residual':
-            deviation_fig = figure(title=f"Deviation: {x_col} vs {y_col}",
-                                   x_axis_label=x_col,
-                                   y_axis_label='Residual',
-                                   tools="pan,wheel_zoom,box_zoom,reset,save",
-                                   width=700, height=400)
-            
-            # Initialize the array to store the orthogonal distances and positions
-            orthogonal_distances = []
-            positions = []
+            residuals = y_data - fit_line
 
-            # Prepare lists for colors and shapes based on mode
-            colors_list = []
-            shapes_list = []
-            
-            # Create a new DataFrame to hold the deviation data
-            deviation_df = df.copy()
+            # Create a new figure for residuals
+            residual_fig = figure(title=f"Residuals: {x_col} vs {y_col}",
+                                  x_axis_label=x_col,
+                                  y_axis_label='Residuals',
+                                  tools="pan,wheel_zoom,box_zoom,reset,save",
+                                  width=700, height=400)
 
-            for i in range(len(x_data)):
-                # Point p (x_i, y_i)
-                p_point = np.array([x_data[i], y_data[i]])
-                
-                # Calculate the orthogonal distance using the vector formula
-                a_p = a - p_point
-                projection = np.dot(a_p, n) * n  # Project a_p onto the line
-                orthogonal_vector = a_p - projection  # Perpendicular vector
-                orthogonal_distance = np.dot(orthogonal_vector, o)
-                
-                orthogonal_distances.append(orthogonal_distance)
-                positions.append(-np.dot(a_p, n))
+            # Plot residuals based on mode
+            if mode == 'category':  # Color by category
+                for condition, color in colors.items():
+                    shape = shapes[condition]
+                    subset = df[df['condition'] == condition]
+                    residuals_subset = residuals[subset.index]
+                    residual_fig.scatter(x=subset[x_col], y=residuals_subset, size=10,
+                                         color=color, marker=shape, alpha=0.6, legend_label=condition)
+            elif mode == 'time':  # Color by time, shape by category
+                for condition, shape in shapes.items():
+                    subset = df[df['condition'] == condition]
+                    residuals_subset = residuals[subset.index]
+                    residual_fig.scatter(x=subset[x_col], y=residuals_subset, size=10,
+                                         color=time_mapper, marker=shape, alpha=0.6, legend_label=condition)
 
-                # Assign the same color and shape as the first plot based on mode
-                condition = df['condition'].iloc[i]
-                colors_list.append(colors[condition])
-                shapes_list.append(shapes[condition])
-           
-
-            # Add the deviation data to the deviation_df
-            deviation_df['time in hpf'] = times
-            deviation_df['position'] = positions
-            deviation_df['orthogonal_distance'] = orthogonal_distances
-            deviation_df['colors'] = colors_list
-            deviation_df['shapes'] = shapes_list
-
-            # Create a new ColumnDataSource for the deviation plot
-            deviation_source = ColumnDataSource(deviation_df)
-
-            # Scatter plot for orthogonal distances with matching color and shapes
-            if mode == 'category':
-                deviation_scatter = deviation_fig.scatter(x='position', y='orthogonal_distance',
-                                                        source=deviation_source, size=8,
-                                                        color='colors', marker='shapes', alpha=0.6)
-            elif mode == 'time':
-                deviation_scatter = deviation_fig.scatter(x='position', y='orthogonal_distance',
-                                                        source=deviation_source, size=8,
-                                                        color=time_mapper, marker='shapes', alpha=0.6)
-
-            # Add hover tool for the deviation plot
-            hover_deviation = HoverTool(renderers=[deviation_scatter])
-            hover_deviation.tooltips = tooltips
-            deviation_fig.add_tools(hover_deviation)
-
-            # Return both the main plot and the deviation plot in a vertical layout
-            layout = column(p, deviation_fig)
+            # Show both the main plot and the residuals plot
+            layout = column(p, residual_fig)
             show(layout)
             return
+
 
     # Show plot
     show(p)
