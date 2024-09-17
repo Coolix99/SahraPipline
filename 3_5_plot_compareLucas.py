@@ -5,7 +5,7 @@ import numpy as np
 from config import *
 
 #from plotMatPlotHelper import 
-from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter,plot_explanation,plot_compare_timeseries
+from plotBokehHelper import plot_single_timeseries,plot_double_timeseries,plot_scatter,plot_explanation,plot_compare_timeseries,plot_side_by_side_timeseries
 
 def getData_SS():
     hdf5_file_path = os.path.join(Curv_Thick_path, 'scalarGrowthData.h5')
@@ -87,20 +87,18 @@ def main():
     df_SS=getData_SS()
     print(df_SS)
 
-    
+    plot_side_by_side_timeseries(df_Lucas, df_SS,y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
+    plot_side_by_side_timeseries(df_Lucas, df_SS,y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
+    plot_side_by_side_timeseries(df_Lucas, df_SS,y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
 
-    plot_compare_timeseries(df_Lucas, df_SS, category='Development',y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
-    plot_compare_timeseries(df_Lucas, df_SS, category='Regeneration',y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
+    # plot_compare_timeseries(df_Lucas, df_SS, category='Development',y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
+    # plot_compare_timeseries(df_Lucas, df_SS, category='Regeneration',y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
     
-    plot_compare_timeseries(df_Lucas, df_SS, category='Development',y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
-    plot_compare_timeseries(df_Lucas, df_SS, category='Regeneration',y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
+    # plot_compare_timeseries(df_Lucas, df_SS, category='Development',y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
+    # plot_compare_timeseries(df_Lucas, df_SS, category='Regeneration',y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
 
-    plot_compare_timeseries(df_Lucas, df_SS, category='Development',y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
-    plot_compare_timeseries(df_Lucas, df_SS, category='Regeneration',y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
-    #plot_compare_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0,fit_results=fit)
-    # plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
-    # plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,y0=0)
-    # plot_double_timeseries(df, y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,y0=0)
+    # plot_compare_timeseries(df_Lucas, df_SS, category='Development',y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
+    # plot_compare_timeseries(df_Lucas, df_SS, category='Regeneration',y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,label_df1="Lucas", label_df2="S+S")
 
 
 

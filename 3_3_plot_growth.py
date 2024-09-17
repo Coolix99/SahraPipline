@@ -23,6 +23,9 @@ def getData():
     # Int_dA_d / A (Integrated Thickness / Surface Area)
     df['Int_dA_d / A'] = df['Integrated Thickness'] / df['Surface Area']
 
+    df['log L AP'] = np.log(df['L AP'])
+    df['log L PD'] = np.log(df['L PD'])
+
 
     return df
 
@@ -153,14 +156,17 @@ def main():
     
 
     #Checks
-    plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='category',show_fit=True,show_div='Residual')
-    plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='time',show_fit=True,show_div='Residual')
+    # plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='category',show_fit=True,show_div='Residual')
+    # plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='time',show_fit=True,show_div='Residual')
 
-    plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='category',show_fit=True,show_div='Residual')
-    plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='time',show_fit=True,show_div='Residual')
+    # plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='category',show_fit=True,show_div='Residual')
+    # plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='time',show_fit=True,show_div='Residual')
 
     # plot_scatter(df, x_col='L AP', y_col='L PD', mode='category',show_fit=True,show_div='Residual')
     # plot_scatter(df, x_col='L AP', y_col='L PD', mode='time',show_fit=True,show_div='Residual')
+
+    plot_scatter(df, x_col='log L PD', y_col='log L AP', mode='category',show_fit=True,show_div='Residual')
+    plot_scatter(df, x_col='log L PD', y_col='log L AP', mode='time',show_fit=True,show_div='Residual')
 
     # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 

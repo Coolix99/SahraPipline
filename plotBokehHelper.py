@@ -5,7 +5,7 @@ from bokeh.palettes import Viridis256
 from bokeh.transform import linear_cmap
 from scipy.stats import gaussian_kde
 from scipy.stats import linregress
-from bokeh.layouts import column
+from bokeh.layouts import column, row
 from scipy import stats
 from bokeh.layouts import gridplot
 from scipy.stats import mannwhitneyu
@@ -210,12 +210,13 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
                     deviation_scatter=deviation_fig.scatter(x=x_col, y='Residual', source=source_subset,
                             size=10, color=time_mapper, marker=shape, alpha=0.6)
                    
-                  
+            deviation_fig.line(x=[x_data.min(), x_data.max()], y=[0, 0], color="black", line_width=2)  
+
         hover_deviation = HoverTool(renderers=[deviation_scatter])
         hover_deviation.tooltips = tooltips
         deviation_fig.add_tools(hover_deviation)
 
-        deviation_fig.line(x=[x_data.min(), x_data.max()], y=[0, 0], color="black", line_width=2)
+        
         layout = column(p, deviation_fig)
         show(layout)
         return
@@ -1195,3 +1196,200 @@ def plot_compare_timeseries(df1, df2, category='Development', y_col=None, style=
 
     # Show the plot
     show(p)
+
+def plot_side_by_side_timeseries(df1, df2, y_col=None, style='box', y_scaling=1.0, y_name=None,
+                                 test_significance=True, show_n=True, tight_style=True,
+                                 label_df1="Experiment 1", label_df2="Experiment 2"):
+    """
+    Compare 'Development' and 'Regeneration' side by side for two time-series dataframes.
+    
+    Parameters:
+    -----------
+    df1, df2 : pd.DataFrame
+        The input DataFrames containing the data to plot.
+    y_col : str
+        The column name from `df1` and `df2` to use for the y-axis (quantity of interest).
+    style : str, optional (default='box')
+        The plot style: 'box' for box plot or 'violin' for violin plot.
+    label_df1, label_df2 : str, optional (default='Experiment 1', 'Experiment 2')
+        Labels to display in the plot legend for the two experiments.
+
+    Returns:
+    --------
+    None
+    Displays an interactive time-series plot with side-by-side comparisons for 'Development' and 'Regeneration'.
+    """
+    
+    if y_col is None:
+        raise ValueError("You must specify the column for the y-axis (y_col).")
+    
+    if y_name is None:
+        y_name = y_col
+    
+    # Scale the data
+    df1 = df1.copy()
+    df2 = df2.copy()
+    df1[y_col] = df1[y_col] * y_scaling
+    df2[y_col] = df2[y_col] * y_scaling
+
+    # Find maximum y-value for consistent y-axis scaling
+    max_y_value = max(df1[y_col].max(), df2[y_col].max()) * 1.2
+    y_range = (0, max_y_value)
+
+    categories = ['Development', 'Regeneration']
+    
+    plots = []
+    for category in categories:
+        # Filter data for the specific category
+        df1_filtered = df1[df1['condition'] == category].copy()
+        df2_filtered = df2[df2['condition'] == category].copy()
+
+        # Ensure 'time in hpf' exists and is integer
+        df1_filtered['time in hpf'] = df1_filtered['time in hpf'].astype(int)
+        df2_filtered['time in hpf'] = df2_filtered['time in hpf'].astype(int)
+
+        # Group data by 'time in hpf' for both dataframes
+        grouped_df1 = df1_filtered.groupby('time in hpf')
+        grouped_df2 = df2_filtered.groupby('time in hpf')
+
+        # Extract unique times and prepare data
+        times_df1 = sorted(list(grouped_df1.groups.keys()))
+        values_df1 = [grouped_df1.get_group(time)[y_col].values for time in times_df1]
+        times_df2 = sorted(list(grouped_df2.groups.keys()))
+        values_df2 = [grouped_df2.get_group(time)[y_col].values for time in times_df2]
+
+        # Define plot width
+        all_times = sorted(set(times_df1).union(set(times_df2)))
+        width = 0.8 * min(np.diff(all_times)) if len(all_times) > 1 else 1
+
+        # Apply the shift for scatter points
+        df1_filtered['shifted_time'] = df1_filtered['time in hpf'] - width * 0.0
+        df2_filtered['shifted_time'] = df2_filtered['time in hpf'] + width * 0.0
+
+        # Create a ColumnDataSource for scatter plot
+        scatter_source_df1 = ColumnDataSource(df1_filtered)
+        scatter_source_df2 = ColumnDataSource(df2_filtered)
+
+        
+ 
+
+        # Create figure with a shared numerical x-axis
+        p = figure(title=f"{category} Comparison ({style.capitalize()} Plot) of {y_name} by Time",
+                   x_axis_label="Time (hpf)",
+                   y_axis_label=y_name,
+                   y_range=y_range,
+                   tools="pan,wheel_zoom,box_zoom,reset,save",
+                   width=1000, height=600)
+
+        # Scatter plot for individual points (df1 and df2)
+        scatter_df1 = p.scatter(x='shifted_time', y=y_col, source=scatter_source_df1,
+                                size=8, color='blue', alpha=0.6, legend_label=label_df1)
+        scatter_df2 = p.scatter(x='shifted_time', y=y_col, source=scatter_source_df2,
+                                size=8, color='green', alpha=0.6, legend_label=label_df2)
+
+        # Test significance
+        if test_significance:
+            for time in all_times:
+                if time in grouped_df1.groups.keys() and time in grouped_df2.groups.keys():
+                    vals_df1 = grouped_df1.get_group(time)[y_col].values
+                    vals_df2 = grouped_df2.get_group(time)[y_col].values
+
+                    # Perform Mann-Whitney U test
+                    t_stat, p_value = mannwhitneyu(vals_df1, vals_df2, alternative='two-sided')
+                    print(f"Time: {time}, p-value: {p_value}")
+
+                    # Add stars for significance level
+                    if p_value < 0.001:
+                        star_label = '***'
+                    elif p_value < 0.01:
+                        star_label = '**'
+                    elif p_value < 0.05:
+                        star_label = '*'
+                    else:
+                        star_label = ''
+
+                    if star_label:
+                        p.text(x=[time], y=[max(np.max(vals_df1), np.max(vals_df2)) * 1.05], 
+                               text=[star_label], text_font_size='16pt', text_color='black')
+
+        # Box or violin plot for DataFrame 1 and DataFrame 2
+        for df, times, values, color, label in zip([df1_filtered, df2_filtered],
+                                                   [times_df1, times_df2],
+                                                   [values_df1, values_df2],
+                                                   ['blue', 'green'],
+                                                   [label_df1, label_df2]):
+            if style == 'box':
+                # Add box plots
+                for i, (time, val) in enumerate(zip(times, values)):
+                    lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+
+                    # Box for quartiles
+                    time_shift = time - width / 4 if color == 'blue' else time + width / 4
+                    p.vbar(x=time_shift, width=width / 2, bottom=q1, top=q3, color=color, alpha=0.4)
+
+            elif style == 'violin':
+                # Add violin plots
+                for i, (time, val) in enumerate(zip(times, values)):
+                    kde = gaussian_kde(val, bw_method=0.3)
+                    x = np.linspace(min(val) * 0.8, max(val) * 1.2, 100)
+                    kde_values = kde(x)
+                    kde_values = kde_values / kde_values.max() * width * 0.5
+
+                    if color == 'blue':
+                        p.patch(np.concatenate([time - kde_values, np.array([time, time])]),
+                                np.concatenate([x, np.array([x[-1], x[0]])]),
+                                alpha=0.3, color=color, line_color=color)
+                    else:
+                        p.patch(np.concatenate([np.array([time, time]), (time + kde_values)[::-1]]),
+                                np.concatenate([np.array([x[-1], x[0]]), x[::-1]]),
+                                alpha=0.3, color=color, line_color=color)
+
+
+                    # Add lines and whiskers (Development and Regeneration)
+            if tight_style:
+                for i, (time, val) in enumerate(zip(times, values)):
+                    lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+                    print(lower_bound, q1, q2, q3, upper_bound)
+                    if color=='blue':
+                        # Whiskers
+                        p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
+                        p.line(x=[time - width / 3, time ], y=[lower_bound, lower_bound], line_width=2, color='black')
+                        p.line(x=[time - width / 3, time ], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+                        # Median
+                        p.line(x=[time - width / 2, time], y=[q2, q2], line_width=3, color='black')
+                        p.scatter(x=[time], y=[q2], size=10, color='black', marker='x')
+                    else:
+                        # Whiskers
+                        p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
+                        p.line(x=[time , time + width / 3], y=[lower_bound, lower_bound], line_width=2, color='black')
+                        p.line(x=[time , time + width / 3], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+                        # Median
+                        p.line(x=[time , time + width / 2], y=[q2, q2], line_width=3, color='black')
+                        p.scatter(x=[time], y=[q2], size=10, color='black', marker='x')
+            else:
+                for i, (time, val) in enumerate(zip(times, values)):
+                    lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+                    print(lower_bound, q1, q2, q3, upper_bound)
+                    if color=='blue':
+                        time_shift=time-width/4 
+                    else:
+                        time_shift=time+width/4 
+
+                    # Whiskers
+                    p.segment(x0=[time_shift], y0=[lower_bound], x1=[time_shift], y1=[upper_bound], color='black', line_width=2)
+                    p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[lower_bound, lower_bound], line_width=2, color='black')
+                    p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+                    # Median
+                    p.line(x=[time_shift - width / 4, time_shift + width / 4], y=[q2, q2], line_width=3, color='black')
+                    p.scatter(x=[time_shift], y=[q2], size=10, color='black', marker='x')
+
+
+
+        plots.append(p)
+
+    # Arrange the two plots side by side
+    show(row(*plots))
+
