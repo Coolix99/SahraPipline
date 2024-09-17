@@ -40,7 +40,7 @@ ElementaryDiffeos_path=os.path.join(Diffeo_path,'ElementaryDiffeos')
 Hist_path=os.path.join(Diffeo_path,'Histogramms')
 
 # #Part III
-# EpFlat_path=os.path.join(Input_path,'epithelia_flat_test')
+Lucas_res=os.path.join(Output_path,'compare_Lucas')
 # EpSeg_path=os.path.join(Output_path,'epithelia_flat_test')
 # EpSeg_path=os.path.join(EpSeg_path,'fin')
 

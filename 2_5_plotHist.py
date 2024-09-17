@@ -197,18 +197,20 @@ def getData():
 #         plt.tight_layout(rect=[0, 0.2, 1, 1])
 #         plt.show()
 
-from plotMatGrid import plotHistogramsSequentially,plotHistogramsComparison
+from plotMatGrid import plotHistogramsSequentially,plotHistogramsComparison,plot_all_eigenvectors
 
 def main():
     # Load data
     times, categories, meshes = getData()
     print(meshes[0].point_data)
     
-    return
+    
     # Specify the keys (metrics) to plot
     keys = ['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
     nstds = [5, 4, 4, 4]  # Number of standard deviations for filtering outliers
     
+    plot_all_eigenvectors(times, categories, meshes, scale=0.1)
+
     # Sequential histogram plotting (one after the other)
     plotHistogramsSequentially(times, categories, meshes, keys, nstds)
     

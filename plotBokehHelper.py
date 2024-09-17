@@ -108,7 +108,7 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
         # Perform linear regression (fit)
         slope, intercept, r_value, p_value, std_err = linregress(x_data, y_data)
         fit_line = slope * x_data + intercept
-        
+        print(x_col, y_col,'slope',slope, 'intercept',intercept,'std_err',std_err,'r_value',r_value)
         # Define the direction vector (unit vector) along the line
         n = np.array([1, slope]) / np.sqrt(1 + slope**2)  # Normalize to make it a unit vector
         o = np.array([slope, -1]) / np.sqrt(1 + slope**2)  # Normalize to make it a unit vector, orthogonal to n
@@ -319,7 +319,7 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
     # Show the plot
     show(p)
 
-def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None,test_significance=True,show_n=True,y0=None,fit_results=None):
+def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None,test_significance=True,show_n=True,y0=None,fit_results=None,tight_style=True):
     """
     Create a time-series plot (box plot or violin plot) with individual scatter points, based on filtered data.
     The plot will be split in the middle: 
@@ -373,8 +373,8 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
     width = 0.8 * min(np.diff(all_times)) if len(all_times) > 1 else 1
     
     # Apply the shift for scatter points
-    df_dev['shifted_time'] = df_dev['time in hpf'] - width * 0.25  # Shift dev points to the left
-    df_reg['shifted_time'] = df_reg['time in hpf'] + width * 0.25  # Shift reg points to the right
+    df_dev['shifted_time'] = df_dev['time in hpf'] - width * 0.0  # Shift dev points to the left
+    df_reg['shifted_time'] = df_reg['time in hpf'] + width * 0.0  # Shift reg points to the right
 
     # Create a ColumnDataSource for scatter plot
     scatter_source_dev = ColumnDataSource(df_dev)
@@ -505,22 +505,47 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
                             alpha=0.3, color=color, line_color=color)
 
         # Add lines and whiskers (Development and Regeneration)
-        for i, (time, val) in enumerate(zip(times, values)):
-            lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
-            print(lower_bound, q1, q2, q3, upper_bound)
-            if condition=='Development':
-                time_shift=time-width/4 
-            else:
-                time_shift=time+width/4 
+        if tight_style:
+            for i, (time, val) in enumerate(zip(times, values)):
+                lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+                print(lower_bound, q1, q2, q3, upper_bound)
+                if condition=='Development':
+                    # Whiskers
+                    p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
+                    p.line(x=[time - width / 3, time ], y=[lower_bound, lower_bound], line_width=2, color='black')
+                    p.line(x=[time - width / 3, time ], y=[upper_bound, upper_bound], line_width=2, color='black')
 
-            # Whiskers
-            p.segment(x0=[time_shift], y0=[lower_bound], x1=[time_shift], y1=[upper_bound], color='black', line_width=2)
-            p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[lower_bound, lower_bound], line_width=2, color='black')
-            p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[upper_bound, upper_bound], line_width=2, color='black')
+                    # Median
+                    p.line(x=[time - width / 2, time], y=[q2, q2], line_width=3, color='black')
+                    p.scatter(x=[time], y=[q2], size=10, color='black', marker='x')
+                else:
+                    # Whiskers
+                    p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
+                    p.line(x=[time , time + width / 3], y=[lower_bound, lower_bound], line_width=2, color='black')
+                    p.line(x=[time , time + width / 3], y=[upper_bound, upper_bound], line_width=2, color='black')
 
-            # Median
-            p.line(x=[time_shift - width / 4, time_shift + width / 4], y=[q2, q2], line_width=3, color='black')
-            p.scatter(x=[time_shift], y=[q2], size=10, color='black', marker='x')
+                    # Median
+                    p.line(x=[time , time + width / 2], y=[q2, q2], line_width=3, color='black')
+                    p.scatter(x=[time], y=[q2], size=10, color='black', marker='x')
+        else:
+            for i, (time, val) in enumerate(zip(times, values)):
+                lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
+                print(lower_bound, q1, q2, q3, upper_bound)
+                if condition=='Development':
+                    time_shift=time-width/4 
+                else:
+                    time_shift=time+width/4 
+
+                # Whiskers
+                p.segment(x0=[time_shift], y0=[lower_bound], x1=[time_shift], y1=[upper_bound], color='black', line_width=2)
+                p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[lower_bound, lower_bound], line_width=2, color='black')
+                p.line(x=[time_shift - width / 6, time_shift + width / 6], y=[upper_bound, upper_bound], line_width=2, color='black')
+
+                # Median
+                p.line(x=[time_shift - width / 4, time_shift + width / 4], y=[q2, q2], line_width=3, color='black')
+                p.scatter(x=[time_shift], y=[q2], size=10, color='black', marker='x')
+
+
 
     # Configure the legend
     p.legend.location = "top_left"
