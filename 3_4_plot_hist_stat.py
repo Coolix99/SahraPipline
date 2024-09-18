@@ -71,25 +71,27 @@ def getData():
     # dev_meshes.sort()
     # reg_meshes.sort()
 
-
 def main():
-    #TODO scatter check gauss_avg vs gaus from curvature_mean
+    
+
     times,categories,meshes=getData()
     print(times,categories)
     plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'])
-    plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
+    #plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True},time_filter=(95, 145))
+    # plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],category_filter=['Development'])
+    # plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],category_filter=['Regeneration'])
 
-    plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['gauss_curvature_avg'])
-    plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
+    # plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['gauss_curvature_avg'])
+    # plot_histograms_bokeh(times, categories, meshes,quantities_to_plot=['thickness_avg'],combinations={'combine_times_per_category': True})
 
     # plot_scatter_quantities(times, categories, meshes,
     #                         x_quantity='mean_curvature_avg',
     #                         y_quantity='gauss_curvature_avg',
     #                         mode='time')
     
-    plot_density_hexbin(times, categories, meshes,
-                        x_quantity='mean_curvature_avg',
-                        y_quantity='gauss_curvature_avg',rel_aspect_scale=0.5,rel_size=0.002)
+    # plot_density_hexbin(times, categories, meshes,
+    #                     x_quantity='mean_curvature_avg',
+    #                     y_quantity='gauss_curvature_avg',rel_aspect_scale=0.5,rel_size=0.002,time_filter=(90,145),color_by_category=True,show_hist=False,plot_k_kurves=True)
 
 
 

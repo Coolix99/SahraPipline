@@ -671,9 +671,10 @@ def plot_explanation(lower_bound, q1, q2, q3, upper_bound, plot_type='whiskers',
     # Show the plot
     show(p)
 
-def plot_histograms_bokeh(times, categories, meshes, quantities_to_plot=None, combinations=None):
+def plot_histograms_bokeh(times, categories, meshes, quantities_to_plot=None, combinations=None, category_filter=None, time_filter=None):
     """
-    Plot concatenated histograms of specified quantities from meshes, with options to combine times and categories.
+    Plot concatenated histograms of specified quantities from meshes, with options to combine times and categories,
+    and with the ability to filter by category and/or time.
 
     Parameters:
     -----------
@@ -690,8 +691,17 @@ def plot_histograms_bokeh(times, categories, meshes, quantities_to_plot=None, co
         - 'combine_times_per_category': If True, combine all times for each category.
         - 'combine_categories_per_time': If True, combine both categories for each time.
         - If None, do not combine and plot each time-category pair separately.
+    category_filter : list or None
+        A list of categories to filter (e.g., ['Development', 'Regeneration']). If None, no filtering is applied.
+    time_filter : tuple or None
+        A tuple specifying the time range to filter (min_time, max_time). If None, no filtering is applied.
 
+    Returns:
+    --------
+    None
+    Displays an interactive hexbin density plot.
     """
+
     # Define the available quantities to be plotted
     available_quantities = ['mean_curvature_avg', 'gauss_curvature_avg', 'thickness_avg', 
                             'mean_curvature_std', 'gauss_curvature_std', 'thickness_std']
@@ -715,6 +725,16 @@ def plot_histograms_bokeh(times, categories, meshes, quantities_to_plot=None, co
         'Regeneration': 'dashed'
     }
     
+    # Apply filters if provided
+    filtered_indices = list(range(len(meshes)))  # Default: no filter applied, include all
+
+    if category_filter:
+        filtered_indices = [i for i in filtered_indices if categories[i] in category_filter]
+
+    if time_filter:
+        min_time, max_time = time_filter
+        filtered_indices = [i for i in filtered_indices if min_time <= times[i] <= max_time]
+    
     # Prepare data based on combination settings
     combined_data = []
     
@@ -724,7 +744,7 @@ def plot_histograms_bokeh(times, categories, meshes, quantities_to_plot=None, co
             combined_data.append({
                 'time': 'All Times',
                 'category': category,
-                'meshes': [mesh.point_data for i, mesh in enumerate(meshes) if categories[i] == category]
+                'meshes': [meshes[i].point_data for i in filtered_indices if categories[i] == category]
             })
     elif combinations is not None and combinations.get('combine_categories_per_time', False):
         # Combine both categories for each time
@@ -732,24 +752,23 @@ def plot_histograms_bokeh(times, categories, meshes, quantities_to_plot=None, co
             combined_data.append({
                 'time': time,
                 'category': 'Both',
-                'meshes': [mesh.point_data for i, mesh in enumerate(meshes) if times[i] == time]
+                'meshes': [meshes[i].point_data for i in filtered_indices if times[i] == time]
             })
     elif combinations is not None and combinations.get('combine_times_per_category', False) and combinations.get('combine_categories_per_time', False):
         # Combine all times and both categories into one dataset
         combined_data.append({
             'time': 'All Times',
             'category': 'Both',
-            'meshes': [mesh.point_data for mesh in meshes]
+            'meshes': [meshes[i].point_data for i in filtered_indices]
         })
     else:
         # No combination: use individual time-category pairs
-        for i, mesh in enumerate(meshes):
+        for i in filtered_indices:
             combined_data.append({
                 'time': times[i],
                 'category': categories[i],
-                'meshes': [mesh.point_data]
+                'meshes': [meshes[i].point_data]
             })
-    
     # Create a list to hold figures for gridplot
     figures = []
     
@@ -911,11 +930,13 @@ def plot_scatter_quantities(times, categories, meshes, x_quantity, y_quantity, m
     # Show the plot
     show(p)
 
-def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_size=0.001, rel_aspect_scale=1.0):
+def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_size=0.001, rel_aspect_scale=1.0, 
+                        category_filter=None, time_filter=None, color_by_category=True,show_hist=True,plot_k_kurves=False):
     """
     Create a hexbin density plot of two specified quantities using Bokeh, with color-coding and hover tools.
-    Trim the data to the 1st and 99th percentiles and set the aspect ratio.
-
+    Optionally, filter data by category ('Development', 'Regeneration') and/or by time (given by an interval),
+    and color-code scatter points by category.
+    
     Parameters:
     -----------
     times : list
@@ -928,9 +949,16 @@ def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_s
         The quantity to plot on the x-axis (e.g., 'gauss_curvature_avg').
     y_quantity : str
         The quantity to plot on the y-axis (e.g., 'mean_curvature_avg').
-    rel_size : float, optional (default=0.01)
+    rel_size : float, optional (default=0.001)
         The relative size of the hexagons in the hexbin plot.
-    rel_aspect_scale
+    rel_aspect_scale : float, optional (default=1.0)
+        The aspect scale to adjust the hexbin aspect ratio.
+    category_filter : list, optional (default=None)
+        A list of categories to filter by (e.g., ['Development', 'Regeneration']). If None, no filtering is applied.
+    time_filter : tuple, optional (default=None)
+        A tuple specifying the time interval to filter by (e.g., (48, 144)). If None, no filtering is applied.
+    color_by_category : bool, optional (default=True)
+        Whether to color-code scatter points by category ('Development' in blue, 'Regeneration' in orange).
 
     Returns:
     --------
@@ -941,11 +969,25 @@ def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_s
     # Extract the relevant data
     x_data = []
     y_data = []
+    colors = []
 
     for i, mesh in enumerate(meshes):
+        # Apply category filter if provided
+        if category_filter is not None and categories[i] not in category_filter:
+            continue
+        
+        # Apply time filter if provided
+        if time_filter is not None and not (time_filter[0] <= times[i] <= time_filter[1]):
+            continue
+        
         if x_quantity in mesh.point_data and y_quantity in mesh.point_data:
             x_data.extend(mesh.point_data[x_quantity])
             y_data.extend(mesh.point_data[y_quantity])
+            
+            # Assign colors based on category
+            if color_by_category:
+                color = 'blue' if categories[i] == 'Development' else 'orange'
+                colors.extend([color] * len(mesh.point_data[x_quantity]))
 
     # Convert to NumPy arrays
     x_data = np.array(x_data)
@@ -959,11 +1001,7 @@ def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_s
     size = rel_size * np.sqrt((x_max - x_min) * (y_max - y_min))
 
     # Calculate aspect scale if not provided
-    aspect_scale = rel_aspect_scale*(y_max - y_min)/(x_max - x_min) 
-
-    # # Filter data based on these percentiles
-    # x_data_trimmed = x_data[(x_data >= x_min) & (x_data <= x_max)]
-    # y_data_trimmed = y_data[(y_data >= y_min) & (y_data <= y_max)]
+    aspect_scale = rel_aspect_scale * (y_max - y_min) / (x_max - x_min)
 
     # Calculate plot dimensions
     plot_width = 700
@@ -976,15 +1014,26 @@ def plot_density_hexbin(times, categories, meshes, x_quantity, y_quantity, rel_s
                x_range=(x_min, x_max), y_range=(y_min, y_max),
                tools="pan,wheel_zoom,box_zoom,reset,save")
 
-    # Compute hexbin with aspect ratio adjustment
-    bins = p.hexbin(x_data, y_data, size=size, hover_color="pink", hover_alpha=0.8, aspect_scale=aspect_scale)
+    if show_hist:
+        bins = p.hexbin(x_data, y_data, size=size, hover_color="pink", hover_alpha=0.8, aspect_scale=aspect_scale)
+        # Add hover tool for hexbin counts
+        hover = HoverTool(tooltips=[("Count", "@c")], mode='mouse', point_policy='follow_mouse')
+        p.add_tools(hover)
 
-    # Add scatter points (optional, if you want to see the raw points)
-    p.circle(x_data, y_data, color="black", size=1)
+    # Add scatter points, color-coded by category if selected
+    if color_by_category:
+        p.circle(x_data, y_data, color=colors, size=3)
+    else:
+        p.circle(x_data, y_data, color="black", size=1)
 
-    # Add hover tool for hexbin counts
-    hover = HoverTool(tooltips=[("Count", "@c")], mode='mouse', point_policy='follow_mouse')
-    p.add_tools(hover)
+    if plot_k_kurves:
+        # Plot the curve y = x^2 from x_min to x_max
+        x_vals = np.linspace(x_min*2, x_max*2, 100)
+        y_vals = x_vals**2
+        p.line(x_vals, y_vals, line_width=2, color="black")
+
+        # Plot the vertical line x = 0 from y_min to 0
+        p.line([0, 0], [np.min(y_data), 0], line_width=2, color="black")
 
     # Show the plot
     show(p)
