@@ -41,6 +41,7 @@ Hist_path=os.path.join(Diffeo_path,'Histogramms')
 
 # #Part III
 Lucas_res=os.path.join(Output_path,'compare_Lucas')
+AvgShape_path=os.path.join(Curv_Thick_path,'AvgShape')
 # EpSeg_path=os.path.join(Output_path,'epithelia_flat_test')
 # EpSeg_path=os.path.join(EpSeg_path,'fin')
 
