@@ -8,11 +8,11 @@ import re
 from config import *
 from IO import *
 
-# def filter_outliers(data, n_std=3):
-#     mean = np.mean(data)
-#     std = np.std(data)
-#     filtered = np.where(np.abs(data - mean) > n_std * std, np.nan, data)
-#     return filtered
+def filter_outliers(data, n_std=3):
+    mean = np.mean(data)
+    std = np.std(data)
+    filtered = np.where(np.abs(data - mean) > n_std * std, np.nan, data)
+    return filtered
 
 # def plot3d_napari(mesh:pv.PolyData):
 #     print(mesh.point_data)
@@ -27,26 +27,26 @@ from IO import *
 
 #     napari.run()
 
-# def plot2d(mesh):
-#     # Extracting vertex coordinates and face indices
-#     coord_1 = mesh.point_data['coord_1']
-#     coord_2 = mesh.point_data['coord_2']
-#     faces = mesh.faces.reshape((-1, 4))[:, 1:4]
-#     triangulation = tri.Triangulation(coord_1, coord_2, faces)
+def plot2d(mesh):
+    # Extracting vertex coordinates and face indices
+    coord_1 = mesh.point_data['coord_1']
+    coord_2 = mesh.point_data['coord_2']
+    faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+    triangulation = tri.Triangulation(coord_1, coord_2, faces)
     
-#     for key,nstd in zip(['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg'],[5,4,4]):
-#         data = mesh.point_data[key]
-#         filtered_data = filter_outliers(data,nstd)
+    for key,nstd in zip(['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg'],[5,4,4]):
+        data = mesh.point_data[key]
+        filtered_data = filter_outliers(data,nstd)
         
     
-#         # Plotting the triangles with curvature data as color
-#         plt.figure(figsize=(10, 8))
-#         coloring = plt.tripcolor(triangulation, filtered_data, shading='flat', cmap='viridis')
-#         plt.colorbar(coloring, label=key)
-#         plt.xlabel('Coord 1')
-#         plt.ylabel('Coord 2')
-#         plt.grid(True)
-#         plt.show()
+        # Plotting the triangles with curvature data as color
+        plt.figure(figsize=(10, 8))
+        coloring = plt.tripcolor(triangulation, filtered_data, shading='flat', cmap='viridis')
+        plt.colorbar(coloring, label=key)
+        plt.xlabel('Coord 1')
+        plt.ylabel('Coord 2')
+        plt.grid(True)
+        plt.show()
 
 # def plotHistogramms(relevant_conditions):
 #     relevant_conditions.sort()
@@ -93,21 +93,21 @@ def extract_category_and_number(input_string):
         # If the input string doesn't match the pattern, return None
         return None
 
-# def plot_mesh_2d(ax, mesh, key, nstd, vmin, vmax):
-#     coord_1 = mesh.point_data['coord_1']
-#     coord_2 = mesh.point_data['coord_2']
-#     faces = mesh.faces.reshape((-1, 4))[:, 1:4]
-#     triangulation = tri.Triangulation(coord_1, coord_2, faces)
+def plot_mesh_2d(ax, mesh, key, nstd, vmin, vmax):
+    coord_1 = mesh.point_data['coord_1']
+    coord_2 = mesh.point_data['coord_2']
+    faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+    triangulation = tri.Triangulation(coord_1, coord_2, faces)
     
-#     data = mesh.point_data[key]
-#     filtered_data = filter_outliers(data, nstd)
+    data = mesh.point_data[key]
+    filtered_data = filter_outliers(data, nstd)
     
-#     coloring = ax.tripcolor(triangulation, filtered_data, shading='flat', cmap='viridis', vmin=vmin, vmax=vmax)
-#     ax.set_xlabel('Coord 1')
-#     ax.set_ylabel('Coord 2')
-#     ax.set_aspect('equal')
-#     ax.grid(True)
-#     return coloring
+    coloring = ax.tripcolor(triangulation, filtered_data, shading='flat', cmap='viridis', vmin=vmin, vmax=vmax)
+    ax.set_xlabel('Coord 1')
+    ax.set_ylabel('Coord 2')
+    ax.set_aspect('equal')
+    ax.grid(True)
+    return coloring
 
 def getData():
     relevant_conditions=['time in hpf','condition']
@@ -146,60 +146,63 @@ def getData():
         meshs.append(mesh)
     return times,categories,meshs
 
-# def plotCompare2d():
-#     times, categories, meshs=getData()
-#     # Organize meshes by category and time
-#     dev_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'Development']
-#     reg_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'Regeneration']
+def plotCompare2d():
+    times, categories, meshs=getData()
+    # Organize meshes by category and time
+    dev_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'Development']
+    reg_meshes = [(time, mesh) for time, category, mesh in zip(times, categories, meshs) if category == 'Regeneration']
 
-#     dev_meshes.sort()
-#     reg_meshes.sort()
+    dev_meshes.sort()
+    reg_meshes.sort()
     
-#     keys = ['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
-#     nstds = [5, 4, 4,4]
+    keys = ['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
+    nstds = [5, 4, 4,4]
     
-#     global_min_max = {}
-#     for key in keys:
-#         all_values = np.concatenate([mesh.point_data[key] for mesh in meshs])
-#         global_min_max[key] = (all_values.min(), all_values.max())
-#     print(global_min_max)
-#     global_min_max['mean_curvature_avg']=(-0.01, 0.01)
-#     global_min_max['gauss_curvature_avg']=(-0.0001, 0.0001)
-#     global_min_max['mean2-gauss'] = (-0.00003, 0.00003)
-#     from matplotlib.gridspec import GridSpec
+    global_min_max = {}
+    for key in keys:
+        all_values = np.concatenate([mesh.point_data[key] for mesh in meshs])
+        global_min_max[key] = (all_values.min(), all_values.max())
+    print(global_min_max)
+    global_min_max['mean_curvature_avg']=(-0.01, 0.01)
+    global_min_max['gauss_curvature_avg']=(-0.0001, 0.0001)
+    global_min_max['mean2-gauss'] = (-0.00003, 0.00003)
+    from matplotlib.gridspec import GridSpec
 
-#     for key, nstd in zip(keys, nstds):
-#         print(key)
-#         vmin, vmax = global_min_max[key]
-#         fig = plt.figure(figsize=(25, 8))
-#         gs = GridSpec(2, max(len(dev_meshes), len(reg_meshes)), figure=fig)
+    for key, nstd in zip(keys, nstds):
+        print(key)
+        vmin, vmax = global_min_max[key]
+        fig = plt.figure(figsize=(25, 8))
+        gs = GridSpec(2, max(len(dev_meshes), len(reg_meshes)), figure=fig)
         
-#         axs = []
-#         for i in range(max(len(dev_meshes), len(reg_meshes))):
-#             if i < len(dev_meshes):
-#                 ax = fig.add_subplot(gs[0, i])
-#                 coloring = plot_mesh_2d(ax, dev_meshes[i][1], key, nstd, vmin, vmax)
-#                 ax.set_title(f'dev_{dev_meshes[i][0]}')
-#                 axs.append(ax)
-#             if i < len(reg_meshes):
-#                 ax = fig.add_subplot(gs[1, i])
-#                 coloring = plot_mesh_2d(ax, reg_meshes[i][1], key, nstd, vmin, vmax)
-#                 ax.set_title(f'reg_{reg_meshes[i][0]}')
-#                 axs.append(ax)
+        axs = []
+        for i in range(max(len(dev_meshes), len(reg_meshes))):
+            if i < len(dev_meshes):
+                ax = fig.add_subplot(gs[0, i])
+                coloring = plot_mesh_2d(ax, dev_meshes[i][1], key, nstd, vmin, vmax)
+                ax.set_title(f'dev_{dev_meshes[i][0]}')
+                axs.append(ax)
+            if i < len(reg_meshes):
+                ax = fig.add_subplot(gs[1, i])
+                coloring = plot_mesh_2d(ax, reg_meshes[i][1], key, nstd, vmin, vmax)
+                ax.set_title(f'reg_{reg_meshes[i][0]}')
+                axs.append(ax)
         
-#         plt.subplots_adjust(bottom=0.2)
+        plt.subplots_adjust(bottom=0.2)
         
-#         # Add colorbar in the margin at the bottom
-#         cbar_ax = fig.add_axes([0.15, 0.1, 0.7, 0.02])  # [left, bottom, width, height]
-#         cbar = fig.colorbar(coloring, cax=cbar_ax, orientation='horizontal')
-#         cbar.set_label(key)
+        # Add colorbar in the margin at the bottom
+        cbar_ax = fig.add_axes([0.15, 0.1, 0.7, 0.02])  # [left, bottom, width, height]
+        cbar = fig.colorbar(coloring, cax=cbar_ax, orientation='horizontal')
+        cbar.set_label(key)
         
-#         plt.tight_layout(rect=[0, 0.2, 1, 1])
-#         plt.show()
+        plt.tight_layout(rect=[0, 0.2, 1, 1])
+        plt.show()
 
 from plotMatGrid import plotHistogramsSequentially,plotHistogramsComparison,plot_all_eigenvectors
 
 def main():
+    plotCompare2d()
+    return
+
     # Load data
     times, categories, meshes = getData()
     print(meshes[0].point_data)
@@ -209,7 +212,7 @@ def main():
     keys = ['thickness_avg', 'mean_curvature_avg', 'gauss_curvature_avg', 'mean2-gauss']
     nstds = [5, 4, 4, 4]  # Number of standard deviations for filtering outliers
     
-    plot_all_eigenvectors(times, categories, meshes, scale=0.1)
+    #plot_all_eigenvectors(times, categories, meshes, scale=0.1)
 
     # Sequential histogram plotting (one after the other)
     plotHistogramsSequentially(times, categories, meshes, keys, nstds)

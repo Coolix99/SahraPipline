@@ -11,7 +11,7 @@ from bokeh.layouts import gridplot
 from scipy.stats import mannwhitneyu
 
 
-def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=False, show_div='Residual'):
+def plot_scatter(df, x_col, y_col, x_name=None,y_name=None,mode='category', tooltips=None, show_fit=False, show_div='Residual'):
     """
     Create a scatter plot using Bokeh with flexible axis assignment and hover tools.
     
@@ -40,16 +40,24 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
     Displays an interactive scatter plot in the browser.
     """
 
+    if y_name is None:
+        y_name = y_col
+    if x_name is None:
+        x_name = x_col
+    
+
     # Define color palettes and marker shapes
     colors = {'Development': 'blue', 'Regeneration': 'orange'}
     shapes = {'Development': 'circle', 'Regeneration': 'triangle'}
     
     # Create the figure
-    p = figure(title=f"{x_col} vs {y_col}",
-               x_axis_label=x_col,
-               y_axis_label=y_col,
+    p = figure(title=f"{x_name} vs {y_name}",
+               x_axis_label=x_name,
+               y_axis_label=y_name,
                width=700, height=400,
                tools="pan,wheel_zoom,box_zoom,reset,save")
+    
+
     
     # Define default hover tooltips if not provided
     if tooltips is None:
@@ -99,7 +107,14 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
     # Configure legend
     p.legend.title = 'Condition'
     p.legend.location = "top_left"
-    
+
+    p.xaxis.axis_label_text_font_size = "14pt"
+    p.yaxis.axis_label_text_font_size = "14pt"
+    p.xaxis.major_label_text_font_size = "12pt"
+    p.yaxis.major_label_text_font_size = "12pt"
+    p.legend.label_text_font_size = "12pt"
+    p.legend.title_text_font_size = "14pt"
+
     if show_fit or show_div:
         # Get x and y data
         x_data = df[x_col]
@@ -122,7 +137,7 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
 
         # Plot deviation if required
         if show_div=='PCA':
-            deviation_fig = figure(title=f"Deviation: {x_col} vs {y_col}",
+            deviation_fig = figure(title=f"Deviation: {x_name} vs {y_name}",
                                    x_axis_label='Orthogonal Position on Fit Line',
                                    y_axis_label='Distance from Line',
                                    tools="pan,wheel_zoom,box_zoom,reset,save",
@@ -184,8 +199,8 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
             df['Residual'] = residuals
 
             # Create a new figure for residuals
-            deviation_fig = figure(title=f"Residuals: {x_col} vs {y_col}",
-                                  x_axis_label=x_col,
+            deviation_fig = figure(title=f"Residuals: {x_name} vs {y_name}",
+                                  x_axis_label=x_name,
                                   y_axis_label='Residuals',
                                   tools="pan,wheel_zoom,box_zoom,reset,save",
                                   width=700, height=200)
@@ -216,6 +231,10 @@ def plot_scatter(df, x_col, y_col, mode='category', tooltips=None, show_fit=Fals
         hover_deviation.tooltips = tooltips
         deviation_fig.add_tools(hover_deviation)
 
+        deviation_fig.xaxis.axis_label_text_font_size = "14pt"
+        deviation_fig.yaxis.axis_label_text_font_size = "14pt"
+        deviation_fig.xaxis.major_label_text_font_size = "12pt"
+        deviation_fig.yaxis.major_label_text_font_size = "12pt"
         
         layout = column(p, deviation_fig)
         show(layout)
@@ -593,6 +612,13 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
         ("Mask Folder", "@{Mask Folder}")
     ]
     p.add_tools(hover)
+
+    p.xaxis.axis_label_text_font_size = "14pt"
+    p.yaxis.axis_label_text_font_size = "14pt"
+    p.xaxis.major_label_text_font_size = "12pt"
+    p.yaxis.major_label_text_font_size = "12pt"
+    p.legend.label_text_font_size = "12pt"
+    p.legend.title_text_font_size = "14pt"
 
     # Show the plot
     show(p)
