@@ -456,49 +456,44 @@ def plot_mesh_movement(nodes, triangles, boundary_indices, title):
     plt.show()
 
 def interpolate_mesh_over_time(avgPolygons, last_time_meshes):
-    # Extract the last time meshes and boundary indices
-    (dev_nodes, dev_triangles, dev_boundary_indices), (reg_nodes, reg_triangles, reg_boundary_indices) = last_time_meshes
-    
-    # Get the times for each condition
-    dev_times = sorted([time for (time, condition) in avgPolygons if condition == 'Development'])
-    reg_times = sorted([time for (time, condition) in avgPolygons if condition == 'Regeneration'])
+    # Initialize the interpolated nodes dictionary for both conditions
+    interpolated_nodes = {}
 
-    print(dev_times)
-    # Store the results over time
-    interpolated_dev_nodes = {dev_times[-1]:dev_nodes.copy()}
-    interpolated_reg_nodes = {reg_times[-1]:reg_nodes.copy()}
-    
+    # Define the conditions
+    conditions = ['Development', 'Regeneration']
 
-    # Step backward from the last time to the first, computing displacement at each step
-    for t_idx in range(len(dev_times) - 2, -1, -1):
-        dev_time = dev_times[t_idx]
-        reg_time = reg_times[t_idx]
+    # Loop over each condition (Development and Regeneration)
+    for condition in conditions:
+        # Extract the corresponding nodes, triangles, and boundary indices
+        nodes, triangles, boundary_indices = last_time_meshes[condition]
 
-        # Get the corresponding polygons
-        dev_polygon = avgPolygons[(dev_time, 'Development')].T
-        reg_polygon = avgPolygons[(reg_time, 'Regeneration')].T
+        # Get the time steps for the current condition
+        times = sorted([time for (time, cond) in avgPolygons if cond == condition])
 
-        # Compute the displacement for the boundary nodes for both conditions
-        dev_boundary_displacement = dev_polygon - dev_nodes[dev_boundary_indices]
-        reg_boundary_displacement = reg_polygon - reg_nodes[reg_boundary_indices]
+        # Initialize the interpolation with the last time step
+        interpolated_nodes[(times[-1], condition)] = nodes.copy()
 
-        # Solve Laplace equation to propagate the displacement to the interior nodes
-        dev_displacement = solve_laplace(dev_nodes, dev_triangles, dev_boundary_indices, dev_boundary_displacement)
-        reg_displacement = solve_laplace(reg_nodes, reg_triangles, reg_boundary_indices, reg_boundary_displacement)
+        # Step backward from the last time to the first, computing displacement at each step
+        for t_idx in range(len(times) - 2, -1, -1):
+            current_time = times[t_idx]
 
-        # Apply the displacement to the nodes
-        dev_nodes += dev_displacement
-        reg_nodes += reg_displacement
+            # Get the corresponding polygon for the current time step
+            polygon = avgPolygons[(current_time, condition)].T
 
-        # Store the interpolated node positions
-        interpolated_dev_nodes[dev_time]=dev_nodes.copy()
-        interpolated_reg_nodes[reg_time]=reg_nodes.copy()
+            # Compute the displacement for the boundary nodes
+            boundary_displacement = polygon - nodes[boundary_indices]
 
-        # Plotting for debugging
-        # plot_mesh_movement(dev_nodes, dev_triangles, dev_boundary_indices, f'Development at Time {dev_time}')
-        # plot_mesh_movement(reg_nodes, reg_triangles, reg_boundary_indices, f'Regeneration at Time {reg_time}')
+            # Solve Laplace equation to propagate the displacement to the interior nodes
+            displacement = solve_laplace(nodes, triangles, boundary_indices, boundary_displacement)
 
-    return interpolated_dev_nodes, interpolated_reg_nodes
+            # Apply the displacement to the nodes
+            nodes += displacement
+
+            # Store the interpolated node positions
+            interpolated_nodes[(current_time, condition)] = nodes.copy()
+
+    return interpolated_nodes
+
 
 def get_mesh_lims(interpolated_dev_nodes, interpolated_reg_nodes):
     min_val, max_val = float('inf'), float('-inf')  # Initialize with extreme values
@@ -523,8 +518,9 @@ def get_mesh_lims(interpolated_dev_nodes, interpolated_reg_nodes):
     
     return min_val, max_val
 
-def movie_grid_time_evolution(interpolated_dev_nodes, interpolated_reg_nodes, dev_triangles, reg_triangles, save_path=None):
-    times = sorted(list(set([key for key in interpolated_dev_nodes.keys()])))
+def movie_grid_time_evolution(interpolated_nodes, triangles, save_path=None):
+    # Get unique times sorted
+    times = sorted(list(set([key[0] for key in interpolated_nodes.keys()])))
    
     # Create the figure and axes
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
@@ -537,9 +533,13 @@ def movie_grid_time_evolution(interpolated_dev_nodes, interpolated_reg_nodes, de
     ax2.set_xlabel("X Coordinates")
     ax2.set_ylabel("Y Coordinates")
 
-    min_val, max_val = get_mesh_lims(interpolated_dev_nodes, interpolated_reg_nodes)
-    min_val=min_val-10
-    max_val=max_val+10
+    # Get the mesh limits for both conditions
+    min_val, max_val = get_mesh_lims(
+        {key: nodes for key, nodes in interpolated_nodes.items() if key[1] == 'Development'},
+        {key: nodes for key, nodes in interpolated_nodes.items() if key[1] == 'Regeneration'}
+    )
+    min_val -= 10
+    max_val += 10
     ax1.set_xlim(min_val, max_val)
     ax1.set_ylim(min_val, max_val)
     ax2.set_xlim(min_val, max_val)
@@ -553,29 +553,29 @@ def movie_grid_time_evolution(interpolated_dev_nodes, interpolated_reg_nodes, de
         ax2.clear()
 
         # Set titles again after clearing
-        ax1.set_title(f"Development Mesh at Time Step {time}")
-        ax2.set_title(f"Regeneration Mesh at Time Step {time}")
+        ax1.set_title(f"Development Mesh at Time {time}")
+        ax2.set_title(f"Regeneration Mesh at Time {time}")
         
         ax1.set_xlabel("X Coordinates")
         ax1.set_ylabel("Y Coordinates")
         ax2.set_xlabel("X Coordinates")
         ax2.set_ylabel("Y Coordinates")
 
-        # Set axis limits (optional)
+        # Set axis limits
         ax1.set_xlim(min_val, max_val)
         ax1.set_ylim(min_val, max_val)
         ax2.set_xlim(min_val, max_val)
         ax2.set_ylim(min_val, max_val)
 
         # Get the current node positions for development and regeneration
-        dev_nodes = interpolated_dev_nodes[time]
-        reg_nodes = interpolated_reg_nodes[time]
+        dev_nodes = interpolated_nodes[(time, 'Development')]
+        reg_nodes = interpolated_nodes[(time, 'Regeneration')]
 
+        # Plot the development mesh
+        ax1.triplot(dev_nodes[:, 0], dev_nodes[:, 1], triangles['Development'], color='blue')
 
-        ax1.triplot(dev_nodes[:, 0], dev_nodes[:, 1], dev_triangles, color='blue')
-        
-
-        ax2.triplot(reg_nodes[:, 0], reg_nodes[:, 1], reg_triangles, color='blue')
+        # Plot the regeneration mesh
+        ax2.triplot(reg_nodes[:, 0], reg_nodes[:, 1], triangles['Regeneration'], color='blue')
 
         return ax1, ax2
 
@@ -661,44 +661,20 @@ def main():
     #plot_time_evolution(avgPolygons)
     #movie_time_evolution(avgPolygons)
 
-    last_time_meshes = get_last_time_meshes(avgPolygons, mesh_size=1000.0)
-    interpolated_dev_nodes, interpolated_reg_nodes=interpolate_mesh_over_time(avgPolygons, last_time_meshes)
-    (dev_nodes, dev_triangles, dev_boundary_indices), (reg_nodes, reg_triangles, reg_boundary_indices)=last_time_meshes
-    movie_grid_time_evolution(interpolated_dev_nodes, interpolated_reg_nodes, dev_triangles, reg_triangles)
+    (dev_nodes, dev_triangles, dev_boundary_indices), (reg_nodes, reg_triangles, reg_boundary_indices) = get_last_time_meshes(avgPolygons, mesh_size=1000.0)
+    last_time_meshes = {
+        'Development': (dev_nodes, dev_triangles, dev_boundary_indices),
+        'Regeneration': (reg_nodes, reg_triangles, reg_boundary_indices)
+    }
+    triangles = {
+        'Development': dev_triangles,
+        'Regeneration': reg_triangles
+    }
+    interpolated_nodes=interpolate_mesh_over_time(avgPolygons, last_time_meshes)
+    movie_grid_time_evolution(interpolated_nodes, triangles)
 
 
-def test():
-    boundary_points = np.array([
-    [0, 0],
-    [1, 0],
-    [1, 1],
-    [0, 1]
-    ])
 
-    nodes, triangles = generate_2d_mesh(boundary_points, mesh_size=0.1)
-
-    # Visualization with matplotlib (optional)
-    import matplotlib.pyplot as plt
-    plt.triplot(nodes[:, 0], nodes[:, 1], triangles, color='blue')
-    plt.scatter(boundary_points[:, 0], boundary_points[:, 1], color='red', label='Boundary Points')
-    plt.title("2D Mesh generated using Gmsh")
-    plt.legend()
-    plt.show()
-
-    # Example usage:
-    nodes = np.array([
-        [0, 0],
-        [1, 0],
-        [1, 1],
-        [0, 1]
-    ])
-    triangles = np.array([
-        [0, 1, 2],
-        [0, 2, 3]
-    ])
-
-    stiffness_matrix = assemble_global_stiffness_matrix(nodes, triangles)
-    print(stiffness_matrix)
 
 
 if __name__ == "__main__":
