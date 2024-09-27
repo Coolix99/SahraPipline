@@ -613,12 +613,12 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
     ]
     p.add_tools(hover)
 
-    p.xaxis.axis_label_text_font_size = "14pt"
-    p.yaxis.axis_label_text_font_size = "14pt"
-    p.xaxis.major_label_text_font_size = "12pt"
-    p.yaxis.major_label_text_font_size = "12pt"
-    p.legend.label_text_font_size = "12pt"
-    p.legend.title_text_font_size = "14pt"
+    p.xaxis.axis_label_text_font_size = "16pt"
+    p.yaxis.axis_label_text_font_size = "16pt"
+    p.xaxis.major_label_text_font_size = "16pt"
+    p.yaxis.major_label_text_font_size = "16pt"
+    p.legend.label_text_font_size = "16pt"
+    p.legend.title_text_font_size = "20pt"
 
     # Show the plot
     show(p)
