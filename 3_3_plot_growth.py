@@ -148,7 +148,7 @@ def main():
     # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='whiskers', title="Whiskers Explanation")
     # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='box', title="Box Plot Explanation")
     # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='violin', title="Violin Plot Explanation")
-    results,t_values=getFit()
+    #results,t_values=getFit()
 
     df=getData()
     print(df)
@@ -165,7 +165,7 @@ def main():
     # plot_scatter(df, x_col='L AP', y_col='L PD', mode='category',show_fit=True,show_div='Residual')
     # plot_scatter(df, x_col='L AP', y_col='L PD', mode='time',show_fit=True,show_div='Residual')
 
-    #plot_scatter(df, x_col='log L PD', y_col='log L AP',x_name=r'$$log(L_{PD})$$',y_name=r'$$log(L_{AP})$$', mode='category',show_fit=True,show_div='Residual')
+    plot_scatter(df, x_col='log L PD', y_col='log L AP',x_name=r'$$log(L_{PD})$$',y_name=r'$$log(L_{AP})$$', mode='category',show_fit=True,show_div='Residual',show_slope_1=True)
     #plot_scatter(df, x_col='log L PD', y_col=r'$$log L AP$$', mode='time',show_fit=True,show_div='Residual')
 
     # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
@@ -173,12 +173,12 @@ def main():
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
     # plot_double_timeseries(df, y_col='Volume', style='violin')
     # plot_double_timeseries(df, y_col='Surface Area', style='box')
-    fit={
-        't_values':t_values,
-        'Development': results['A_Development_noisy'],
-        'Regeneration': results['A_Regeneration_noisy']
-    }
-    plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=False,y0=0,fit_results=fit,show_n=False)
+    # fit={
+    #     't_values':t_values,
+    #     'Development': results['A_Development_noisy'],
+    #     'Regeneration': results['A_Regeneration_noisy']
+    # }
+    # plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=False,y0=0,fit_results=fit,show_n=False)
     # plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
     #plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,y0=0,show_n=False)
     #plot_double_timeseries(df, y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,y0=0,show_n=False)

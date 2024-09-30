@@ -11,7 +11,7 @@ from bokeh.layouts import gridplot
 from scipy.stats import mannwhitneyu
 
 
-def plot_scatter(df, x_col, y_col, x_name=None,y_name=None,mode='category', tooltips=None, show_fit=False, show_div='Residual'):
+def plot_scatter(df, x_col, y_col, x_name=None,y_name=None,mode='category', tooltips=None, show_fit=False, show_div='Residual',show_slope_1=False):
     """
     Create a scatter plot using Bokeh with flexible axis assignment and hover tools.
     
@@ -133,7 +133,13 @@ def plot_scatter(df, x_col, y_col, x_name=None,y_name=None,mode='category', tool
 
         # Plot linear fit line
         if show_fit:
-            p.line(x_data, fit_line, line_width=2, color='black', legend_label='Linear Fit')
+            p.line(x_data, fit_line, line_width=2, color='black')
+        if show_slope_1:
+            x_val=np.linspace(np.min(x_data),np.max(x_data),50)
+            slope_1_line = 1 * x_val - (1-slope)*np.min(x_data) + intercept
+            p.line(x_val, slope_1_line, line_width=2, color='black',line_dash=[5, 5])
+
+            
 
         # Plot deviation if required
         if show_div=='PCA':

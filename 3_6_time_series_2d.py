@@ -13,6 +13,10 @@ from scipy.spatial import cKDTree
 import pickle
 import re
 import matplotlib.tri as tri
+import math
+import matplotlib.font_manager as fm
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+
 
 from boundary import getBoundary
 from config import FlatFin_path,AvgShape_path,Hist_path
@@ -648,8 +652,6 @@ def load_interpolated_data(AvgShape_path):
     return interpolated_nodes, triangles,boundaries
 
 def create_mesh_series():
-    
-
     FlatFin_folder_list = os.listdir(FlatFin_path)
     FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
     
@@ -795,6 +797,12 @@ def getData():
         meshs.append(mesh)
     return times,categories,meshs
 
+def filter_outliers(data, n_std=3):
+    mean = np.mean(data)
+    std = np.std(data)
+    filtered = np.where(np.abs(data - mean) > n_std * std, np.nan, data)
+    return filtered
+
 def transfer_data(nodes, triangle,boundary, mesh:pv.PolyData):
     #print(mesh.point_data)
     polygon = getPolygon(mesh)
@@ -816,13 +824,14 @@ def transfer_data(nodes, triangle,boundary, mesh:pv.PolyData):
     # Apply the displacement to the nodes
     nodes_displaced =nodes.copy() + displacement + centroid
 
+
     # fig, ax = plt.subplots(1, 1, figsize=(8, 8))
     # ax.triplot(nodes[:, 0], nodes[:, 1], triangle, color='blue', label='Mesh')
     # ax.triplot(nodes_displaced[:, 0], nodes_displaced[:, 1], triangle, color='red', label='Mesh displaced')
-    # ax.plot(polygon[0, :], polygon[1, :], 'g-', label='Polygon', lw=2)
-    # ax.plot(xt, yt, 'r-', label='Reconstructed Shape', lw=2)
+    # #ax.plot(polygon[0, :], polygon[1, :], 'g-', label='Polygon', lw=2)
+    # #ax.plot(xt, yt, 'r-', label='Reconstructed Shape', lw=2)
+    # ax.triplot(mesh.point_data['coord_1'], mesh.point_data['coord_2'], mesh.faces.reshape(-1, 4)[:, 1:], color='green', label='Hist mesh')
     # ax.legend()
-    # ax.set_title('Mesh, Polygon, and Reconstructed Shape')
     # ax.set_aspect('equal')
     # plt.show()
 
@@ -834,11 +843,35 @@ def transfer_data(nodes, triangle,boundary, mesh:pv.PolyData):
 
     # Step 5: Create the data dictionary
     data_dict = {}
-    for key in mesh.point_data.keys():
-        # Extract the corresponding point data for the closest points
-        data_dict[key] = np.array(mesh.point_data[key][indices])
+    for key in ['mean_curvature_avg', 'mean_curvature_std', 'gauss_curvature_avg', 'gauss_curvature_std', 'thickness_avg', 'thickness_std', 'mean2-gauss']:
+        # Extract the point data for the given key
+        raw_data = np.array(mesh.point_data[key])
 
-    # Return the data dictionary
+        # Filter out outliers in the raw data
+        filtered_data = filter_outliers(raw_data, n_std=4)
+
+        # Create a mask for non-outlier points
+        valid_indices = ~np.isnan(filtered_data)  # Get valid (non-outlier) indices
+
+        # Create mesh coordinates only for non-outlier points
+        valid_coords_1 = np.array(mesh.point_data['coord_1'])[valid_indices]
+        valid_coords_2 = np.array(mesh.point_data['coord_2'])[valid_indices]
+        mesh_coords = np.stack((valid_coords_1, valid_coords_2), axis=1)
+
+        # Ensure we have valid data points for KDTree
+        if len(mesh_coords) == 0:
+            raise ValueError(f"No valid points left for mesh after filtering outliers for key: {key}")
+
+        # Create KDTree using the valid coordinates
+        kdtree = cKDTree(mesh_coords)
+
+        # Find the nearest point in the original mesh for each displaced node
+        distances, indices = kdtree.query(nodes_displaced)
+
+        # Map the found indices back to the original filtered data
+        data_dict[key] = np.array(filtered_data[valid_indices])[indices]
+
+    # Return the data dictionary with outliers filtered out
     return data_dict
 
 def linear_interpolate_data(data_dict):
@@ -917,6 +950,85 @@ def load_data_dict(save_path, file_name="data_dict.pkl"):
     print(f"Data dictionary loaded successfully from {file_path}")
     return data_dict
 
+
+def debug_mesh_time_evolution(interpolated_nodes, triangles, data_dict, feature_key, scale_unit='', num_levels=20, vlim=None):
+    # Get unique times sorted
+    times = sorted(list(set([key[0] for key in interpolated_nodes.keys()])))
+    
+    # Compute the 10th and 90th percentile limits for the given feature_key across all times and categories
+    feature_values = []
+    for (time, category), data in data_dict.items():
+        if feature_key in data:
+            feature_values.extend(data[feature_key])
+
+    if vlim is None:
+        vmin = np.percentile(feature_values, 10)
+        vmax = np.percentile(feature_values, 90)
+    else:
+        vmin, vmax = vlim
+
+    def add_scale_bar(ax, min_val, max_val):
+        """Add a scale bar to the plot if axes are switched off."""
+        def round_to_one_significant_digit(value):
+            if value == 0:
+                return 0
+            return round(value, -int(math.floor(math.log10(abs(value)))))
+        
+        # Choose size of the scale bar (adjust this based on your mesh size)
+        bar_size = round_to_one_significant_digit((max_val - min_val) * 0.1)
+        fontprops = fm.FontProperties(size=12)
+        scalebar = AnchoredSizeBar(ax.transData,
+                                   bar_size,  # Length of the scale bar
+                                   f'{bar_size:.1f} {scale_unit}',  # Label
+                                   'lower right',  # Position of the scale bar
+                                   pad=0.1,
+                                   color='black',
+                                   frameon=False,
+                                   size_vertical=1,
+                                   fontproperties=fontprops)
+
+        ax.add_artist(scalebar)
+
+    for time in times:
+        for condition in ['Development', 'Regeneration']:
+            # Check if data exists for the current time and condition
+            if (time, condition) not in interpolated_nodes or (time, condition) not in data_dict:
+                continue
+
+            # Get the current node positions and feature data
+            nodes = interpolated_nodes[(time, condition)]
+            feature_data = data_dict[(time, condition)][feature_key]
+       
+            # Get mesh limits
+            min_val, max_val = np.min(nodes), np.max(nodes)
+            min_val -= 10
+            max_val += 10
+
+            # Create triangulation for the current condition
+            triang = tri.Triangulation(nodes[:, 0], nodes[:, 1], triangles[condition])
+
+            # Create a figure for the current time and condition
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.set_title(f"{condition} Mesh at t = {time} hpf", fontsize=18)
+            ax.set_xlabel("X Coordinates", fontsize=14)
+            ax.set_ylabel("Y Coordinates", fontsize=14)
+            ax.set_xlim(min_val, max_val)
+            ax.set_ylim(min_val, max_val)
+            print(vmin,vmax)
+
+            sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=vmin, vmax=vmax))
+            cbar = plt.colorbar(sm, ax=ax, orientation='vertical', fraction=0.05)
+            cbar.set_label(f'{feature_key}', fontsize=16)
+            ax.tricontourf(triang, feature_data, cmap='viridis', vmin=vmin, vmax=vmax, levels=num_levels)
+
+            # Add a scale bar if needed
+            add_scale_bar(ax, min_val, max_val)
+
+            # Show the plot
+            plt.show()
+
+
+
 def create_data_series():
     interpolated_nodes, triangles,boundaries=load_interpolated_data(AvgShape_path)
     times, categories, meshs=getData()
@@ -933,23 +1045,21 @@ def create_data_series():
         if nodes is not None and triangle is not None:
             # Call the transfer_data function
             data = transfer_data(nodes, triangle,boundary, mesh)
-           
+            
             # Store the resulting data dict
             data_dict[(time, category)] = data
 
-            # Update the interpolated_nodes with the new data if necessary
-            interpolated_nodes[(time, category)] = data  # If you want to store the result back in interpolated_nodes
 
         else:
             print(f"Warning: No interpolation found for time {time} and category {category}")
 
     print(len(data_dict))
+
+    #debug_mesh_time_evolution(interpolated_nodes, triangles, data_dict, 'gauss_curvature_avg',vlim=(-2e-4,2e-4))
     linear_interpolate_data(data_dict)
     print(len(data_dict))
     save_data_dict(data_dict,AvgShape_path)
 
-import matplotlib.font_manager as fm
-from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
 def movie_grid_time_evolution_with_data(interpolated_nodes, triangles, data_dict, feature_key, save_path=None, feature_name=None, show_axes=True,scale_unit='',num_levels=20,vlim=None):
     if feature_name is None:
@@ -1003,9 +1113,13 @@ def movie_grid_time_evolution_with_data(interpolated_nodes, triangles, data_dict
     cbar.set_label(f'{feature_name}', fontsize=16)
 
     def add_scale_bar(ax):
+        def round_to_one_significant_digit(value):
+            if value == 0:
+                return 0
+            return round(value, -int(math.floor(math.log10(abs(value)))))
         """Add a scale bar to the plot if axes are switched off."""
         # Choose size of the scale bar (adjust this based on your mesh size)
-        bar_size = int((max_val - min_val) * 0.1)  # Adjust bar size based on mesh size
+        bar_size = round_to_one_significant_digit((max_val - min_val) * 0.1) # Adjust bar size based on mesh size
         fontprops = fm.FontProperties(size=12)
         scalebar = AnchoredSizeBar(ax.transData,
                                    bar_size,  # Length of the scale bar
@@ -1027,8 +1141,8 @@ def movie_grid_time_evolution_with_data(interpolated_nodes, triangles, data_dict
         axs[1].clear()
 
         
-        axs[0].set_title(f"t = {time}", fontsize=18)
-        axs[1].set_title(f"t = {time}", fontsize=18)
+        axs[0].set_title(f"t = {time} hpf", fontsize=18)
+        axs[1].set_title(f"t = {time} hpf", fontsize=18)
 
         # Set axis limits
         axs[0].set_xlim(min_val, max_val)
@@ -1074,14 +1188,181 @@ def movie_grid_time_evolution_with_data(interpolated_nodes, triangles, data_dict
         # Display the animation
         plt.show()
 
-def show_data_series():
+def show_data_movie():
     data_dict=load_data_dict(AvgShape_path)
     interpolated_nodes, triangles,boundaries=load_interpolated_data(AvgShape_path)
-    #movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'thickness_avg',feature_name=r'Thickness $[\mu m]$',show_axes=False,scale_unit=r"$\mu m$",save_path='/home/max/Videos/thickness.mp4')
-    movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'gauss_curvature_avg',feature_name=r'Thickness $[\mu m]$',show_axes=False,scale_unit=r"$\mu m$",vlim=(-2e-4,2e-4))
+    #movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'thickness_avg',feature_name=r'Thickness $[\mathrm{\mu m}]$',show_axes=False,scale_unit=r"$\mathrm{\mu m}$",vlim=(0,60),save_path='/home/max/Videos/thickness.mp4')#
+    movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'gauss_curvature_avg',feature_name=r'Gauss curvature $[1/\mu m^2]$',show_axes=False,scale_unit=r"$\mathrm{\mu m}$",vlim=(-1.5e-4,1.5e-4))
+
+def plot_grid_time_series_with_data(interpolated_nodes, triangles, data_dict, feature_key, times_to_plot, feature_name=None, show_axes=True, scale_unit='', num_levels=20, vlim=None, save_path=None):
+    if feature_name is None:
+        feature_name = feature_key
+
+    # Compute the 10th and 90th percentile limits for the given feature_key across all times and categories
+    feature_values = []
+    for (time, category), data in data_dict.items():
+        if feature_key in data:
+            feature_values.extend(data[feature_key])
+
+    if vlim is None:
+        vmin = np.percentile(feature_values, 10)
+        vmax = np.percentile(feature_values, 90)
+    else:
+        vmin, vmax = vlim
+
+    # Get the mesh limits for both conditions
+    min_val, max_val = get_mesh_lims(
+        {key: nodes for key, nodes in interpolated_nodes.items() if key[1] == 'Development'},
+        {key: nodes for key, nodes in interpolated_nodes.items() if key[1] == 'Regeneration'}
+    )
+    min_val -= 10
+    max_val += 10
+
+    num_times = len(times_to_plot)
+
+    # Create the figure and axes
+    fig, axs = plt.subplots(2, num_times, figsize=(4 * num_times, 8), squeeze=False)
+
+    # Function to add scale bar
+    def add_scale_bar(ax):
+        def round_to_one_significant_digit(value):
+            if value == 0:
+                return 0
+            return round(value, -int(math.floor(math.log10(abs(value)))))
+
+        bar_size = round_to_one_significant_digit((max_val - min_val) * 0.1)
+        fontprops = fm.FontProperties(size=12)
+        scalebar = AnchoredSizeBar(ax.transData,
+                                   bar_size,
+                                   f'{bar_size:.1f} {scale_unit}',
+                                   'lower right',
+                                   pad=0.1,
+                                   color='black',
+                                   frameon=False,
+                                   size_vertical=1,
+                                   fontproperties=fontprops)
+        ax.add_artist(scalebar)
+
+    # Loop over times
+    for idx, time in enumerate(times_to_plot):
+        # Plot Development
+        ax_dev = axs[0, idx]
+        dev_nodes = interpolated_nodes[(time, 'Development')]
+        dev_feature_data = data_dict[(time, 'Development')][feature_key]
+        dev_triang = tri.Triangulation(dev_nodes[:, 0], dev_nodes[:, 1], triangles['Development'])
+        ax_dev.tricontourf(dev_triang, dev_feature_data, cmap='viridis', vmin=vmin, vmax=vmax, levels=num_levels)
+        ax_dev.set_xlim(min_val, max_val)
+        ax_dev.set_ylim(min_val, max_val)
+        ax_dev.set_title(f'Development t = {time} hpf')
+        if show_axes:
+            pass    
+        else:
+            ax_dev.axis('off')
+            add_scale_bar(ax_dev)
+
+        # Plot Regeneration
+        ax_reg = axs[1, idx]
+        reg_nodes = interpolated_nodes[(time, 'Regeneration')]
+        reg_feature_data = data_dict[(time, 'Regeneration')][feature_key]
+        reg_triang = tri.Triangulation(reg_nodes[:, 0], reg_nodes[:, 1], triangles['Regeneration'])
+        ax_reg.tricontourf(reg_triang, reg_feature_data, cmap='viridis', vmin=vmin, vmax=vmax, levels=num_levels)
+        ax_reg.set_xlim(min_val, max_val)
+        ax_reg.set_ylim(min_val, max_val)
+        ax_reg.set_title(f'Regeneration t = {time} hpf')
+        if show_axes:
+            pass
+        else:
+            ax_reg.axis('off')
+            add_scale_bar(ax_reg)
+
+    # Adjust layout to make room for the color bar below the plots
+    plt.tight_layout(rect=[0, 0.1, 1, 1])  # Leave more space at the bottom for the color bar
+
+    # Create a horizontal color bar below the plots
+    cbar_ax = fig.add_axes([0.2, 0.1, 0.6, 0.02])  # Adjust the position and size as needed
+    sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=vmin, vmax=vmax))
+    cbar = plt.colorbar(sm, cax=cbar_ax, orientation='horizontal')
+    cbar.set_label(f'{feature_name}', fontsize=16)
+
+    if save_path:
+        plt.savefig(save_path)
+        plt.close(fig)
+    else:
+        plt.show()
+
+def show_data_series():
+    data_dict = load_data_dict(AvgShape_path)
+    interpolated_nodes, triangles, boundaries = load_interpolated_data(AvgShape_path)
+    times_to_plot = [84,96,120,126,132,144]  # User-specified times
+    # plot_grid_time_series_with_data(
+    #     interpolated_nodes,
+    #     triangles,
+    #     data_dict,
+    #     feature_key='thickness_avg',
+    #     times_to_plot=times_to_plot,
+    #     feature_name=r'Thickness $[\mathrm{\mu m}]$',
+    #     show_axes=False,
+    #     scale_unit=r"$\mathrm{\mu m}$",
+    #     vlim=(0, 60),
+    # )
+    plot_grid_time_series_with_data(
+        interpolated_nodes,
+        triangles,
+        data_dict,
+        feature_key='gauss_curvature_avg',
+        times_to_plot=times_to_plot,
+        feature_name=r'Gauss curvature $\mathrm{[1/\mu m^2]}$',
+        show_axes=False,
+        scale_unit=r"$\mathrm{\mu m}$",
+        vlim=(-1.5e-4,1.0e-4),
+    )
+
+def get_n():
+    FlatFin_folder_list = os.listdir(FlatFin_path)
+    FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
+    
+    data_list = []
+    for FlatFin_folder in FlatFin_folder_list:
+        FlatFin_dir_path = os.path.join(FlatFin_path, FlatFin_folder)
+        MetaData = get_JSON(FlatFin_dir_path)
+        
+        if 'Thickness_MetaData' not in MetaData:
+            continue
+        
+        MetaData = MetaData['Thickness_MetaData']
+        
+        data_list.append({
+            'folder_name': FlatFin_folder,
+            'file_name': MetaData['Surface file'],
+            'condition': MetaData['condition'],
+            'time in hpf': MetaData['time in hpf'],
+            'genotype': MetaData['genotype'],
+            'experimentalist': MetaData['experimentalist']
+        })
+        
+    # Store the metadata in a pandas DataFrame
+    df = pd.DataFrame(data_list)
+
+    # Count the total number of measurements for 'Regeneration' and 'Development'
+    regen_count = df[df['condition'] == 'Regeneration'].shape[0]
+    dev_count = df[df['condition'] == 'Development'].shape[0]
+    
+    print(f"Number of 'Regeneration' measurements: {regen_count}")
+    print(f"Number of 'Development' measurements: {dev_count}")
+    
+    # Group by 'condition' and 'time in hpf' and count the number of occurrences in each group
+    grouped_counts = df.groupby(['condition', 'time in hpf']).size().reset_index(name='count')
+    
+    print("\nGrouped counts by condition and time in hpf:")
+    print(grouped_counts)
+
 
 if __name__ == "__main__":
     #create_mesh_series()
     #show_mesh_series()
     #create_data_series()
-    show_data_series()
+    #show_data_movie()
+
+    #show_data_series()
+
+    get_n()
