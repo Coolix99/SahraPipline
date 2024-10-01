@@ -1191,8 +1191,8 @@ def movie_grid_time_evolution_with_data(interpolated_nodes, triangles, data_dict
 def show_data_movie():
     data_dict=load_data_dict(AvgShape_path)
     interpolated_nodes, triangles,boundaries=load_interpolated_data(AvgShape_path)
-    #movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'thickness_avg',feature_name=r'Thickness $[\mathrm{\mu m}]$',show_axes=False,scale_unit=r"$\mathrm{\mu m}$",vlim=(0,60),save_path='/home/max/Videos/thickness.mp4')#
-    movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'gauss_curvature_avg',feature_name=r'Gauss curvature $[1/\mu m^2]$',show_axes=False,scale_unit=r"$\mathrm{\mu m}$",vlim=(-1.5e-4,1.5e-4))
+    movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'thickness_avg',feature_name=r'Thickness $[\mathrm{\mu m}]$',show_axes=False,scale_unit=r"$\mathrm{\mu m}$",vlim=(0,60),save_path='/home/max/Videos/thickness.mp4')#
+    movie_grid_time_evolution_with_data(interpolated_nodes, triangles,data_dict, 'gauss_curvature_avg',feature_name=r'Gauss curvature $[1/\mu m^2]$',show_axes=False,scale_unit=r"$\mathrm{\mu m}$",vlim=(-1.5e-4,1.5e-4),save_path='/home/max/Videos/gauss_curvature.mp4')
 
 def plot_grid_time_series_with_data(interpolated_nodes, triangles, data_dict, feature_key, times_to_plot, feature_name=None, show_axes=True, scale_unit='', num_levels=20, vlim=None, save_path=None):
     if feature_name is None:
@@ -1294,17 +1294,17 @@ def show_data_series():
     data_dict = load_data_dict(AvgShape_path)
     interpolated_nodes, triangles, boundaries = load_interpolated_data(AvgShape_path)
     times_to_plot = [84,96,120,126,132,144]  # User-specified times
-    # plot_grid_time_series_with_data(
-    #     interpolated_nodes,
-    #     triangles,
-    #     data_dict,
-    #     feature_key='thickness_avg',
-    #     times_to_plot=times_to_plot,
-    #     feature_name=r'Thickness $[\mathrm{\mu m}]$',
-    #     show_axes=False,
-    #     scale_unit=r"$\mathrm{\mu m}$",
-    #     vlim=(0, 60),
-    # )
+    plot_grid_time_series_with_data(
+        interpolated_nodes,
+        triangles,
+        data_dict,
+        feature_key='thickness_avg',
+        times_to_plot=times_to_plot,
+        feature_name=r'Thickness $[\mathrm{\mu m}]$',
+        show_axes=False,
+        scale_unit=r"$\mathrm{\mu m}$",
+        vlim=(0, 60),
+    )
     plot_grid_time_series_with_data(
         interpolated_nodes,
         triangles,
@@ -1361,8 +1361,8 @@ if __name__ == "__main__":
     #create_mesh_series()
     #show_mesh_series()
     #create_data_series()
-    #show_data_movie()
+    show_data_movie()
 
-    #show_data_series()
+    show_data_series()
 
-    get_n()
+    #get_n()
