@@ -1304,6 +1304,7 @@ def show_data_series():
         show_axes=False,
         scale_unit=r"$\mathrm{\mu m}$",
         vlim=(0, 60),
+        save_path='/home/max/Pictures/thickness.png'
     )
     plot_grid_time_series_with_data(
         interpolated_nodes,
@@ -1315,6 +1316,7 @@ def show_data_series():
         show_axes=False,
         scale_unit=r"$\mathrm{\mu m}$",
         vlim=(-1.5e-4,1.0e-4),
+        save_path='/home/max/Pictures/gauss_curvature.png'
     )
 
 def get_n():
@@ -1361,7 +1363,7 @@ if __name__ == "__main__":
     #create_mesh_series()
     #show_mesh_series()
     #create_data_series()
-    show_data_movie()
+    #show_data_movie()
 
     show_data_series()
 
