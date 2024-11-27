@@ -13,6 +13,7 @@ if(machine=='Laptop'):
 
 if(machine=='BA'):
     Sahra_Shivani_path=(r'/home/max/Documents/02_Data/sahra_shivani_data')
+    Sahra_Shivani_path=(r'/media/max_kotz/sahra_shivani_data')
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
     
@@ -28,6 +29,7 @@ Input_Sahra_path=os.path.join(Sahra_Shivani_path,'from_Sahra')
 
 membranes_path=os.path.join(Output_path,'membranes')
 ED_marker_path=os.path.join(Output_path,'ED_marker')
+ED_cells_path=os.path.join(Output_path,'ED_cells')
 finmasks_path=os.path.join(Output_path,'finmasks')
 
 # #Part I
