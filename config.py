@@ -30,6 +30,7 @@ Input_Sahra_path=os.path.join(Sahra_Shivani_path,'from_Sahra')
 membranes_path=os.path.join(Output_path,'membranes')
 ED_marker_path=os.path.join(Output_path,'ED_marker')
 ED_cells_path=os.path.join(Output_path,'ED_cells')
+ED_cell_props_path=os.path.join(Output_path,'ED_cell_props')
 finmasks_path=os.path.join(Output_path,'finmasks')
 
 # #Part I

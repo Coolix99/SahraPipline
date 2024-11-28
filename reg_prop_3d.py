@@ -90,11 +90,7 @@ def regionprops_3D(im,Vox_size):
     tricky to obtain desired results.  *PoreSpy* includes the SNOW algorithm,
     which may be helpful.
 
-    Examples
-    --------
-    `Click here
-    <https://porespy.org/examples/metrics/reference/regionprops_3D.html>`_
-    to view online example.
+
 
     """
     results = regionprops(im)
@@ -151,13 +147,13 @@ class RegionPropertiesPS(RegionProperties):
     #     inv_dt = edt(dt < r)
     #     return inv_dt < r
 
-    # @property
-    # def sphericity(self):
-    #     vol = self.volume
-    #     r = (3 / 4 / np.pi * vol)**(1 / 3)
-    #     a_equiv = 4 * np.pi * r**2
-    #     a_region = self.surface_area
-    #     return a_equiv / a_region
+    @property
+    def sphericity(self):
+        vol = self.volume
+        r = (3 / 4 / np.pi * vol)**(1 / 3)
+        a_equiv = 4 * np.pi * r**2
+        a_region = self.surface_area
+        return a_equiv / a_region
 
     # @property
     # def skeleton(self):
@@ -176,14 +172,17 @@ class RegionPropertiesPS(RegionProperties):
         return area
     
     @property
-    def inertia_tensor_eigvals_scaled(self):
+    def inertia_eigenvecs_eigvals_scaled(self):
         Tensor=self.inertia_tensor
         S = np.diag(self.Vox_size)
         # Calculate the rescaled inertia tensor
         Tensor_rescaled = np.dot(S, np.dot(Tensor, S.T))
-        eigenvalues = np.linalg.eigvals(Tensor_rescaled)
-        sorted_eigenvalues = np.sort(eigenvalues)[::-1]
-        return np.array(sorted_eigenvalues)
+        eigenvalues,eigenvectors = np.linalg.eig(Tensor_rescaled)
+        sorted_indices = np.argsort(eigenvalues)[::-1]  # Indices to sort in descending order
+        sorted_eigenvalues = eigenvalues[sorted_indices]
+        sorted_eigenvectors = eigenvectors[:, sorted_indices]
+        
+        return np.array(sorted_eigenvectors),np.array(sorted_eigenvalues)
 
     # @property
     # def surface_mesh_vertices(self):
