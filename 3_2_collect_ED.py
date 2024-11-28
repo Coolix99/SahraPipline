@@ -205,14 +205,18 @@ def main():
         sha = repo.head.object.hexsha
         MetaData_EDcell_props['git hash']=sha
         MetaData_EDcell_props['git repo']='Sahrapipline'
-        MetaData_EDcell_props['EDcells file']='cell_props.h5'
+        MetaData_EDcell_props['EDcell_props file']='cell_props.h5'
         MetaData_EDcell_props['condition']=data['condition']
         MetaData_EDcell_props['time in hpf']=data['time in hpf']
         MetaData_EDcell_props['genotype']=data['genotype']
+        MetaData_EDcell_props['scales ZYX']=MetaData['scales ZYX']
         check=get_checksum(os.path.join(cell_props_path,'cell_props.h5'), algorithm="SHA1")
         MetaData_EDcell_props['EDcell_props checksum']=check
         writeJSON(cell_props_path,'MetaData_EDcell_props',MetaData_EDcell_props)      
 
+        #todo collect topology
+
+        #todo project
 
     df = pd.DataFrame(data_list)
     print(df)
