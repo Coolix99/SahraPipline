@@ -29,6 +29,17 @@ def getData():
 
     return df
 
+def getDataED():
+    hdf5_file_path = os.path.join(Curv_Thick_path, 'scalarGrowthDataED.h5')
+
+    # Load the DataFrame from the HDF5 file
+    df = pd.read_hdf(hdf5_file_path, key='data')
+
+    print(df)
+
+
+    return df
+
 from scipy.integrate import solve_ivp
 rng = np.random.default_rng()
 def A_theor(t, A_0, g_0, alpha, beta, A_end, A_cut):
@@ -144,6 +155,13 @@ def plot_results(results, t_values):
 
     plt.show()
 
+def add_ED_Data(df):
+    ED_df=getDataED()
+    ED_df.rename(columns={'data_name': 'Mask Folder'}, inplace=True)
+    merged_df = pd.merge(df, ED_df, on=['Mask Folder', 'condition', 'time in hpf', 'experimentalist', 'genotype'], how='inner')
+    merged_df = merged_df.loc[:, ~merged_df.columns.duplicated()].reset_index(drop=True)
+    return merged_df
+
 def main():
     # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='whiskers', title="Whiskers Explanation")
     # plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='box', title="Box Plot Explanation")
@@ -151,9 +169,11 @@ def main():
     #results,t_values=getFit()
 
     df=getData()
+    df=add_ED_Data(df)
+    
     print(df)
 
-    
+
 
     #Checks
     # plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='category',show_fit=True,show_div='Residual')
@@ -165,14 +185,15 @@ def main():
     # plot_scatter(df, x_col='L AP', y_col='L PD', mode='category',show_fit=True,show_div='Residual')
     # plot_scatter(df, x_col='L AP', y_col='L PD', mode='time',show_fit=True,show_div='Residual')
 
-    plot_scatter(df, x_col='log L PD', y_col='log L AP',x_name=r'$$log(L_{PD})$$',y_name=r'$$log(L_{AP})$$', mode='category',show_fit=True,show_div='Residual',show_slope_1=True)
+    #plot_scatter(df, x_col='log L PD', y_col='log L AP',x_name=r'$$log(L_{PD})$$',y_name=r'$$log(L_{AP})$$', mode='category',show_fit=True,show_div='Residual',show_slope_1=True)
     #plot_scatter(df, x_col='log L PD', y_col=r'$$log L AP$$', mode='time',show_fit=True,show_div='Residual')
 
     # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
-    # plot_double_timeseries(df, y_col='Volume', style='violin')
-    # plot_double_timeseries(df, y_col='Surface Area', style='box')
+    plot_double_timeseries(df, y_col='Volume', style='violin')
+    plot_double_timeseries(df, y_col='Surface Area', style='violin')
+    plot_double_timeseries(df, y_col='Volume ED', style='violin')
     # fit={
     #     't_values':t_values,
     #     'Development': results['A_Development_noisy'],
