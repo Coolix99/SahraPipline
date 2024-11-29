@@ -2,6 +2,7 @@ from functools import reduce
 import pandas as pd
 import git
 from simple_file_checksum import get_checksum
+from skimage.graph import pixel_graph
 
 import reg_prop_3d as prop3
 from config import *
@@ -141,7 +142,54 @@ def getCellProps(seg,Vox_size):
     print(df)
     return df
 
-def main():
+def different_labels(center_value, neighbor_value, *args):
+    """Return 1.0 when two labels are different, otherwise 0.0."""
+    return (center_value != neighbor_value).astype(float)
+
+def find_touching_pairs(label_mask):
+    """
+    Find unique pairs of touching objects in a 3D segmented image.
+    
+    Parameters:
+        label_mask (np.ndarray): 3D array with integer labels.
+        
+    Returns:
+        list[tuple]: List of unique sorted pairs of touching objects.
+    """
+    # Ensure the input is boolean to define valid regions
+    mask = label_mask > 0
+
+    # Generate the pixel graph
+    g, nodes = pixel_graph(
+        label_mask,
+        mask=mask,
+        connectivity=3,  # Use full 3D connectivity
+        edge_function=different_labels
+    )
+
+    # Remove zero entries from the graph
+    g.eliminate_zeros()
+
+    # Convert to COO format for easy manipulation
+    coo = g.tocoo()
+
+    # Get the pixel indices and their labels
+    center_coords = nodes[coo.row]
+    neighbor_coords = nodes[coo.col]
+
+    center_values = label_mask.ravel()[center_coords]
+    neighbor_values = label_mask.ravel()[neighbor_coords]
+
+    # Create a set of unique pairs
+    pairs = set()
+    for i, j in zip(center_values, neighbor_values):
+        if i != 0 and j != 0 and i != j:  # Exclude background and self-relations
+            pairs.add(tuple(sorted((i, j))))  # Sort the tuple to ensure uniqueness
+
+    # Convert the set to a list of tuples
+    return list(pairs)
+
+def main(find_cell_props=True, find_topology=True):
     EDcells_folder_list= [item for item in os.listdir(ED_cells_path) if os.path.isdir(os.path.join(ED_cells_path, item))]
     finmask_folder_list= [item for item in os.listdir(finmasks_path) if os.path.isdir(os.path.join(finmasks_path, item))]
     data_list = []
@@ -193,30 +241,52 @@ def main():
         data_list.append(data)
         
         #individual cell properties
-        cell_df=getCellProps(EDcells_img,MetaData['scales ZYX'])
-    
-        cell_props_path=os.path.join(ED_cell_props_path,data_name)
-        make_path(cell_props_path)
+        if find_cell_props:
+            cell_df=getCellProps(EDcells_img,MetaData['scales ZYX'])
+        
+            cell_props_path=os.path.join(ED_cell_props_path,data_name)
+            make_path(cell_props_path)
 
-        cell_df.to_hdf(os.path.join(cell_props_path,'cell_props.h5'), key='data', mode='w')
+            cell_df.to_hdf(os.path.join(cell_props_path,'cell_props.h5'), key='data', mode='w')
 
-        MetaData_EDcell_props={}
-        repo = git.Repo(gitPath,search_parent_directories=True)
-        sha = repo.head.object.hexsha
-        MetaData_EDcell_props['git hash']=sha
-        MetaData_EDcell_props['git repo']='Sahrapipline'
-        MetaData_EDcell_props['EDcell_props file']='cell_props.h5'
-        MetaData_EDcell_props['condition']=data['condition']
-        MetaData_EDcell_props['time in hpf']=data['time in hpf']
-        MetaData_EDcell_props['genotype']=data['genotype']
-        MetaData_EDcell_props['scales ZYX']=MetaData['scales ZYX']
-        check=get_checksum(os.path.join(cell_props_path,'cell_props.h5'), algorithm="SHA1")
-        MetaData_EDcell_props['EDcell_props checksum']=check
-        writeJSON(cell_props_path,'MetaData_EDcell_props',MetaData_EDcell_props)      
+            MetaData_EDcell_props={}
+            repo = git.Repo(gitPath,search_parent_directories=True)
+            sha = repo.head.object.hexsha
+            MetaData_EDcell_props['git hash']=sha
+            MetaData_EDcell_props['git repo']='Sahrapipline'
+            MetaData_EDcell_props['EDcell_props file']='cell_props.h5'
+            MetaData_EDcell_props['condition']=data['condition']
+            MetaData_EDcell_props['time in hpf']=data['time in hpf']
+            MetaData_EDcell_props['genotype']=data['genotype']
+            MetaData_EDcell_props['scales ZYX']=MetaData['scales ZYX']
+            check=get_checksum(os.path.join(cell_props_path,'cell_props.h5'), algorithm="SHA1")
+            MetaData_EDcell_props['EDcell_props checksum']=check
+            writeJSON(cell_props_path,'MetaData_EDcell_props',MetaData_EDcell_props)      
 
-        #todo collect topology
+        #collect topology
+        if find_topology:
+            touching_pairs = find_touching_pairs(EDcells_img)
 
-        #todo project
+            top_df = pd.DataFrame(touching_pairs, columns=['Label 1', 'Label 2'])
+            cell_props_path=os.path.join(ED_cell_props_path,data_name)
+            make_path(cell_props_path)
+
+            top_df.to_hdf(os.path.join(cell_props_path,'cell_top.h5'), key='data', mode='w')
+
+            MetaData_EDcell_top={}
+            repo = git.Repo(gitPath,search_parent_directories=True)
+            sha = repo.head.object.hexsha
+            MetaData_EDcell_top['git hash']=sha
+            MetaData_EDcell_top['git repo']='Sahrapipline'
+            MetaData_EDcell_top['EDcell_top file']='cell_top.h5'
+            MetaData_EDcell_top['condition']=data['condition']
+            MetaData_EDcell_top['time in hpf']=data['time in hpf']
+            MetaData_EDcell_top['genotype']=data['genotype']
+            MetaData_EDcell_top['scales ZYX']=MetaData['scales ZYX']
+            check=get_checksum(os.path.join(cell_props_path,'cell_top.h5'), algorithm="SHA1")
+            MetaData_EDcell_top['EDcell_top checksum']=check
+            writeJSON(cell_props_path,'MetaData_EDcell_top',MetaData_EDcell_top)      
+
 
     df = pd.DataFrame(data_list)
     print(df)
@@ -224,4 +294,4 @@ def main():
         
 
 if __name__ == "__main__":
-    main()
+    main(find_cell_props=False)
