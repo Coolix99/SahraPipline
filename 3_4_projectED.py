@@ -65,11 +65,11 @@ def main():
         surface_file_name=FF_MetaData['Thickness_MetaData']['Surface file']
         mesh=pv.read(os.path.join(folder_path,surface_file_name))
 
-        print(df_prop)
-        print(mesh)
+        # print(df_prop)
+        # print(mesh)
 
         df_proj=find_closest_points(df_prop, mesh)
-        print(df_proj)
+        #print(df_proj)
         df_proj.to_hdf(os.path.join(EDprop_folder_path,'cell_proj.h5'), key='data', mode='w')
         
         MetaData_EDcell_proj={}
@@ -78,10 +78,10 @@ def main():
         MetaData_EDcell_proj['git hash']=sha
         MetaData_EDcell_proj['git repo']='Sahrapipline'
         MetaData_EDcell_proj['EDcell_props file']='cell_props.h5'
-        MetaData_EDcell_proj['condition']=EDpropMetaData['MetaData_EDcell_props']['condition']
-        MetaData_EDcell_proj['time in hpf']=EDpropMetaData['MetaData_EDcell_props']['time in hpf']
-        MetaData_EDcell_proj['genotype']=EDpropMetaData['MetaData_EDcell_props']['genotype']
-        MetaData_EDcell_proj['scales ZYX']=EDpropMetaData['MetaData_EDcell_props']['scales ZYX']
+        MetaData_EDcell_proj['condition']=EDpropMetaData['MetaData_EDcell_top']['condition']
+        MetaData_EDcell_proj['time in hpf']=EDpropMetaData['MetaData_EDcell_top']['time in hpf']
+        MetaData_EDcell_proj['genotype']=EDpropMetaData['MetaData_EDcell_top']['genotype']
+        MetaData_EDcell_proj['scales ZYX']=EDpropMetaData['MetaData_EDcell_top']['scales ZYX']
         check=get_checksum(os.path.join(EDprop_folder_path,'cell_props.h5'), algorithm="SHA1")
         MetaData_EDcell_proj['EDcell_proj checksum']=check
         writeJSON(EDprop_folder_path,'MetaData_EDcell_proj',MetaData_EDcell_proj)       
