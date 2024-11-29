@@ -2,6 +2,9 @@ import pandas as pd
 import os
 import numpy as np
 
+from plotHelper import plot_scatter_corner
+from bokeh.io import show
+
 from config import *
 
 #from plotMatPlotHelper import 
@@ -191,9 +194,10 @@ def main():
     # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
-    plot_double_timeseries(df, y_col='Volume', style='violin')
-    plot_double_timeseries(df, y_col='Surface Area', style='violin')
-    plot_double_timeseries(df, y_col='Volume ED', style='violin')
+    # plot_double_timeseries(df, y_col='Volume', style='violin')
+    # plot_double_timeseries(df, y_col='Surface Area', style='violin')
+    # plot_double_timeseries(df, y_col='Volume ED', style='violin')
+    # plot_double_timeseries(df, y_col='N_objects', style='violin')
     # fit={
     #     't_values':t_values,
     #     'Development': results['A_Development_noisy'],
@@ -204,7 +208,12 @@ def main():
     #plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,y0=0,show_n=False)
     #plot_double_timeseries(df, y_col='V / A', style='violin',y_scaling=1.0,y_name=r'Mean thickness $$(\mu m)$$',test_significance=True,y0=0,show_n=False)
 
-
-
+    color_dict = {'Regeneration': 'orange',
+                 'Development': 'blue', 
+                 }
+    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle', 'Smoc12': 'square'}
+    #corner_plot = plot_scatter_corner(df=df, parameters=['Volume','Surface Area','V / A', 'Volume ED','N_objects'], color_col='condition',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    corner_plot = plot_scatter_corner(df=df, parameters=['Volume','Surface Area','V / A', 'Volume ED','N_objects'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    show(corner_plot)
 if __name__ == "__main__":
     main()
