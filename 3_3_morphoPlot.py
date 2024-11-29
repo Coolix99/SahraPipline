@@ -63,38 +63,82 @@ def combine_metadata(meta_props, meta_membrane):
     
     return combined_metadata
 
-def plot_propertie(EDcells_img,df):
-    df = df[df['Solidity'].notnull()]  
-    df = df[np.isfinite(df['Solidity'])] 
-
-    # label_to_solidity = dict(zip(df['Label'], df['Solidity']))
-    # solidity_colored_img = np.zeros_like(EDcells_img, dtype=float)
-    # for label, solidity in label_to_solidity.items():
-    #     solidity_colored_img[EDcells_img == label] = solidity
-
-    max_label = EDcells_img.max()  # Find the maximum label value in the image
-    solidity_map = np.zeros(max_label + 1, dtype=float)  # +1 to handle all labels
-    solidity_map[df['Label']] = df['Solidity']
-    solidity_colored_img = solidity_map[EDcells_img]
-
-    solidity_colored_img_normalized = (solidity_colored_img - solidity_colored_img.min()) / (
-        solidity_colored_img.max() - solidity_colored_img.min()
-    )
-
+def plot_propertie(EDcells_img,df_prop,df_top):
     # Start Napari viewer
     viewer = napari.Viewer()
 
     # Add the segmented image
-    viewer.add_labels(EDcells_img, name="Segmented Objects")
+    #viewer.add_labels(EDcells_img, name="Segmented Objects")
 
-    # Add solidity-based color layer
-    viewer.add_image(
-        solidity_colored_img_normalized,
-        colormap="gist_earth",
-        name="Solidity Coloring",
-        blending="additive",
+    # Add solidity
+    # df_prop = df_prop[df_prop['Solidity'].notnull()]  
+    # df_prop = df_prop[np.isfinite(df_prop['Solidity'])] 
+    # max_label = EDcells_img.max()  # Find the maximum label value in the image
+    # solidity_map = np.zeros(max_label + 1, dtype=float)  # +1 to handle all labels
+    # solidity_map[df_prop['Label']] = df_prop['Solidity']
+    # solidity_colored_img = solidity_map[EDcells_img]
+
+    # solidity_colored_img_normalized = (solidity_colored_img - solidity_colored_img.min()) / (
+    #     solidity_colored_img.max() - solidity_colored_img.min()
+    # )
+    # # Add solidity-based color layer
+    # viewer.add_image(
+    #     solidity_colored_img_normalized,
+    #     colormap="gist_earth",
+    #     name="Solidity Coloring",
+    #     blending="additive",
+    # )
+
+    # centroids = df_prop[['centroids Z','centroids Y', 'centroids X']].to_numpy()
+    # viewer.add_points(
+    #     centroids,
+    #     size=5,
+    #     face_color='cyan',
+    #     name='Centroids',
+    # )
+
+    # # Add line connections from df_top
+    # lines = []
+    # for i in range(len(df_top)):
+    #     label1 = df_top['Label 1'].iloc[i]
+    #     label2 = df_top['Label 2'].iloc[i]
+    #     # Get the coordinates of the centroids
+    #     point1 = df_prop[df_prop['Label'] == label1][['centroids Z', 'centroids Y', 'centroids X']].iloc[0].to_numpy()
+    #     point2 = df_prop[df_prop['Label'] == label2][['centroids Z', 'centroids Y', 'centroids X']].iloc[0].to_numpy()
+    #     lines.append([point1, point2])
+
+    # viewer.add_shapes(
+    #     lines,
+    #     shape_type='line',
+    #     edge_color='yellow',
+    #     name='Connections',
+    # )
+
+
+    centroids = df_prop[['centroids_scaled Z','centroids_scaled Y', 'centroids_scaled X']].to_numpy()
+    viewer.add_points(
+        centroids,
+        size=5,
+        face_color='cyan',
+        name='Centroids',
     )
 
+    # Add line connections from df_top
+    lines = []
+    for i in range(len(df_top)):
+        label1 = df_top['Label 1'].iloc[i]
+        label2 = df_top['Label 2'].iloc[i]
+        # Get the coordinates of the centroids
+        point1 = df_prop[df_prop['Label'] == label1][['centroids_scaled Z', 'centroids_scaled Y', 'centroids_scaled X']].iloc[0].to_numpy()
+        point2 = df_prop[df_prop['Label'] == label2][['centroids_scaled Z', 'centroids_scaled Y', 'centroids_scaled X']].iloc[0].to_numpy()
+        lines.append([point1, point2])
+
+    viewer.add_shapes(
+        lines,
+        shape_type='line',
+        edge_color='yellow',
+        name='Connections',
+    )
 
     # Start the Napari application
     napari.run()
@@ -107,7 +151,7 @@ def main():
         print(EDcells_folder)
         if not 'reg' in EDcells_folder:
             continue
-        if not '84h' in EDcells_folder:
+        if not '144h' in EDcells_folder:
             continue
         EDcells_folder_path=os.path.join(ED_cells_path,EDcells_folder)
         
@@ -129,15 +173,19 @@ def main():
         if not 'MetaData_EDcell_props' in MetaData_EDcell_props:
             print('no props metadata')
             continue
-        MetaData_EDcell_props=MetaData_EDcell_props['MetaData_EDcell_props']
+        if not 'MetaData_EDcell_top' in MetaData_EDcell_props:
+            print('no top metadata')
+            continue
+
                 
 
         EDcells_img=getImage(os.path.join(EDcells_folder_path,EDcellsMetaData['MetaData_EDcells']['EDcells file'])).astype(np.uint16)
-        df = pd.read_hdf(os.path.join(ED_cell_props_folder_path,MetaData_EDcell_props['EDcells file']), key='data') #might change
-        
+        df_prop = pd.read_hdf(os.path.join(ED_cell_props_folder_path,MetaData_EDcell_props['MetaData_EDcell_props']['EDcells file']), key='data') #might change
+        df_top = pd.read_hdf(os.path.join(ED_cell_props_folder_path,MetaData_EDcell_props['MetaData_EDcell_top']['EDcell_top file']), key='data')
 
-        print(df)
-        plot_propertie(EDcells_img,df)
+        print(df_prop)
+        print(df_top)
+        plot_propertie(EDcells_img,df_prop,df_top)
         
     
 
