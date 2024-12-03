@@ -77,7 +77,7 @@ def main():
         sha = repo.head.object.hexsha
         MetaData_EDcell_proj['git hash']=sha
         MetaData_EDcell_proj['git repo']='Sahrapipline'
-        MetaData_EDcell_proj['EDcell_props file']='cell_props.h5'
+        MetaData_EDcell_proj['EDcell_proj file']='cell_proj.h5'
         MetaData_EDcell_proj['condition']=EDpropMetaData['MetaData_EDcell_top']['condition']
         MetaData_EDcell_proj['time in hpf']=EDpropMetaData['MetaData_EDcell_top']['time in hpf']
         MetaData_EDcell_proj['genotype']=EDpropMetaData['MetaData_EDcell_top']['genotype']
