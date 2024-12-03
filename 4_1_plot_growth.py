@@ -160,6 +160,7 @@ def plot_results(results, t_values):
 
 def add_ED_Data(df):
     ED_df=getDataED()
+    print(ED_df)
     ED_df.rename(columns={'data_name': 'Mask Folder'}, inplace=True)
     merged_df = pd.merge(df, ED_df, on=['Mask Folder', 'condition', 'time in hpf', 'experimentalist', 'genotype'], how='inner')
     merged_df = merged_df.loc[:, ~merged_df.columns.duplicated()].reset_index(drop=True)
@@ -196,8 +197,8 @@ def main():
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
     # plot_double_timeseries(df, y_col='Volume', style='violin')
     # plot_double_timeseries(df, y_col='Surface Area', style='violin')
-    # plot_double_timeseries(df, y_col='Volume ED', style='violin')
-    # plot_double_timeseries(df, y_col='N_objects', style='violin')
+    plot_double_timeseries(df, y_col='Volume ED', style='violin')
+    plot_double_timeseries(df, y_col='N_objects', style='violin')
     # fit={
     #     't_values':t_values,
     #     'Development': results['A_Development_noisy'],
