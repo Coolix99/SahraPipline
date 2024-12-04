@@ -14,6 +14,9 @@ from scipy.spatial import cKDTree
 import potpourri3d as pp3d
 import numpy as np
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import *
 from IO import *
 

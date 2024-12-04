@@ -7,6 +7,9 @@ import pandas as pd
 from simple_file_checksum import get_checksum
 import re
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import *
 from IO import *
 

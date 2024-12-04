@@ -11,6 +11,9 @@ import xml.etree.ElementTree as ET
 from scipy.ndimage import gaussian_filter, label
 from scipy.ndimage import binary_fill_holes
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import *
 from IO import *
 
@@ -144,8 +147,57 @@ def register_finmask(skip_existing=True):
             writeJSON(finmasks_folder_path,'MetaData_finmasks',MetaData_finmasks)
 
        
-       
+def register_finmask_special(folder_name,condition_name,skip_existing=True):
+    mask_folders_path=os.path.join('/media/max_kotz/joint_results/from_Lucas/Sarah_different_cuts',folder_name)
+    
+    im_list= [file for file in os.listdir(mask_folders_path) if file.endswith('.tif')]
+
+
+    for img_name in im_list:
+        print(img_name)
+
+        finmasks_folder_path=os.path.join(finmasks_path,os.path.splitext(img_name)[0])
+        make_path(finmasks_folder_path)
+        if (not get_JSON(finmasks_folder_path)=={}) and skip_existing:
+            print('skip')
+            continue
+        try:
+            im,voxel_size_um=getImage_Meta(os.path.join(mask_folders_path,img_name))
+        except:
+            continue
+        if im is None:
+            print('couldnt read')
+            continue
+
+        time, _=extract_info(img_name)
+        print(time)
+
+        im=process_3d_image(im>0)
+
+        
+        finmasks_im_path=os.path.join(finmasks_folder_path,img_name)
+        save_array_as_tiff(im,finmasks_im_path)
+
+        MetaData_finmasks={}
+        repo = git.Repo(gitPath,search_parent_directories=True)
+        sha = repo.head.object.hexsha
+        MetaData_finmasks['git hash']=sha
+        MetaData_finmasks['git repo']='Sahrapipline'
+        MetaData_finmasks['finmasks file']=img_name
+        MetaData_finmasks['condition']=condition_name
+        MetaData_finmasks['scales ZYX']=[voxel_size_um[0],voxel_size_um[1],voxel_size_um[2]]
+        MetaData_finmasks['time in hpf']=time
+        MetaData_finmasks['experimentalist']='Sahra'
+        MetaData_finmasks['genotype']='WT'
+        check=get_checksum(finmasks_im_path, algorithm="SHA1")
+        MetaData_finmasks['finmasks checksum']=check
+        writeJSON(finmasks_folder_path,'MetaData_finmasks',MetaData_finmasks)
+
+      
 
 if __name__ == "__main__":
     #register_raw()
-    register_finmask()
+    #register_finmask()
+    #register_finmask_special('48hpf_finfold_cut','48FF_cut')
+    #register_finmask_special('50%_cut_120hpf','48_50_cut')
+    register_finmask_special('72hpf_finfold_cut','72FF_cut')

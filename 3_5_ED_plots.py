@@ -1,14 +1,14 @@
 import os
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+from plotBokehHelper import plot_double_timeseries
+from plotHelper import plot_scatter_corner
+from bokeh.io import show
 
 from config import *
 from IO import *
 
-
-def main():
-    # Initialize an empty list to collect all dataframes
+def collect_dfs():
+     # Initialize an empty list to collect all dataframes
     all_dfs = []
 
     # Iterate through folders
@@ -33,55 +33,32 @@ def main():
         all_dfs.append(df_prop)
 
     merged_df = pd.concat(all_dfs, ignore_index=True)
+    return merged_df
 
-    # Plot the violin plot for "Volume" split by time and condition
-    plt.figure(figsize=(14, 8))
+def main():
+    # merged_df=collect_dfs()
+    # merged_df.to_hdf('data.h5', key='df', mode='w')
+    merged_df = pd.read_hdf('data.h5', key='df')
+    print(merged_df.columns)
+    merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
+    merged_df = merged_df.dropna()
 
-    sns.violinplot(
-        data=merged_df,
-        x='time in hpf',
-        y='Volume',
-        hue='condition',
-        split=True,
-        scale="width",
-        inner=None,
-        palette="Set2",
-    )
+    merged_df['2I1/I2+I3']=2*merged_df['inertia_tensor_eigvals 1']/(merged_df['inertia_tensor_eigvals 2']+merged_df['inertia_tensor_eigvals 3'])
+    merged_df['I1+I2/2I3']=(merged_df['inertia_tensor_eigvals 1']+merged_df['inertia_tensor_eigvals 2'])/(2*merged_df['inertia_tensor_eigvals 3'])
+    
+    # plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='Surface Area', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='Solidity', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='Sphericity', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='2I1/I2+I3', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='I1+I2/2I3', style='violin',test_significance=True,y0=0,show_scatter=False)
 
-    grouped = merged_df.groupby(['time in hpf', 'condition'])
-    summary_stats = grouped['Volume'].agg(
-        mean='mean',
-        median='median',
-        q25=lambda x: x.quantile(0.25),
-        q75=lambda x: x.quantile(0.75)
-    ).reset_index()
-
-    # Overlay bars for mean, median, 25th, and 75th percentiles
-    for _, row in summary_stats.iterrows():
-        time = row['time in hpf']
-        condition = row['condition']
-        color = "orange" if condition == "Development" else "blue"  # Match violin plot colors
-
-        # Mean
-        plt.plot([time - 0.15, time + 0.15], [row['mean'], row['mean']], color=color, linestyle='-', linewidth=2)
-
-        # Median
-        plt.plot([time - 0.15, time + 0.15], [row['median'], row['median']], color=color, linestyle='--', linewidth=2)
-
-        # 25th and 75th percentiles
-        plt.plot([time - 0.1, time + 0.1], [row['q25'], row['q25']], color=color, linestyle=':', linewidth=1.5)
-        plt.plot([time - 0.1, time + 0.1], [row['q75'], row['q75']], color=color, linestyle=':', linewidth=1.5)
-
-    # Finalize the plot
-    plt.title("Volume Distribution Over Time Split by Condition")
-    plt.xlabel("Time in hpf")
-    plt.ylabel("Volume")
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.legend(title="Condition", labels=["Development", "Regeneration"], loc="upper right")
-    plt.tight_layout()
-
-    # Show the plot
-    plt.show()
+    color_dict = {'Regeneration': 'orange',
+                 'Development': 'blue', 
+                 }
+    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle', 'Smoc12': 'square'}
+    corner_plot = plot_scatter_corner(df=merged_df, parameters=['Volume','Surface Area','Solidity', 'Sphericity','2I1/I2+I3', 'I1+I2/2I3'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    show(corner_plot)
 
 if __name__ == "__main__":
     main()

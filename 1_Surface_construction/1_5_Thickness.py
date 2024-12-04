@@ -7,6 +7,9 @@ from simple_file_checksum import get_checksum
 import pyvista as pv
 from scipy.ndimage import label, binary_fill_holes
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import *
 from IO import *
 

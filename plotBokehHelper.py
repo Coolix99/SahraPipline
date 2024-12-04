@@ -378,7 +378,7 @@ def plot_single_timeseries(df, filter_col=None, filter_value=None, y_col=None, s
     # Show the plot
     show(p)
 
-def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None,test_significance=True,show_n=True,y0=None,fit_results=None,tight_style=True):
+def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None,test_significance=True,show_n=True,y0=None,fit_results=None,tight_style=True, show_scatter=True):
     """
     Create a time-series plot (box plot or violin plot) with individual scatter points, based on filtered data.
     The plot will be split in the middle: 
@@ -459,13 +459,24 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
                    tools="pan,wheel_zoom,box_zoom,reset,save",
                    width=1000, height=600)
 
-    # Scatter plot for individual points (Development)
-    scatter_dev = p.scatter(x='shifted_time', y=y_col, source=scatter_source_dev,
-              size=8, color='blue', alpha=0.6, legend_label='Development')
+    if show_scatter:
+        # Scatter plot for individual points (Development)
+        scatter_dev = p.scatter(x='shifted_time', y=y_col, source=scatter_source_dev,
+                size=8, color='blue', alpha=0.6, legend_label='Development')
 
-    # Scatter plot for individual points (Regeneration)
-    scatter_reg = p.scatter(x='shifted_time', y=y_col, source=scatter_source_reg,
-              size=8, color='orange', alpha=0.6, legend_label='Regeneration')
+        # Scatter plot for individual points (Regeneration)
+        scatter_reg = p.scatter(x='shifted_time', y=y_col, source=scatter_source_reg,
+                size=8, color='orange', alpha=0.6, legend_label='Regeneration')
+
+        # Add hover tool for scatter plot
+        hover = HoverTool(renderers=[scatter_dev,scatter_reg])
+        hover.tooltips = [
+            ("Time (hpf)", "@{time in hpf}"),
+            (y_name, f"@{{{y_col}}}"),
+            ("Condition", "@{condition}"),
+            ("Mask Folder", "@{Mask Folder}")
+        ]
+        p.add_tools(hover)
 
     if fit_results  is not None:
         for condition, color in zip(['Development', 'Regeneration'], ['blue', 'orange']):
@@ -571,8 +582,10 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
                 if condition=='Development':
                     # Whiskers
                     p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
-                    p.line(x=[time - width / 3, time ], y=[lower_bound, lower_bound], line_width=2, color='black')
-                    p.line(x=[time - width / 3, time ], y=[upper_bound, upper_bound], line_width=2, color='black')
+                    p.line(x=[time - width / 4, time ], y=[lower_bound, lower_bound], line_width=1, color='black')
+                    p.line(x=[time - width / 3, time ], y=[q1, q1], line_width=2, color='black')
+                    p.line(x=[time - width / 3, time ], y=[q3, q3], line_width=2, color='black')
+                    p.line(x=[time - width / 4, time ], y=[upper_bound, upper_bound], line_width=1, color='black')
 
                     # Median
                     p.line(x=[time - width / 2, time], y=[q2, q2], line_width=3, color='black')
@@ -580,13 +593,16 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
                 else:
                     # Whiskers
                     p.segment(x0=[time], y0=[lower_bound], x1=[time], y1=[upper_bound], color='black', line_width=2)
-                    p.line(x=[time , time + width / 3], y=[lower_bound, lower_bound], line_width=2, color='black')
-                    p.line(x=[time , time + width / 3], y=[upper_bound, upper_bound], line_width=2, color='black')
+                    p.line(x=[time , time + width / 4], y=[lower_bound, lower_bound], line_width=1, color='black')
+                    p.line(x=[time , time + width / 3], y=[q1, q1], line_width=2, color='black')
+                    p.line(x=[time , time + width / 3], y=[q3, q3], line_width=2, color='black')
+                    p.line(x=[time , time + width / 4], y=[upper_bound, upper_bound], line_width=1, color='black')
 
                     # Median
                     p.line(x=[time , time + width / 2], y=[q2, q2], line_width=3, color='black')
                     p.scatter(x=[time], y=[q2], size=10, color='black', marker='x')
         else:
+            raise
             for i, (time, val) in enumerate(zip(times, values)):
                 lower_bound, q1, q2, q3, upper_bound = np.percentile(val, [10, 25, 50, 75, 90])
                 print(lower_bound, q1, q2, q3, upper_bound)
@@ -609,15 +625,7 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
     # Configure the legend
     p.legend.location = "top_left"
 
-    # Add hover tool for scatter plot
-    hover = HoverTool(renderers=[scatter_dev,scatter_reg])
-    hover.tooltips = [
-        ("Time (hpf)", "@{time in hpf}"),
-        (y_name, f"@{{{y_col}}}"),
-        ("Condition", "@{condition}"),
-        ("Mask Folder", "@{Mask Folder}")
-    ]
-    p.add_tools(hover)
+    
 
     p.xaxis.axis_label_text_font_size = "16pt"
     p.yaxis.axis_label_text_font_size = "16pt"

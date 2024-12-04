@@ -16,6 +16,9 @@ import pymeshfix as mf
 from scipy.spatial import cKDTree
 from scipy.ndimage import label, binary_fill_holes
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import *
 from IO import *
 

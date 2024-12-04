@@ -7,6 +7,9 @@ from simple_file_checksum import get_checksum
 import pyvista as pv
 import shutil
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import *
 from IO import *
 
