@@ -173,10 +173,12 @@ def main():
     #results,t_values=getFit()
 
     df=getData()
-    df=add_ED_Data(df)
+    
     
     print(df)
 
+    # df.to_csv('output.csv', index=False)  
+    # return
 
 
     #Checks
@@ -195,10 +197,11 @@ def main():
     # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
-    # plot_double_timeseries(df, y_col='Volume', style='violin')
-    # plot_double_timeseries(df, y_col='Surface Area', style='violin')
-    plot_double_timeseries(df, y_col='Volume ED', style='violin')
-    plot_double_timeseries(df, y_col='N_objects', style='violin')
+    plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Tissue Volume $$10^6 \mu m^3$$',test_significance=True,y0=0)
+    plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    df=add_ED_Data(df)
+    plot_double_timeseries(df, y_col='Volume ED', style='violin',y_scaling=1e-5,y_name=r'Endosceletal disc Volume $$10^5 \mu m^3$$',test_significance=True,y0=0)
+    plot_double_timeseries(df, y_col='N_objects', style='violin',y_name=r'Endosceletal disc Cell number',test_significance=True,y0=0)
     # fit={
     #     't_values':t_values,
     #     'Development': results['A_Development_noisy'],
@@ -213,7 +216,8 @@ def main():
                  'Development': 'blue', 
                  }
     marker_dict = {'Development': 'circle', 'Regeneration': 'triangle', 'Smoc12': 'square'}
-    #corner_plot = plot_scatter_corner(df=df, parameters=['Volume','Surface Area','V / A', 'Volume ED','N_objects'], color_col='condition',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    corner_plot = plot_scatter_corner(df=df, parameters=['Volume','Surface Area','V / A', 'Volume ED','N_objects'], color_col='condition',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    show(corner_plot)
     corner_plot = plot_scatter_corner(df=df, parameters=['Volume','Surface Area','V / A', 'Volume ED','N_objects'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
     show(corner_plot)
 if __name__ == "__main__":

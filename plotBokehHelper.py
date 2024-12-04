@@ -560,7 +560,7 @@ def plot_double_timeseries(df, y_col=None, style='box',y_scaling=1.0,y_name=None
                     #time_shift=time+width/4 
 
                     p.patch(np.concatenate([np.array([time,time]), (time + kde_values)[::-1]]),
-                            np.concatenate([np.array([x[-1],x[0]]), x[::-1]]),
+                            np.concatenate([np.array([x[0],x[-1]]), x[::-1]]),
                             alpha=0.3, color=color, line_color=color)
 
         # Add lines and whiskers (Development and Regeneration)
