@@ -3,6 +3,7 @@ import pandas as pd
 from plotBokehHelper import plot_double_timeseries
 from plotHelper import plot_scatter_corner
 from bokeh.io import show
+import pyvista as pv
 
 from config import *
 from IO import *
@@ -35,29 +36,116 @@ def collect_dfs():
     merged_df = pd.concat(all_dfs, ignore_index=True)
     return merged_df
 
+def collect_dfs_proj():
+     # Initialize an empty list to collect all dataframes
+    all_dfs = []
+
+    # Iterate through folders
+    EDprops_folder_list = [item for item in os.listdir(ED_cell_props_path) if os.path.isdir(os.path.join(ED_cell_props_path, item))]
+    for EDprop_folder in EDprops_folder_list:
+        print(EDprop_folder)
+        EDprop_folder_path = os.path.join(ED_cell_props_path, EDprop_folder)
+
+        EDpropMetaData = get_JSON(EDprop_folder_path)
+        if not EDpropMetaData:
+            print('No EDprops found')
+            continue
+
+        # Load the dataframe
+        df_proj = pd.read_hdf(os.path.join(EDprop_folder_path, EDpropMetaData['MetaData_EDcell_proj']['EDcell_proj file']), key='data')
+        if len(df_proj.columns)<9:
+            print('projection incorrect!')
+            continue
+        # Add metadata as new columns
+        df_proj['time in hpf'] = EDpropMetaData['MetaData_EDcell_props']['time in hpf']
+        df_proj['condition'] = EDpropMetaData['MetaData_EDcell_props']['condition']
+
+        folder_path=os.path.join(FlatFin_path,EDprop_folder+'_FlatFin')
+        FF_MetaData=get_JSON(folder_path)
+        if FF_MetaData=={}:
+            print('no FF_MetaData')
+            continue
+        surface_file_name=FF_MetaData['Thickness_MetaData']['Surface file']
+        mesh=pv.read(os.path.join(folder_path,surface_file_name))
+        
+        normal_vectors = np.array([
+            mesh.point_normals[index]
+            for index in df_proj['Closest Mesh Point Index']
+        ])
+        e1 = np.array([
+            mesh.point_data['direction_1'][index]
+            for index in df_proj['Closest Mesh Point Index']
+        ])
+        e2 = np.array([
+            mesh.point_data['direction_2'][index]
+            for index in df_proj['Closest Mesh Point Index']
+        ])
+        
+        df_proj['normal vector Z'], df_proj['normal vector Y'], df_proj['normal vector X'] = normal_vectors[:,0],normal_vectors[:,1],normal_vectors[:,2]
+        df_proj['e1 Z'], df_proj['e1 Y'], df_proj['e1 X'] = e1[:,0],e1[:,1],e1[:,2]
+        df_proj['e2 Z'], df_proj['e2 Y'], df_proj['e2 X'] = e2[:,0],e2[:,1],e2[:,2]
+
+
+        # Append the dataframe to the list
+        all_dfs.append(df_proj)
+
+    merged_df = pd.concat(all_dfs, ignore_index=True)
+    return merged_df
+
+
+
 def main():
     # merged_df=collect_dfs()
     # merged_df.to_hdf('data.h5', key='df', mode='w')
-    merged_df = pd.read_hdf('data.h5', key='df')
-    print(merged_df.columns)
+    prop_df = pd.read_hdf('data.h5', key='df')
+    print(prop_df.columns)
+
+    #proj_df=collect_dfs_proj()
+    #proj_df.to_hdf('data_proj.h5', key='df', mode='w')
+    proj_df = pd.read_hdf('data_proj.h5', key='df')
+    print(proj_df.columns)
+
+
+    merged_df = pd.merge(prop_df, proj_df, on=['Label','time in hpf','condition'], how='inner')
+
     merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
     merged_df = merged_df.dropna()
 
     merged_df['2I1/I2+I3']=2*merged_df['inertia_tensor_eigvals 1']/(merged_df['inertia_tensor_eigvals 2']+merged_df['inertia_tensor_eigvals 3'])
     merged_df['I1+I2/2I3']=(merged_df['inertia_tensor_eigvals 1']+merged_df['inertia_tensor_eigvals 2'])/(2*merged_df['inertia_tensor_eigvals 3'])
-    
+    merged_df['I1/I2']=merged_df['inertia_tensor_eigvals 1']/merged_df['inertia_tensor_eigvals 2']
+    merged_df['I2/I3']=merged_df['inertia_tensor_eigvals 2']/merged_df['inertia_tensor_eigvals 3']
+
+    merged_df['orientation'] = np.abs(
+    merged_df['eigvec1_X'] * merged_df['normal vector X'] +
+    merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
+    merged_df['eigvec1_Z'] * merged_df['normal vector Z']
+    )
+
+    # merged_df['orientation'] = np.abs(
+    # merged_df['eigvec1_X'] * merged_df['e2 X'] +
+    # merged_df['eigvec1_Y'] * merged_df['e2 Y'] +
+    # merged_df['eigvec1_Z'] * merged_df['e2 Z']
+    # )
+
+    print(merged_df.columns)
     # plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Surface Area', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Solidity', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Sphericity', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='2I1/I2+I3', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='I1+I2/2I3', style='violin',test_significance=True,y0=0,show_scatter=False)
+    plot_double_timeseries(merged_df, y_col='orientation', style='violin',test_significance=True,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='I1/I2', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='I2/I3', style='violin',test_significance=True,y0=0,show_scatter=False)
+    return
 
     color_dict = {'Regeneration': 'orange',
                  'Development': 'blue', 
                  }
-    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle', 'Smoc12': 'square'}
-    corner_plot = plot_scatter_corner(df=merged_df, parameters=['Volume','Surface Area','Solidity', 'Sphericity','2I1/I2+I3', 'I1+I2/2I3'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle'}
+    #corner_plot = plot_scatter_corner(df=merged_df, parameters=['Volume','Surface Area','2I1/I2+I3', 'I1+I2/2I3','orientation'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    corner_plot = plot_scatter_corner(df=merged_df, parameters=['Volume','Surface Area','2I1/I2+I3', 'I1+I2/2I3','orientation'], color_col='condition',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
     show(corner_plot)
 
 if __name__ == "__main__":
