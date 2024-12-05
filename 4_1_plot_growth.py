@@ -175,8 +175,16 @@ def main():
     df=getData()
     
     
-    print(df)
+    print(df.columns)
+    # filtered_df = df[df['time in hpf'] == 120]
 
+    # # Group by 'condition' and calculate mean and std for specified columns
+    # columns_of_interest = ['Volume', 'Surface Area', 'L PD', 'L AP', 'L AP * L PD', 'V / A']
+    # grouped_stats = filtered_df.groupby('condition')[columns_of_interest].agg(['mean', 'std'])
+
+    # # Print results
+    # print(grouped_stats)
+    # raise
     # df.to_csv('output.csv', index=False)  
     # return
 

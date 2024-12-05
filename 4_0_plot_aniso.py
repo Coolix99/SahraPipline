@@ -2,6 +2,7 @@ import pandas as pd
 import os
 import numpy as np
 from sklearn.linear_model import LinearRegression
+from bokeh.layouts import row
 
 from plotHelper import plot_flexible_timeseries
 from bokeh.io import show
@@ -80,8 +81,10 @@ def plot():
     # Define the color and marker dictionaries
     color_dict = {'Regeneration': 'orange',
                  'Development': 'blue', 
+                 '72FF_cut':'black',
+                 '48FF_cut':'grey'
                  }
-    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle'}
+    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle','72FF_cut':'square','48FF_cut':'circle'}
 
     _, p, _ = plot_flexible_timeseries(
         df=cleaned_df,
@@ -165,8 +168,57 @@ def plot():
 
     show(p)
 
+def plot_full():
+    cleaned_df = getData()
+
+    print(cleaned_df.columns)
+
+
+    # Define the color and marker dictionaries
+    color_dict = {'Regeneration': 'orange',
+                 'Development': 'blue', 
+                 '72FF_cut':'black',
+                 '48FF_cut':'grey'
+                 }
+    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle','72FF_cut':'square','48FF_cut':'circle'}
+
+    p_left, p_middle, p_right = plot_flexible_timeseries(
+        df=cleaned_df,
+        time_col='time in hpf',
+        value_A_col='L PD',
+        value_B_col='L AP',
+        category_col='condition',
+        color_dict=color_dict,
+        marker_dict=marker_dict,
+        color_by='time', 
+        show_candle=True  ,
+        A_axis_label=r'$$L_{PD}$$ in $$ \mu m$$',
+        B_axis_label=r'$$L_{AP}$$ in $$\mu m$$'
+    )
+
+   
+    show(row(p_left, p_middle, p_right))
+   
+    
+    p_left, p_middle, p_right = plot_flexible_timeseries(
+        df=cleaned_df,
+        time_col='time in hpf',
+        value_A_col='L PD',
+        value_B_col='L AP',
+        category_col='condition',
+        color_dict=color_dict,
+        marker_dict=marker_dict,
+        color_by='category', 
+        show_candle=True  ,
+        A_axis_label=r'$$L_{PD}$$ in $$ \mu m$$',
+        B_axis_label=r'$$L_{AP}$$ in $$\mu m$$'
+    )
+
+    show(row(p_left, p_middle, p_right))
+
 
 
 if __name__ == "__main__":
-    plot()
+    plot_full()
+    #plot()
 
