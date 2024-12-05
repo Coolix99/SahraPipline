@@ -11,6 +11,9 @@ import xml.etree.ElementTree as ET
 from scipy.ndimage import gaussian_filter, label
 from scipy.ndimage import binary_fill_holes
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import *
 from IO import *
 
