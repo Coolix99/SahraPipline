@@ -113,10 +113,9 @@ def orient_session(mask_img,membrane_img,ED_img):
         {'coordinate_px': last_viewer_direction, 'name': 'viewer_direction_AP'}
         ]
     napari.run()
+
     df = pd.DataFrame(points_data)
     
-    
-
 
     v1=extract_coordinate(df,'Proximal_pt')-extract_coordinate(df,'Distal_pt')
     v1 = v1 / np.linalg.norm(v1)

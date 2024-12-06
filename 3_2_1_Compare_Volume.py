@@ -67,14 +67,24 @@ def main():
     print(result)
 
 def test():
-    impath1=os.path.join('/media/max_kotz/sahra_shivani_data/sorted_data/finmasks/160624_reg_sox10_claudin-gfp_72h_pecfin1','160624_reg_sox10_claudin-gfp_72h_pecfin1.tif')
-    impath2=os.path.join('/media/max_kotz/sahra_shivani_data/from_Shivani/tissue_masks/masks_72hpf_reg','160624_reg_sox10_claudin-gfp_72h_pecfin1.tif')
+    impath1=os.path.join('/media/max_kotz/sahra_shivani_data/sorted_data/finmasks/20240320sox10_claudin96hpfdev1_Stitch','20240320sox10_claudin96hpfdev1_Stitch.tif')
+    impath2=os.path.join('/media/max_kotz/sahra_shivani_data/from_Sahra/96hpf','20240320sox10_claudin96hpfdev1_Stitch.tif')
 
     im1=getImage(impath1)
     im2=getImage(impath2)
 
-    print(np.sum(im1>0)*0.7*0.2075664552409598*0.2075664552409598)
-    print(np.sum(im2>0)*0.7*0.2075664552409598*0.2075664552409598)
+    import napari
+    viewer = napari.Viewer()
+
+    # Add images to the viewer with the specified pixel size
+    viewer.add_image(im1, name='wo scale')
+    viewer.add_image(im1, name='w scale', scale=(1,0.3459443901311752,0.3459443901311752))
+
+    # Start the Napari event loop
+    napari.run()
+
+    print(np.sum(im1>0))
+    print(np.sum(im2>0))
 
 if __name__ == "__main__":
     #main()
