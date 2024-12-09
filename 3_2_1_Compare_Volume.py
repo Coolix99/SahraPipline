@@ -56,9 +56,10 @@ def main():
     merged_df = merged_df.drop(columns=['group'])
 
     merged_df['diff']=np.abs(merged_df['Volume']-merged_df['volume_compare'])/(merged_df['Volume']+merged_df['volume_compare'])
+    print(merged_df.columns)
 
     sorted_df = merged_df.sort_values(by='diff', ascending=False)
-
+    sorted_df=sorted_df[sorted_df['experimentalist']=='Shivani']
     # Select the desired columns
     result = sorted_df[['Mask Folder', 'Volume', 'volume_compare', 'condition', 'time in hpf','diff']]
 
@@ -67,24 +68,29 @@ def main():
     print(result)
 
 def test():
-    impath1=os.path.join('/media/max_kotz/sahra_shivani_data/sorted_data/finmasks/20240320sox10_claudin96hpfdev1_Stitch','20240320sox10_claudin96hpfdev1_Stitch.tif')
-    impath2=os.path.join('/media/max_kotz/sahra_shivani_data/from_Sahra/96hpf','20240320sox10_claudin96hpfdev1_Stitch.tif')
+    impath_max=os.path.join('/media/max_kotz/sahra_shivani_data/sorted_data/finmasks/100724_reg_sox10_claudin-gfp_48h_pecfin2','100724_reg_sox10_claudin-gfp_48h_pecfin2.tif')
+    #impath_exp=os.path.join('/media/max_kotz/sahra_shivani_data/from_Sahra/120hpf','20240321sox10_clau120hpfdev6_Stitch.tif')
+    impath_exp=os.path.join('/media/max_kotz/sahra_shivani_data/from_Shivani/tissue_masks/masks_48hpf_reg','100724_reg_sox10_claudin-gfp_48h_pecfin2.tif')
 
-    im1=getImage(impath1)
-    im2=getImage(impath2)
+    im_max=getImage(impath_max)
+    im_exp=getImage(impath_exp)
 
-    import napari
-    viewer = napari.Viewer()
+    # import napari
+    # viewer = napari.Viewer()
 
-    # Add images to the viewer with the specified pixel size
-    viewer.add_image(im1, name='wo scale')
-    viewer.add_image(im1, name='w scale', scale=(1,0.3459443901311752,0.3459443901311752))
+    # # Add images to the viewer with the specified pixel size
+    # viewer.add_image(im1, name='wo scale')
+    # viewer.add_image(im1, name='w scale', scale=(1,0.3459443901311752,0.3459443901311752))
 
-    # Start the Napari event loop
-    napari.run()
+    # # Start the Napari event loop
+    # napari.run()
 
-    print(np.sum(im1>0))
-    print(np.sum(im2>0))
+    Npix_max=np.sum(im_max>0)
+    Npix_exp=np.sum(im_exp>0)
+    print('Npix_max',Npix_max)
+    print('Npix_exp',Npix_exp)
+    print('V_max',Npix_max*0.7*0.2075664552409598*0.2075664552409598)
+    
 
 if __name__ == "__main__":
     #main()
