@@ -62,10 +62,8 @@ parameters {
     real alpha_tilde;
     real beta_tilde;
 
-    real A_end_Dev_tilde;
-    real A_cut_Dev_tilde;
-    real A_end_Reg_tilde;
-    real A_cut_Reg_tilde;
+    real A_end_tilde;
+    real A_cut_tilde;
 
     real A_0_Dev_tilde;
     real g_0_Dev;
@@ -77,11 +75,10 @@ transformed parameters {
    real alpha = 10^alpha_tilde;
    real beta_ = (alpha / 4) * 10^beta_tilde;
 
-   real A_end_Dev = 10^A_end_Dev_tilde;
-   real A_cut_Dev = 2 + 4 * inv_logit(A_cut_Dev_tilde);
+   real A_end = 10^A_end_tilde;
+   real A_cut = 2 + 4 * inv_logit(A_cut_tilde);
 
-   real A_end_Reg = 10^A_end_Reg_tilde;
-   real A_cut_Reg = 2 + 4 * inv_logit(A_cut_Reg_tilde);
+ 
 
    real A_0_Dev = 10^A_0_Dev_tilde;
    real A_0_Reg = 10^A_0_Reg_tilde;
@@ -93,10 +90,9 @@ model {
     alpha_tilde ~ normal(-0.5, 0.5);
     beta_tilde ~ normal(0, 0.1);
 
-    A_end_Dev_tilde ~ normal(1.0, 0.1);
-    A_cut_Dev_tilde ~ normal(0, 1);  
-    A_end_Reg_tilde ~ normal(1.0, 0.1);
-    A_cut_Reg_tilde ~ normal(0, 1);  
+    A_end_tilde ~ normal(1.0, 0.1);
+    A_cut_tilde ~ normal(0, 1);  
+ 
         
     g_0_Dev ~ normal(0, 0.1);
     A_0_Dev_tilde ~ normal(0.3, 0.15);
@@ -104,11 +100,11 @@ model {
     A_0_Reg_tilde ~ normal(0.3, 0.15);
 
    // Likelihood
-    A_Dev ~ normal(A_theor(t_Dev, A_0_Dev, g_0_Dev, alpha, beta_, A_end_Dev, A_cut_Dev), sigma);
-    A_Reg ~ normal(A_theor(t_Reg, A_0_Reg, g_0_Reg, alpha, beta_, A_end_Reg, A_cut_Reg), sigma);
+    A_Dev ~ normal(A_theor(t_Dev, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut), sigma);
+    A_Reg ~ normal(A_theor(t_Reg, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut), sigma);
 }
 
 generated quantities {
-  array[N_ppc] real A_Dev_ppc = normal_rng(A_theor(t_ppc, A_0_Dev, g_0_Dev, alpha, beta_, A_end_Dev, A_cut_Dev), sigma);
-  array[N_ppc] real A_Reg_ppc = normal_rng(A_theor(t_ppc, A_0_Reg, g_0_Reg, alpha, beta_, A_end_Reg, A_cut_Reg), sigma);
+  array[N_ppc] real A_Dev_ppc = normal_rng(A_theor(t_ppc, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut), sigma);
+  array[N_ppc] real A_Reg_ppc = normal_rng(A_theor(t_ppc, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut), sigma);
 }

@@ -12,7 +12,7 @@ if(machine=='Laptop'):
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
 if(machine=='BA'):
-    Sahra_Shivani_path=(r'/home/max/Documents/02_Data/sahra_shivani_data')
+    #Sahra_Shivani_path=(r'/home/max/Documents/02_Data/sahra_shivani_data')
     Sahra_Shivani_path=(r'/media/max_kotz/sahra_shivani_data')
     script_dir = os.path.dirname(os.path.abspath(__file__))
     
