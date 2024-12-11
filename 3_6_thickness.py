@@ -1,6 +1,8 @@
 import pandas as pd
 import pyvista as pv 
 import numpy as np
+import git
+from simple_file_checksum import get_checksum
 
 from config import *
 from IO import *
@@ -44,7 +46,7 @@ def get_thickness_cellLayers(mesh:pv.PolyData,EDcells_img,scales_zyx):
     p = mesh.points
 
     d_max = 40
-    dd = 1
+    dd = 0.5
 
     d = np.linspace(-d_max, d_max, int(2 * d_max / dd) + 1)
 
@@ -75,7 +77,7 @@ def get_thickness_cellLayers(mesh:pv.PolyData,EDcells_img,scales_zyx):
     thickness = np.zeros((values.shape[0]), dtype=np.float32)
     # Compute the real-space center for each N
     for i in range(values.shape[0]):
-        if binary_values[i].sum() > 10:  # Avoid division by zero
+        if binary_values[i].sum() > 4:  # Avoid division by zero
             # Weighted center along the M axis
             center_m = np.average(d, weights=binary_values[i])
             centers[i] = mesh.points[i] + center_m * mesh.point_normals[i]
@@ -90,20 +92,20 @@ def get_thickness_cellLayers(mesh:pv.PolyData,EDcells_img,scales_zyx):
    
     print(object_counts.shape)
 
-    v=mesh.points
-    f=mesh.faces.reshape((-1,4))[:,1:4]
+    # v=mesh.points
+    # f=mesh.faces.reshape((-1,4))[:,1:4]
 
-    import napari
-    viewer=napari.Viewer()
+    # import napari
+    # viewer=napari.Viewer()
 
-    viewer.add_surface((v,f,object_counts),name='mesh with count')
-    viewer.add_surface((v,f,thickness),name='thickness')
-    viewer.add_labels(EDcells_img,name='ED',scale=scales_zyx)
-    viewer.add_points(centers,name='centers')
+    # viewer.add_surface((v,f,object_counts),name='mesh with count')
+    # viewer.add_surface((v,f,thickness),name='thickness')
+    # viewer.add_labels(EDcells_img,name='ED',scale=scales_zyx)
+    # viewer.add_points(centers,name='centers')
 
-    napari.run()
+    # napari.run()
 
-    return centers,object_counts
+    return centers,object_counts,thickness
 
 def main():
     EDcells_folder_list= [item for item in os.listdir(ED_cells_path) if os.path.isdir(os.path.join(ED_cells_path, item))]
@@ -125,11 +127,11 @@ def main():
         
         data_name=matches[0]
         print(data_name)
-        # ED_cell_props_folder_path=os.path.join(ED_cell_props_path,data_name)
-        # MetaData_EDcell_props=get_JSON(ED_cell_props_folder_path)
-        # if not 'MetaData_EDcell_props' in MetaData_EDcell_props:
-        #     print('no props metadata')
-        #     continue
+        ED_cell_props_folder_path=os.path.join(ED_cell_props_path,data_name)
+        MetaData_EDcell_props=get_JSON(ED_cell_props_folder_path)
+        if not 'MetaData_EDcell_props' in MetaData_EDcell_props:
+            print('no props metadata')
+            continue
         # if not 'MetaData_EDcell_top' in MetaData_EDcell_props:
         #     print('no top metadata')
         #     continue
@@ -144,8 +146,33 @@ def main():
         EDcells_img=getImage(os.path.join(EDcells_folder_path,EDcellsMetaData['MetaData_EDcells']['EDcells file'])).astype(np.uint16)
         
         scales_zyx=FF_MetaData['Thickness_MetaData']['scales ZYX']
-        res=get_thickness_cellLayers(mesh,EDcells_img,scales_zyx)
-        return
+
+        centers,object_counts,thickness=get_thickness_cellLayers(mesh,EDcells_img,scales_zyx)
+        
+        saveArr(centers,os.path.join(ED_cell_props_folder_path,'centers_ED'))
+        saveArr(object_counts,os.path.join(ED_cell_props_folder_path,'object_counts_ED'))
+        saveArr(thickness,os.path.join(ED_cell_props_folder_path,'thickness_ED'))
+
+        MetaData_EDthick_top={}
+        repo = git.Repo(gitPath,search_parent_directories=True)
+        sha = repo.head.object.hexsha
+        MetaData_EDthick_top['git hash']=sha
+        MetaData_EDthick_top['git repo']='Sahrapipline'
+        MetaData_EDthick_top['centers file']='centers_ED'
+        MetaData_EDthick_top['object_counts file']='object_counts_ED'
+        MetaData_EDthick_top['thickness file']='thickness_ED'
+        MetaData_EDthick_top['condition']=FF_MetaData['Thickness_MetaData']['condition']
+        MetaData_EDthick_top['time in hpf']=FF_MetaData['Thickness_MetaData']['time in hpf']
+        MetaData_EDthick_top['genotype']=FF_MetaData['Thickness_MetaData']['genotype']
+        MetaData_EDthick_top['experimentalist']=FF_MetaData['Thickness_MetaData']['experimentalist']
+        MetaData_EDthick_top['scales ZYX']=FF_MetaData['Thickness_MetaData']['scales ZYX']
+        check=get_checksum(os.path.join(ED_cell_props_folder_path,'centers_ED.npy'), algorithm="SHA1")+\
+            get_checksum(os.path.join(ED_cell_props_folder_path,'centers_ED.npy'), algorithm="SHA1")+\
+            get_checksum(os.path.join(ED_cell_props_folder_path,'centers_ED.npy'), algorithm="SHA1")
+        MetaData_EDthick_top['EDthik checksum']=check
+        writeJSON(ED_cell_props_folder_path,'MetaData_EDthik',MetaData_EDthick_top)      
+        
+        
 
 if __name__ == "__main__":
     main()
