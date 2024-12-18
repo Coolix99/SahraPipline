@@ -207,10 +207,10 @@ def main():
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
     #plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Tissue Volume $$10^6 \mu m^3$$',test_significance=True,y0=0)
     #plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
-    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='72FF_cut',y_scaling=1e-4,color='black',width=width)
-    show(p)
-    return
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='Surface Area',category='72FF_cut',y_scaling=1e-4,color='black',width=width)
+    # show(p)
+    
     df=add_ED_Data(df)
     plot_double_timeseries(df, y_col='Volume ED', style='violin',y_scaling=1e-5,y_name=r'Endosceletal disc Volume $$10^5 \mu m^3$$',test_significance=True,y0=0)
     plot_double_timeseries(df, y_col='N_objects', style='violin',y_name=r'Endosceletal disc Cell number',test_significance=True,y0=0)
@@ -233,5 +233,6 @@ def main():
     show(corner_plot)
     corner_plot = plot_scatter_corner(df=df, parameters=['Volume','Surface Area','V / A', 'Volume ED','N_objects'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
     show(corner_plot)
+    
 if __name__ == "__main__":
     main()

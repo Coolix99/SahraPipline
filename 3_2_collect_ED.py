@@ -294,4 +294,4 @@ def main(find_cell_props=True, find_topology=True):
         
 
 if __name__ == "__main__":
-    main(find_cell_props=False,find_topology=False)
+    main(find_cell_props=True,find_topology=False)

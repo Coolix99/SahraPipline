@@ -196,9 +196,9 @@ class RegionPropertiesPS(RegionProperties):
                     Tensor_2nd[i, j] = Tensor_2nd[j, i] = cm[1 if i == 0 or j == 0 else 0,
                                                     1 if i == 1 or j == 1 else 0,
                                                     1 if i == 2 or j == 2 else 0]
-        print(Tensor_2nd.shape)
-        print(Tensor_2nd)
-        print(self.Vox_size)
+        # print(Tensor_2nd.shape)
+        # print(Tensor_2nd)
+        # print(self.Vox_size)
         S = np.diag(self.Vox_size)
         # Calculate the rescaled inertia tensor
         Tensor_rescaled = np.dot(S, np.dot(Tensor_2nd, S.T))

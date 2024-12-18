@@ -24,7 +24,7 @@ def collect_dfs():
             continue
 
         # Load the dataframe
-        df_prop = pd.read_hdf(os.path.join(EDprop_folder_path, EDpropMetaData['MetaData_EDcell_props']['EDcells file']), key='data')
+        df_prop = pd.read_hdf(os.path.join(EDprop_folder_path, EDpropMetaData['MetaData_EDcell_props']['EDcell_props file']), key='data')
 
         # Add metadata as new columns
         df_prop['time in hpf'] = EDpropMetaData['MetaData_EDcell_props']['time in hpf']
@@ -95,26 +95,24 @@ def collect_dfs_proj():
 
 
 def main():
-    # merged_df=collect_dfs()
-    # merged_df.to_hdf('data.h5', key='df', mode='w')
+    #merged_df=collect_dfs()
+    #merged_df.to_hdf('data.h5', key='df', mode='w')
     prop_df = pd.read_hdf('data.h5', key='df')
-    print(prop_df.columns)
-
+   
     #proj_df=collect_dfs_proj()
     #proj_df.to_hdf('data_proj.h5', key='df', mode='w')
     proj_df = pd.read_hdf('data_proj.h5', key='df')
-    print(proj_df.columns)
-
 
     merged_df = pd.merge(prop_df, proj_df, on=['Label','time in hpf','condition'], how='inner')
 
     merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
     merged_df = merged_df.dropna()
 
-    merged_df['2I1/I2+I3']=2*merged_df['inertia_tensor_eigvals 1']/(merged_df['inertia_tensor_eigvals 2']+merged_df['inertia_tensor_eigvals 3'])
-    merged_df['I1+I2/2I3']=(merged_df['inertia_tensor_eigvals 1']+merged_df['inertia_tensor_eigvals 2'])/(2*merged_df['inertia_tensor_eigvals 3'])
-    merged_df['I1/I2']=merged_df['inertia_tensor_eigvals 1']/merged_df['inertia_tensor_eigvals 2']
-    merged_df['I2/I3']=merged_df['inertia_tensor_eigvals 2']/merged_df['inertia_tensor_eigvals 3']
+
+    merged_df['2I1/I2+I3']=2*merged_df['moments_eigvals 1']/(merged_df['moments_eigvals 2']+merged_df['moments_eigvals 3'])
+    merged_df['I1+I2/2I3']=(merged_df['moments_eigvals 1']+merged_df['moments_eigvals 2'])/(2*merged_df['moments_eigvals 3'])
+    merged_df['I1/I2']=merged_df['moments_eigvals 1']/merged_df['moments_eigvals 2']
+    merged_df['I2/I3']=merged_df['moments_eigvals 2']/merged_df['moments_eigvals 3']
 
     merged_df['orientation'] = np.abs(
     merged_df['eigvec1_X'] * merged_df['normal vector X'] +
@@ -129,24 +127,25 @@ def main():
     # )
 
     print(merged_df.columns)
-    print(merged_df)
-    return
-    plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='Surface Area', style='violin',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='Solidity', style='violin',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='Sphericity', style='violin',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='2I1/I2+I3', style='violin',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='I1+I2/2I3', style='violin',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='orientation', style='violin',test_significance=True,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='I1/I2', style='violin',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='I2/I3', style='violin',test_significance=True,y0=0,show_scatter=False)
-    return
+    # print(merged_df)
+    # return
+    # plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='Surface Area', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='Solidity', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='Sphericity', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='2I1/I2+I3', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='I1+I2/2I3', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='orientation', style='violin',test_significance=True,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='I1/I2', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='I2/I3', style='violin',test_significance=True,y0=0,show_scatter=False)
+    
 
     color_dict = {'Regeneration': 'orange',
                  'Development': 'blue', 
                  }
     marker_dict = {'Development': 'circle', 'Regeneration': 'triangle'}
-    #corner_plot = plot_scatter_corner(df=merged_df, parameters=['Volume','Surface Area','2I1/I2+I3', 'I1+I2/2I3','orientation'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    corner_plot = plot_scatter_corner(df=merged_df, parameters=['Volume','Surface Area','2I1/I2+I3', 'I1+I2/2I3','orientation'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
+    show(corner_plot)
     corner_plot = plot_scatter_corner(df=merged_df, parameters=['Volume','Surface Area','2I1/I2+I3', 'I1+I2/2I3','orientation'], color_col='condition',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
     show(corner_plot)
 
@@ -160,8 +159,8 @@ def draw_pictogram_solidity(solidity):
     import matplotlib.pyplot as plt
     import matplotlib.patches as patches
 
-    # solidity = (1+4h)/(1+4h+1/2h²)
-    a = 0.5 * solidity
+    # solidity = (1+4h)/(1+4h+2h²)
+    a = 2 * solidity
     b = 4 * solidity - 4
     c = solidity - 1
     
@@ -172,14 +171,12 @@ def draw_pictogram_solidity(solidity):
     
     h = (-b + np.sqrt(discriminant)) / (2 * a)
     
-    print((1+4*h)/(1+4*h+1/2*h*h))
+    print((1+4*h)/(1+4*h+2*h*h))
 
     # Initialize the plot
     fig, ax = plt.subplots(figsize=(6, 6))
-    ax.set_xlim(-1.5, 1.5)  # Set axis limits
-    ax.set_ylim(-1.5, 1.5)
-    ax.set_aspect('equal')  # Keep aspect ratio square
     
+
     # Define the sand color
     sand_color = '#C2B280'  # RGB Hex for a sand-like color
     
@@ -198,7 +195,9 @@ def draw_pictogram_solidity(solidity):
     # Add rectangles to the plot
     for rect in arm_rectangles:
         ax.add_patch(rect)
-    
+    ax.set_xlim(-1-h, 1+h)  # Set axis limits
+    ax.set_ylim(-1-h, 1+h)
+    ax.set_aspect('equal')  # Keep aspect ratio square
     # Remove axes for clean pictogram
     plt.axis('off')
     plt.title(f"Cross Pictogram for Solidity = {solidity:.2f}, h = {h:.2f}")
@@ -362,6 +361,8 @@ def draw_ellipsoid_with_inertia(I_x, I_y, I_z, M=1.0):
 if __name__ == "__main__":
     main()
 
-    #draw_pictogram_solidity(0.99)
+    # draw_pictogram_solidity(0.9)
+    # draw_pictogram_solidity(0.8)
+    # draw_pictogram_solidity(0.7)
     #draw_pictogram_sphericity(0.6)
     #draw_ellipsoid_with_inertia(I_x=1.0, I_y=1.0, I_z=0.1)
