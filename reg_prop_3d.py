@@ -171,12 +171,37 @@ class RegionPropertiesPS(RegionProperties):
         area = mesh_surface_area(verts, faces)
         return area
     
+    # @property
+    # def inertia_eigenvecs_eigvals_scaled(self):
+    #     Tensor=self.inertia_tensor
+    #     S = np.diag(self.Vox_size)
+    #     # Calculate the rescaled inertia tensor
+    #     Tensor_rescaled = np.dot(S, np.dot(Tensor, S.T))
+    #     eigenvalues,eigenvectors = np.linalg.eig(Tensor_rescaled)
+    #     sorted_indices = np.argsort(eigenvalues)[::-1]  # Indices to sort in descending order
+    #     sorted_eigenvalues = eigenvalues[sorted_indices]
+    #     sorted_eigenvectors = eigenvectors[:, sorted_indices]
+        
+    #     return np.array(sorted_eigenvectors),np.array(sorted_eigenvalues)
+    
     @property
-    def inertia_eigenvecs_eigvals_scaled(self):
-        Tensor=self.inertia_tensor
+    def moments_2nd_scaled(self):
+        cm=self.moments_central
+        Tensor_2nd=np.zeros((3,3))
+        for i in range(3):
+            for j in range(3):
+                if i == j:  # Diagonal elements
+                    Tensor_2nd[i, j] = cm[2 if i == 0 else 0, 2 if i == 1 else 0, 2 if i == 2 else 0]
+                else:  # Off-diagonal elements (symmetric positions)
+                    Tensor_2nd[i, j] = Tensor_2nd[j, i] = cm[1 if i == 0 or j == 0 else 0,
+                                                    1 if i == 1 or j == 1 else 0,
+                                                    1 if i == 2 or j == 2 else 0]
+        print(Tensor_2nd.shape)
+        print(Tensor_2nd)
+        print(self.Vox_size)
         S = np.diag(self.Vox_size)
         # Calculate the rescaled inertia tensor
-        Tensor_rescaled = np.dot(S, np.dot(Tensor, S.T))
+        Tensor_rescaled = np.dot(S, np.dot(Tensor_2nd, S.T))
         eigenvalues,eigenvectors = np.linalg.eig(Tensor_rescaled)
         sorted_indices = np.argsort(eigenvalues)[::-1]  # Indices to sort in descending order
         sorted_eigenvalues = eigenvalues[sorted_indices]
@@ -199,3 +224,6 @@ class RegionPropertiesPS(RegionProperties):
     @property
     def convex_volume(self):
         return self.convex_area*self.Vox_size[0]*self.Vox_size[1]*self.Vox_size[2]
+    
+
+    

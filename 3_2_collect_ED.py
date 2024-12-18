@@ -69,7 +69,7 @@ def getCellProps(seg,Vox_size):
     
     volumes=[]
     surface_areas=[]
-    inertia_eigenvecs_eigvals_scaled=[]
+    moments_2nd_scaled=[]
     soliditys=[]
     sphericity=[]
     centroids=[]
@@ -80,7 +80,7 @@ def getCellProps(seg,Vox_size):
             print(i, ' of ', len(props))
         volumes.append(r['volume'])
         surface_areas.append(r['surface_area'])
-        inertia_eigenvecs_eigvals_scaled.append(r['inertia_eigenvecs_eigvals_scaled'])
+        moments_2nd_scaled.append(r['moments_2nd_scaled'])
         soliditys.append(r['solidity'])
         sphericity.append(r['sphericity'])
         centroids.append(r['centroid'])
@@ -99,7 +99,7 @@ def getCellProps(seg,Vox_size):
                'eigvec2_X': [], 'eigvec2_Y': [], 'eigvec2_Z': [],
                'eigvec3_X': [], 'eigvec3_Y': [], 'eigvec3_Z': []}
     
-    for eigvecs_vals in inertia_eigenvecs_eigvals_scaled:
+    for eigvecs_vals in moments_2nd_scaled:
         vectors, values = eigvecs_vals
         eigvals.append(values)
         
@@ -118,9 +118,9 @@ def getCellProps(seg,Vox_size):
     
     # Add eigenvalues to DataFrame
     eigvals_df = pd.DataFrame(eigvals, columns=[
-        'inertia_tensor_eigvals 1', 
-        'inertia_tensor_eigvals 2', 
-        'inertia_tensor_eigvals 3'
+        'moments_eigvals 1', 
+        'moments_eigvals 2', 
+        'moments_eigvals 3'
     ])
     df = pd.concat([df, eigvals_df], axis=1)
     
