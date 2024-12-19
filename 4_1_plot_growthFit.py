@@ -224,7 +224,7 @@ def make_FFcut_Parameters_setPoint(df_Posterior_setPoint):
 def make_4850cut_Parameters_setPoint(df_Posterior_setPoint): 
     selected_columns = ['g_0_Reg','A_cut','A_end','alpha','beta_','sigma','A_0_Dev']
     df_1=df_Posterior_setPoint[selected_columns].rename(columns={'g_0_Reg':'g_0','A_0_Dev':'A_0'})
-    df_1['A_0'] = df_1['A_0']*0.6
+    df_1['A_0'] = df_1['A_0']*0.4
     
     df_2=df_1.copy()
     df_2['g_0']=df_2['beta_']*(df_2['A_end']-df_2['A_0'])/df_2['A_end']
@@ -246,7 +246,7 @@ def make_4850cut_Parameters_Dose(df_Posterior_setPoint):
     selected_columns = ['A_0_Dev','g_0_Reg','C0','C1','D_decrease','g_max', 'tau_g','sigma','D_0_Reg']
     df_1=df_Posterior_setPoint[selected_columns].rename(columns={'A_0_Dev':'A_0','g_0_Reg':'g_0', 'D_0_Reg':'D_0'})
     
-    df_1['A_0'] = df_1['A_0']*0.35
+    df_1['A_0'] = df_1['A_0']*0.4
     
     df_2=df_1.copy()
     df_2['D_0']=0
@@ -258,9 +258,13 @@ def make_4850cut_Parameters_Dose(df_Posterior_setPoint):
 
 def main():
     df=getData()
-
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
+    show(p)
+    
+    max_samples=None
     ############Set Point model fitted with Reg Dev Area##########################################
-    df_Posterior_setPoint=getPosterior_setPoint()
+    df_Posterior_setPoint=getPosterior_setPoint(max_samples)
 
     selected_columns = ['A_0_Dev', 'g_0_Dev','A_cut','A_end','alpha','beta_','sigma']
     rename_map = {'A_0_Dev': 'A_0', 'g_0_Dev': 'g_0'}
@@ -308,7 +312,7 @@ def main():
     
     ############Dose model fitted with Reg Dev Area##########################################
 
-    df_Posterior_Dose=getPosterior_Dose()
+    df_Posterior_Dose=getPosterior_Dose(max_samples)
     print(df_Posterior_Dose)
     
     selected_columns = ['A_0_Dev', 'g_0_Dev','C0','C1','D_decrease','g_max', 'tau_g','sigma']
@@ -360,35 +364,36 @@ def main():
     ##########Plot############
     #FFcut
     print(df.columns)
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
-    show(p)
-    p = add_fit_to_plot_II(p, fit_results_dev_setPoint, color='#5056fa',label='Development (SP)')  
-    p = add_fit_to_plot_II(p, fit_results_reg_setPoint, color='#fac150',label='Regeneration (SP)')
-    p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#02067a',label='Development (D)')  
-    p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#855901',label='Regeneration (D)')
-    show(p)
-    p = add_fit_to_plot_II(p, fit_results_FFcut_1_setPoint, color='#72fc79',label='FFcut (SP I)')
-    p = add_fit_to_plot_II(p, fit_results_FFcut_2_setPoint, color='#017d07',label='FFcut (SP II)')
-    p = add_fit_to_plot_II(p, fit_results_FFcut_1_Dose, color='#c253f5',label='FFcut (D I)')
-    p = add_fit_to_plot_II(p, fit_results_FFcut_2_Dose, color='#570080',label='FFcut (D II)')
-    show(p)
-    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='72FF_cut',y_scaling=1e-4,color='black',width=width)
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    # show(p)
+    # p = add_fit_to_plot_II(p, fit_results_dev_setPoint, color='#5056fa',label='Development (SP)')  
+    # p = add_fit_to_plot_II(p, fit_results_reg_setPoint, color='#fac150',label='Regeneration (SP)')
+    # p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#02067a',label='Development (D)')  
+    # p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#855901',label='Regeneration (D)')
+    # show(p)
+    # p = add_fit_to_plot_II(p, fit_results_FFcut_1_setPoint, color='#72fc79',label='FFcut (SP I)')
+    # p = add_fit_to_plot_II(p, fit_results_FFcut_2_setPoint, color='#017d07',label='FFcut (SP II)')
+    # p = add_fit_to_plot_II(p, fit_results_FFcut_1_Dose, color='#c253f5',label='FFcut (D I)')
+    # p = add_fit_to_plot_II(p, fit_results_FFcut_2_Dose, color='#570080',label='FFcut (D II)')
+    # show(p)
+    # p=add_data_to_plot_II(df,p,y_col='Surface Area',category='72FF_cut',y_scaling=1e-4,color='black',width=width)
+    # show(p)
 
     
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
-
+    show(p)
     p = add_fit_to_plot_II(p, fit_results_dev_setPoint, color='#5056fa',label='Development (SP)')  
     p = add_fit_to_plot_II(p, fit_results_reg_setPoint, color='#fac150',label='Regeneration (SP)')
     p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#02067a',label='Development (D)')  
     p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#855901',label='Regeneration (D)')
-
+    show(p)
     p = add_fit_to_plot_II(p, fit_results_4850cut_1_setPoint, color='#72fc79',label='4850cut (SP I)')
     p = add_fit_to_plot_II(p, fit_results_4850cut_2_setPoint, color='#017d07',label='4850cut (SP II)')
     p = add_fit_to_plot_II(p, fit_results_4850cut_1_Dose, color='#c253f5',label='4850cut (D I)')
     p = add_fit_to_plot_II(p, fit_results_4850cut_2_Dose, color='#570080',label='4850cut (D II)')
     show(p)
-    
+    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
+    show(p)
     return
 
 

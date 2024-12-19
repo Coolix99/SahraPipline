@@ -203,7 +203,7 @@ def register_finmask_special(condition_name,skip_existing=True):
             writeJSON(bre_folder_path,'MetaData_bre',MetaData_bre)
 
 
-        return
+        
         
         
         
@@ -212,4 +212,4 @@ def register_finmask_special(condition_name,skip_existing=True):
 
 if __name__ == "__main__":
 
-    register_finmask_special('4850cut',False)
+    register_finmask_special('4850cut')
