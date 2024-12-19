@@ -32,6 +32,8 @@ ED_marker_path=os.path.join(Output_path,'ED_marker')
 ED_cells_path=os.path.join(Output_path,'ED_cells')
 ED_cell_props_path=os.path.join(Output_path,'ED_cell_props')
 finmasks_path=os.path.join(Output_path,'finmasks')
+nucmem_path=os.path.join(Output_path,'nucmem')
+bre_path=os.path.join(Output_path,'bre')
 
 # #Part I
 FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
