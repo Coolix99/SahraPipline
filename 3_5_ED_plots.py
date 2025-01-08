@@ -357,12 +357,275 @@ def draw_ellipsoid_with_inertia(I_x, I_y, I_z, M=1.0):
     plt.tight_layout()
     plt.show()
 
+def statistics():
+    prop_df = pd.read_hdf('data.h5', key='df')
+    proj_df = pd.read_hdf('data_proj.h5', key='df')
+
+    merged_df = pd.merge(prop_df, proj_df, on=['Label','time in hpf','condition'], how='inner')
+
+    merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
+    merged_df = merged_df.dropna()
+
+
+    merged_df['2I1/I2+I3']=2*merged_df['moments_eigvals 1']/(merged_df['moments_eigvals 2']+merged_df['moments_eigvals 3'])
+    merged_df['I1+I2/2I3']=(merged_df['moments_eigvals 1']+merged_df['moments_eigvals 2'])/(2*merged_df['moments_eigvals 3'])
+    merged_df['I1/I2']=merged_df['moments_eigvals 1']/merged_df['moments_eigvals 2']
+    merged_df['I2/I3']=merged_df['moments_eigvals 2']/merged_df['moments_eigvals 3']
+
+    merged_df['orientation'] = np.abs(
+    merged_df['eigvec1_X'] * merged_df['normal vector X'] +
+    merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
+    merged_df['eigvec1_Z'] * merged_df['normal vector Z']
+    )
+
+    print(merged_df.columns)
+
+
+    from sklearn.preprocessing import StandardScaler
+
+    merged_df['condition'] = pd.factorize(merged_df['condition'])[0]
+
+    # Select relevant columns
+    selected_features = [
+        'condition','time in hpf','Volume', 'Surface Area', 'Solidity', 'Sphericity',
+        '2I1/I2+I3', 'I1+I2/2I3', 'orientation'
+    ]
+    data = merged_df[selected_features]
+
+    # Scale numerical columns
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(data)
+
+    # Convert back to DataFrame for easier handling
+    scaled_df = pd.DataFrame(scaled_data, columns=selected_features)
+
+    from causallearn.search.ConstraintBased.FCI import fci
+    from causallearn.utils.GraphUtils import GraphUtils
+    #from causallearn.utils.BackgroundKnowledge import BackgroundKnowledge
+    from causallearn.utils.PCUtils.BackgroundKnowledge import BackgroundKnowledge
+    # Convert to numpy array for FCI
+    data_array = scaled_df.to_numpy()
+
+    # Create BackgroundKnowledge object
+    bg_knowledge = BackgroundKnowledge()
+
+    # Add background knowledge: 'condition' and 'time in hpf' have no parents
+    condition_idx = scaled_df.columns.get_loc('condition')
+    time_in_hpf_idx = scaled_df.columns.get_loc('time in hpf')
+
+    cg, _ = fci(data_array, alpha=0.05, indep_test='fisherz')
+    nodes=cg.get_nodes()
+    print(nodes)
+
+    for n in nodes:
+        bg_knowledge.add_forbidden_by_node(n,nodes[condition_idx])
+        bg_knowledge.add_forbidden_by_node(n,nodes[time_in_hpf_idx])
+
+    # Function to apply the FCI algorithm with background knowledge
+    def apply_fci(data, alpha=0.05, indep_test='fisherz', bg_knowledge=None):
+        cg, _ = fci(data, alpha=alpha, indep_test=indep_test, background_knowledge=bg_knowledge)
+        pyd_graph = GraphUtils.to_pydot(cg)
+        return pyd_graph
+
+    # Try different significance levels and independence tests
+    significance_levels = [0.01, 0.05, 0.1]
+    independence_tests = ['fisherz', 'kci']
+
+    for test in independence_tests:
+        for alpha in significance_levels:
+            print(f"Running FCI with {test} test and alpha={alpha}")
+            graph = apply_fci(data_array, alpha, test, bg_knowledge)
+            graph.write_png(f"causal_graph_{test}_alpha{alpha}.png")
+
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+import umap
+from sklearn.cluster import KMeans,AffinityPropagation,MeanShift
+from sklearn.cluster import KMeans, AgglomerativeClustering
+from sklearn.mixture import GaussianMixture
+from sklearn.manifold import Isomap, LocallyLinearEmbedding, SpectralEmbedding, MDS
+import hdbscan
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def cluster():
+    # Load data
+    prop_df = pd.read_hdf('data.h5', key='df')
+    
+    #proj_df = pd.read_hdf('data_proj.h5', key='df')
+
+    # Merge dataframes
+    #merged_df = pd.merge(prop_df, proj_df, on=['Label', 'time in hpf', 'condition'], how='inner')
+    prop_df = prop_df.replace([np.inf, -np.inf], np.nan).dropna()
+    
+    # Calculate new features
+    prop_df['2I1/I2+I3'] = 2 * prop_df['moments_eigvals 1'] / (prop_df['moments_eigvals 2'] + prop_df['moments_eigvals 3'])
+    prop_df['I1+I2/2I3'] = (prop_df['moments_eigvals 1'] + prop_df['moments_eigvals 2']) / (2 * prop_df['moments_eigvals 3'])
+    prop_df['I1/I2'] = prop_df['moments_eigvals 1'] / prop_df['moments_eigvals 2']
+    prop_df['I2/I3'] = prop_df['moments_eigvals 2'] / prop_df['moments_eigvals 3']
+
+    
+    # Select features for scaling
+    features_to_scale = [
+        'Volume', 'Surface Area', 'Solidity', 'Sphericity',
+        '2I1/I2+I3', 'I1+I2/2I3'
+    ]
+
+    # Scale only selected features
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(prop_df[features_to_scale])
+
+    # Create scaled DataFrame, keeping condition and time in hpf unchanged
+    scaled_df = pd.DataFrame(scaled_features, columns=features_to_scale)
+    scaled_df['condition'] = prop_df['condition'].values
+    scaled_df['time in hpf'] = prop_df['time in hpf'].values
+    
+    N1 = 2000  # Number of samples for times <= 72
+    N2 = 2000  # Number of samples for times > 72
+    # Split the DataFrame into two subsets based on 'time in hpf'
+    subset_early = scaled_df[scaled_df['time in hpf'] <= 72].sample(n=N1, random_state=42)
+    subset_late = scaled_df[scaled_df['time in hpf'] > 72].sample(n=N2, random_state=42)
+    # Concatenate both subsets to form the final reduced DataFrame
+    scaled_df = pd.concat([subset_early, subset_late])
+    # Shuffle the combined DataFrame (optional, if order matters)
+    scaled_df = scaled_df.sample(frac=1, random_state=42).reset_index(drop=True)
+    
+    # ---- Embedding Methods ----
+    def apply_embedding(data, method='pca'):
+        if method == 'pca':
+            pca = PCA(n_components=2)
+            embedding = pca.fit_transform(data)
+        elif method == 'tsne':
+            tsne = TSNE(n_components=2)
+            embedding = tsne.fit_transform(data)
+        elif method == 'umap':
+            umap_reducer = umap.UMAP(n_components=2)
+            embedding = umap_reducer.fit_transform(data)
+        elif method == 'isomap':
+            isomap = Isomap(n_components=2)
+            embedding = isomap.fit_transform(data)
+        elif method == 'lle':
+            lle = LocallyLinearEmbedding(n_components=2)
+            embedding = lle.fit_transform(data)
+        elif method == 'specemb':
+            specemb = SpectralEmbedding(n_components=2)
+            embedding = specemb.fit_transform(data)
+        elif method == 'mds':
+            mds = MDS(n_components=2)
+            embedding = mds.fit_transform(data)
+        else:
+            raise ValueError("Unknown embedding method")
+        return embedding
+
+    # Apply embeddings
+    features = scaled_df.drop(['condition', 'time in hpf'], axis=1)
+    embeddings = {
+        'PCA': apply_embedding(features, method='pca'),
+        #'t-SNE': apply_embedding(features, method='tsne'),
+        'UMAP': apply_embedding(features, method='umap'),
+        #'ISOMAP': apply_embedding(features, method='isomap'),
+        #'LLE': apply_embedding(features, method='lle'),
+        'SPECEMB': apply_embedding(features, method='specemb'),
+        #'MDS' : apply_embedding(features, method='mds')
+    }
+
+    # ---- Plot Embeddings with color-coded 'time in hpf' and marker style by 'condition' ----
+    # Get unique values in 'time in hpf'
+    unique_times = sorted(scaled_df['time in hpf'].unique())
+
+    # Create a discrete color palette with one color for each unique time in hpf
+    color_palette = sns.color_palette("flare", len(unique_times))
+
+    # Create a mapping from 'time in hpf' to colors
+    time_color_map = {time: color for time, color in zip(unique_times, color_palette)}
+
+    for embed_name, embed_data in embeddings.items():
+        plt.figure(figsize=(10, 6))
+
+        # Create scatter plot with color based on 'time in hpf' and marker style by 'condition'
+        sns.scatterplot(
+            x=embed_data[:, 0], y=embed_data[:, 1],
+            hue=scaled_df['time in hpf'],  # Color-coded by 'time in hpf'
+            style=scaled_df['condition'],  # Marker style by 'condition'
+            palette=time_color_map,  # Custom color palette
+            markers=True,  # Enable different markers
+            edgecolor='w',  # Add white edge to markers for better visibility
+            s=50  # Marker size
+        )
+
+        # Set plot title and labels
+        plt.title(f'{embed_name} Embedding')
+        plt.xlabel('Component 1')
+        plt.ylabel('Component 2')
+
+        # Customize legend
+        plt.legend(title='Time in hpf & Condition', loc='upper left')
+
+        # Show plot
+        plt.tight_layout()
+        plt.show()
+
+    
+    # ---- Clustering Methods ----
+    def apply_clustering(data, method, n_clusters=None):
+        if method == 'kmeans':
+            return KMeans(n_clusters=n_clusters, random_state=42).fit_predict(data)
+        elif method == 'agglomerative':
+            return AgglomerativeClustering(n_clusters=n_clusters).fit_predict(data)
+        elif method == 'gmm':
+            gmm = GaussianMixture(n_components=n_clusters, random_state=42)
+            return gmm.fit_predict(data)
+        elif method == 'ap':
+            ap = AffinityPropagation(damping=0.75,random_state=42)
+            return ap.fit_predict(data)
+        elif method == 'ms':
+            sm = MeanShift()
+            return sm.fit_predict(data)
+        else:
+            raise ValueError("Unknown clustering method")
+
+    # Define clustering methods and cluster numbers
+    clustering_methods = {
+        'KMeans': [2, 3, 4],
+        'Agglomerative': [2, 3, 4],
+        'GMM': [2, 3, 4],
+        'AP': [None],
+        'MS': [None]
+    }
+
+    # Apply clustering on original feature data
+    clustering_results = {}
+    for method, clusters in clustering_methods.items():
+
+        for n_cluster in clusters:
+            labels = apply_clustering(features, method.lower(), n_cluster)
+            clustering_results[f'{method} {n_cluster} clusters'] = labels
+   
+
+    # ---- Plot Clustering Results on Embeddings ----
+    for embed_name, embed_data in embeddings.items():
+        for method, labels in clustering_results.items():
+            plt.figure(figsize=(10, 6))
+            sns.scatterplot(x=embed_data[:, 0], y=embed_data[:, 1], hue=labels, palette='viridis', legend='full')
+            plt.title(f'{method} Clustering ({embed_name} Embedding)')
+            plt.xlabel('Component 1')
+            plt.ylabel('Component 2')
+            plt.legend(title='Cluster')
+            plt.show()
+
+
 
 if __name__ == "__main__":
-    main()
+    #main()
 
     # draw_pictogram_solidity(0.9)
     # draw_pictogram_solidity(0.8)
     # draw_pictogram_solidity(0.7)
     #draw_pictogram_sphericity(0.6)
     #draw_ellipsoid_with_inertia(I_x=1.0, I_y=1.0, I_z=0.1)
+
+    #statistics()
+    cluster()
