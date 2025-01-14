@@ -47,6 +47,41 @@ def main():
             avg_thickness = np.mean(points_thickness)
             total_integrated_thickness += cell_areas[i] * avg_thickness
 
+        #DV axis
+        coord_1 = mesh.point_data.get('coord_1', None)
+        coord_2 = mesh.point_data.get('coord_2', None)
+        thickness = mesh.point_data.get('thickness', None)
+        
+        if coord_1 is None or coord_2 is None or thickness is None:
+            print(f"UnExpected")
+            raise
+        
+        threshold=10
+        # Filter points based on coord_1 within threshold
+        mask = (coord_2 >= -threshold) & (coord_2 <= threshold)
+        filtered_data = {
+            'coord_1': coord_1[mask],
+            'thickness': thickness[mask],
+        }
+
+        # Sort by coord_2
+        sorted_indices = filtered_data['coord_1'].argsort()
+        c1 = filtered_data['coord_1'][sorted_indices]
+        d = filtered_data['thickness'][sorted_indices]
+        
+        # Normalize coord_1
+        c1 = c1 / np.max(c1)
+        rel_pos=0.4
+        # Apply the mask to filter values
+        mask = (c1 >= rel_pos - 0.05) & (c1 <= rel_pos + 0.05)
+        filtered_d = d[mask]
+
+        # Calculate mean or assign NaN
+        if filtered_d.size > 0:
+            DV=np.mean(filtered_d)
+        else:
+            raise
+
         MetaData=MetaData['Thickness_MetaData']
         data = {
             'Mask Folder': mask_folder,
@@ -55,6 +90,7 @@ def main():
             'Integrated Thickness': total_integrated_thickness,
             'L PD': L_1,
             'L AP': L_2,
+            'L DV': DV,
             'condition': MetaData.get('condition', None),
             'time in hpf': MetaData.get('time in hpf', None),
             'experimentalist': MetaData.get('experimentalist', None),
@@ -68,6 +104,7 @@ def main():
     df = pd.DataFrame(data_list)
     print(df)
     df.to_hdf(os.path.join(Curv_Thick_path,'scalarGrowthData.h5'), key='data', mode='w')
+    df.to_csv(os.path.join(Curv_Thick_path,'scalarGrowthData.csv'), index=False,sep=';')
         
 
 if __name__ == "__main__":

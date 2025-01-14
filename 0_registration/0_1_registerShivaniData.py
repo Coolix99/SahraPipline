@@ -180,8 +180,8 @@ def register_finmask(skip_existing=True):
 
             im=getImage(os.path.join(img_folder_path,img_name))
             
-            im=process_3d_image(im>0)
-
+            #im=process_3d_image(im>0)
+            im=im>0
             #finmasks
             
             finmasks_im_path=os.path.join(finmasks_folder_path,img_name)
