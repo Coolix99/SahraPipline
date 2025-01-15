@@ -4,6 +4,7 @@ import numpy as np
 
 from plotHelper import plot_scatter_corner,plot_double_timeseries_II,add_data_to_plot_II,add_fit_to_plot_II
 from bokeh.io import show
+from bokeh.plotting import figure
 
 from config import *
 
@@ -396,6 +397,102 @@ def main():
     show(p)
     return
 
+def plot_fit_and_derivative():
+    df=getData()
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+   
+    show(p)
+    
+    max_samples=None
+    ############Set Point model fitted with Reg Dev Area##########################################
+    df_Posterior_setPoint=getPosterior_setPoint(max_samples)
+
+    selected_columns = ['A_0_Dev', 'g_0_Dev','A_cut','A_end','alpha','beta_','sigma']
+    rename_map = {'A_0_Dev': 'A_0', 'g_0_Dev': 'g_0'}
+    df_Dev_setPoint = df_Posterior_setPoint[selected_columns].rename(columns=rename_map)
+    fit_Dev,t_Dev=getTrajectories_setPoint(df_Dev_setPoint,t_end=144)
+    fit_results_dev_setPoint = {
+        't_values': t_Dev,
+        'fits': fit_Dev['A_noisy']
+    }
+    fit_results_dev_setPoint_g = {
+        't_values': t_Dev,
+        'fits': fit_Dev['g']
+    }
+
+    selected_columns = ['A_0_Reg', 'g_0_Reg','A_cut','A_end','alpha','beta_','sigma']
+    rename_map = {'A_0_Reg': 'A_0', 'g_0_Reg': 'g_0'}
+    df_Reg_setPoint = df_Posterior_setPoint[selected_columns].rename(columns=rename_map)
+    fit_Reg,t_Reg=getTrajectories_setPoint(df_Reg_setPoint,t_end=144)
+    fit_results_reg_setPoint = {
+        't_values': t_Reg,
+        'fits': fit_Reg['A_noisy']
+    }
+    fit_results_reg_setPoint_g = {
+        't_values': t_Reg,
+        'fits': fit_Reg['g']
+    }
+
+    ############Dose model fitted with Reg Dev Area##########################################
+
+    df_Posterior_Dose=getPosterior_Dose(max_samples)
+    print(df_Posterior_Dose)
+    
+    selected_columns = ['A_0_Dev', 'g_0_Dev','C0','C1','D_decrease','g_max', 'tau_g','sigma']
+    rename_map = {'A_0_Dev': 'A_0', 'g_0_Dev': 'g_0'}
+    df_Dev_Dose = df_Posterior_Dose[selected_columns].rename(columns=rename_map)
+    df_Dev_Dose['D_0']=0
+    fit_Dev,t_Dev=getTrajectories_Dose(df_Dev_Dose,t_end=144)
+   
+    fit_results_dev_Dose = {
+        't_values': t_Dev,
+        'fits': fit_Dev['A_noisy']
+    }
+    fit_results_dev_Dose_g = {
+        't_values': t_Dev,
+        'fits': fit_Dev['g']
+    }
+
+
+    selected_columns = ['A_0_Reg', 'g_0_Reg','C0','C1','D_decrease','g_max', 'tau_g','sigma','D_0_Reg']
+    rename_map = {'A_0_Reg': 'A_0', 'g_0_Reg': 'g_0','D_0_Reg':'D_0'}
+    df_Reg_Dose = df_Posterior_Dose[selected_columns].rename(columns=rename_map)
+    fit_Reg,t_Reg=getTrajectories_Dose(df_Reg_Dose,t_end=144)
+    fit_results_reg_Dose = {
+        't_values': t_Reg,
+        'fits': fit_Reg['A_noisy']
+    }
+    fit_results_reg_Dose_g = {
+        't_values': t_Reg,
+        'fits': fit_Reg['g']
+    }
+
+
+   
+    
+    ##########Plot############
+    print(df.columns)
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    p = add_fit_to_plot_II(p, fit_results_dev_setPoint, color='#5056fa',label='Development (SP)')  
+    p = add_fit_to_plot_II(p, fit_results_reg_setPoint, color='#fac150',label='Regeneration (SP)')
+    p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#02067a',label='Development (D)')  
+    p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#855901',label='Regeneration (D)')
+    show(p)
+   
+    p = figure(title=f"relative Surface Area growth rate",
+               x_axis_label=r'time in hpf',
+               y_axis_label=r'dArea/dt/Area $$1/h$$',
+               width=700, height=400,
+               tools="pan,wheel_zoom,box_zoom,reset,save")
+    p = add_fit_to_plot_II(p, fit_results_dev_setPoint_g, color='#5056fa',label='Development (SP)')  
+    p = add_fit_to_plot_II(p, fit_results_reg_setPoint_g, color='#fac150',label='Regeneration (SP)')  
+    p = add_fit_to_plot_II(p, fit_results_dev_Dose_g, color='#02067a',label='Development (D)')  
+    p = add_fit_to_plot_II(p, fit_results_reg_Dose_g, color='#855901',label='Regeneration (D)')
+    show(p)
+
+    return
+
 
 if __name__ == "__main__":
-    main()
+    plot_fit_and_derivative()
+    #main()
