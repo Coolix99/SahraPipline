@@ -110,11 +110,16 @@ def main():
 
 
     merged_df['2I1/I2+I3']=2*merged_df['moments_eigvals 1']/(merged_df['moments_eigvals 2']+merged_df['moments_eigvals 3'])
+    merged_df['elongation']=np.sqrt(merged_df['2I1/I2+I3'])
     merged_df['I1+I2/2I3']=(merged_df['moments_eigvals 1']+merged_df['moments_eigvals 2'])/(2*merged_df['moments_eigvals 3'])
     merged_df['I1/I2']=merged_df['moments_eigvals 1']/merged_df['moments_eigvals 2']
     merged_df['I2/I3']=merged_df['moments_eigvals 2']/merged_df['moments_eigvals 3']
 
-    merged_df['orientation'] = np.abs(
+    merged_df['orientation'] = (
+    merged_df['eigvec1_X'] * merged_df['normal vector X'] +
+    merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
+    merged_df['eigvec1_Z'] * merged_df['normal vector Z']
+    )*(
     merged_df['eigvec1_X'] * merged_df['normal vector X'] +
     merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
     merged_df['eigvec1_Z'] * merged_df['normal vector Z']
@@ -133,12 +138,12 @@ def main():
     # plot_double_timeseries(merged_df, y_col='Surface Area', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Solidity', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Sphericity', style='violin',test_significance=True,y0=0,show_scatter=False)
-    # plot_double_timeseries(merged_df, y_col='2I1/I2+I3', style='violin',test_significance=True,y0=0,show_scatter=False)
+    plot_double_timeseries(merged_df, y_col='elongation', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='I1+I2/2I3', style='violin',test_significance=True,y0=0,show_scatter=False)
-    # plot_double_timeseries(merged_df, y_col='orientation', style='violin',test_significance=True,show_scatter=False)
+    #plot_double_timeseries(merged_df, y_col='orientation', style='violin',test_significance=True,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='I1/I2', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='I2/I3', style='violin',test_significance=True,y0=0,show_scatter=False)
-    
+    return
 
     color_dict = {'Regeneration': 'orange',
                  'Development': 'blue', 
@@ -372,7 +377,11 @@ def statistics():
     merged_df['I1/I2']=merged_df['moments_eigvals 1']/merged_df['moments_eigvals 2']
     merged_df['I2/I3']=merged_df['moments_eigvals 2']/merged_df['moments_eigvals 3']
 
-    merged_df['orientation'] = np.abs(
+    merged_df['orientation'] = (
+    merged_df['eigvec1_X'] * merged_df['normal vector X'] +
+    merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
+    merged_df['eigvec1_Z'] * merged_df['normal vector Z']
+    )*(
     merged_df['eigvec1_X'] * merged_df['normal vector X'] +
     merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
     merged_df['eigvec1_Z'] * merged_df['normal vector Z']
@@ -619,7 +628,7 @@ def cluster():
 
 
 if __name__ == "__main__":
-    #main()
+    main()
 
     # draw_pictogram_solidity(0.9)
     # draw_pictogram_solidity(0.8)
@@ -628,4 +637,4 @@ if __name__ == "__main__":
     #draw_ellipsoid_with_inertia(I_x=1.0, I_y=1.0, I_z=0.1)
 
     #statistics()
-    cluster()
+    #cluster()
