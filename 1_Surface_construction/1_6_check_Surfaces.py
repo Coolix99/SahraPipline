@@ -1,140 +1,80 @@
-import numpy as np
-from typing import List
-import napari
 import os
-import git
-from simple_file_checksum import get_checksum
-import pyvista as pv
 import shutil
+import pyvista as pv
+from zf_pf_geometry.metadata_manager import get_JSON
 
-import sys
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+def plot_all_surfaces(surface_dir, state="latest", show_latest_only=True):
+    """
+    Processes and plots surfaces in the given directory based on their state and metadata.
 
-from config import *
-from IO import *
+    Args:
+        surface_dir (str): Path to the directory containing surface data.
+        state (str): Desired state of the surface ('surface', 'coord', or 'thickness').
+        show_latest_only (bool): Whether to show only the latest state.
 
+    Returns:
+        None
+    """
+    logger = logging.getLogger(__name__)
+    surface_folder_list = [
+        item for item in os.listdir(surface_dir) if os.path.isdir(os.path.join(surface_dir, item))
+    ]
+    logger.info(f"Found {len(surface_folder_list)} surface folders for processing.")
 
-def plot_surface(surf_file):
-    mesh=pv.read(surf_file)
-    print(mesh.point_data)
-    mesh.plot(scalars='thickness')
+    for data_name in surface_folder_list:
+        folder_path = os.path.join(surface_dir, data_name)
 
-def plot_surface_image_mask(surf_file,membrane_file, ED_file, mask_file,scales):
-    mesh=pv.read(surf_file)
-    print(mesh.point_data)
+        # Load metadata
+        metadata = get_JSON(folder_path)
+        if not metadata or state not in metadata:
+            logger.warning(f"Skipping {data_name}: Missing metadata or state '{state}' not found.")
+            continue
 
-    membrane_img=getImage(membrane_file)
-    ED_img=getImage(ED_file)
-    mask_img=getImage(mask_file)
+        # Load surface file
+        surface_file_key = f"{state.capitalize()} file name"
+        if surface_file_key not in metadata[state]:
+            logger.warning(f"Skipping {data_name}: Surface file key '{surface_file_key}' missing in metadata.")
+            continue
 
-    thickness = mesh.point_data['thickness']
-    vertices = mesh.points/np.array(scales)
-    faces = mesh.faces.reshape((-1, 4))[:, 1:4]
+        surface_file_name = metadata[state][surface_file_key]
+        surface_file_path = os.path.join(folder_path, surface_file_name)
 
-    viewer = napari.Viewer()
-    
-    # Add the mesh as a surface layer
-    viewer.add_surface((vertices, faces, thickness), colormap='viridis', name='Mesh Thickness')
-    # Add images to the viewer
-    viewer.add_image(membrane_img, name='Membrane Image')
-    viewer.add_image(ED_img, name='ED Image')
-    viewer.add_image(mask_img, name='Mask Image')
-    
-    # Start Napari viewer
-    napari.run()
+        if not os.path.exists(surface_file_path):
+            logger.warning(f"Skipping {data_name}: Surface file '{surface_file_path}' not found.")
+            continue
 
-def plot_surface_delete(Surface_file_name,data_name):
-    FlatFin_dir_path=os.path.join(FlatFin_path,data_name+'_FlatFin')
-    surf_file=os.path.join(FlatFin_dir_path,Surface_file_name)
-    mesh = pv.read(surf_file)
-    print(mesh.point_data)
+        logger.info(f"Plotting surface for {data_name} from file: {surface_file_path}")
 
-    # Create a plotter
-    plotter = pv.Plotter()
+        # Load the surface mesh
+        mesh = pv.read(surface_file_path)
+        logger.info(f"Loaded surface mesh with {mesh.n_points} points and {mesh.n_cells} cells.")
 
-    # Add the mesh to the plotter
-    plotter.add_mesh(mesh, scalars='thickness')
+        # Create the plotter
+        plotter = pv.Plotter()
+        plotter.add_mesh(mesh, scalars='thickness' if 'thickness' in mesh.point_data else None)
 
-    # Define a callback function for key press events
-    def key_callback(key):
-        print(key)
-        if key == 'd' or key == 'r':
-            print(f"Deleting {surf_file}")
-            if os.path.exists(FlatFin_dir_path):
+        # Define a callback function for interactive deletion
+        def key_callback(key):
+            logger.info(f"Key pressed: {key}")
+            if key in {'d', 'r'}:
+                logger.info(f"Deleting surface: {surface_file_path}")
                 try:
-                    shutil.rmtree(FlatFin_dir_path)
+                    shutil.rmtree(folder_path)
                 except Exception as e:
-                    print(f"Error: {e}")
+                    logger.error(f"Failed to delete {folder_path}: {e}")
             if key == 'r':
-                print(f"Deleting also {data_name}")
-                # shutil.rmtree(os.path.join(membranes_path,data_name))
-                # shutil.rmtree(os.path.join(ED_marker_path,data_name))
-                shutil.rmtree(os.path.join(finmasks_path,data_name))
+                logger.info(f"Additional cleanup for {data_name}.")
+                # Implement additional cleanup logic if needed
             plotter.close()
             return False
 
-    # Add the key press callback to the plotter
-    plotter.add_key_event('d', lambda: key_callback('d'))  # Bind 'd' to delete
-    plotter.add_key_event('r', lambda: key_callback('r'))  # Bind 'r' to delete
-    plotter.add_key_event('q', lambda: key_callback('q'))  # Bind 'q' to close without deleting
+        # Bind the key callbacks
+        plotter.add_key_event('d', lambda: key_callback('d'))  # Delete only the surface
+        plotter.add_key_event('r', lambda: key_callback('r'))  # Delete surface and associated data
+        plotter.add_key_event('q', plotter.close)             # Quit without deleting
 
-    # Show the plot and wait for key press
-    try:
-        plotter.show()
-    except Exception as e:
-        print(f"Error: {e}")
-    return True
-
-
-def plot_all(skip_shown=True):
-    FlatFin_folder_list=os.listdir(FlatFin_path)
-    FlatFin_folder_list = [item for item in FlatFin_folder_list if os.path.isdir(os.path.join(FlatFin_path, item))]
-    for FlatFin_folder in FlatFin_folder_list:
-        print(FlatFin_folder)
-        FlatFin_dir_path=os.path.join(FlatFin_path,FlatFin_folder)
-        
-        status_file = os.path.join(FlatFin_dir_path, 'shown.txt')
-        if skip_shown:    
-            if os.path.exists(status_file):
-                with open(status_file, 'r') as f:
-                    status = f.read().strip()
-                    if status == 'shown':
-                        print(f'Skipping {FlatFin_folder}, already shown.')
-                        continue
-
-        MetaData=get_JSON(FlatFin_dir_path)
-        if not 'Surface_MetaData' in MetaData:
-            print('no surface')
-            continue
-        if 'Thickness_MetaData' in MetaData:
-            MetaData=MetaData['Thickness_MetaData']
-        else:
-            print('no Thickness')
-            continue
-
-        # elif 'Coord_MetaData' in MetaData:
-        #     MetaData=MetaData['Coord_MetaData']
-        # else:
-        #     MetaData=MetaData['Surface_MetaData']
-
-
-        Surface_file_name=MetaData['Surface file']
-        #plot_surface(os.path.join(FlatFin_dir_path,Surface_file_name))
-
-        data_name=FlatFin_folder[:-len('_FlatFin')]
-        with open(status_file, 'w') as f:
-            f.write('shown')
-        
-        plot_surface_delete(Surface_file_name,data_name)
-        
-        continue
-        
-        plot_surface_image_mask(os.path.join(FlatFin_dir_path,Surface_file_name),
-                                os.path.join(membranes_path,data_name,data_name+'.tif'),
-                                os.path.join(ED_marker_path,data_name,data_name+'.tif'),
-                                os.path.join(finmasks_path,data_name,data_name+'.tif'),
-                                MetaData['scales ZYX'])
-
-if __name__ == "__main__":
-    plot_all() 
-
+        # Show the plot
+        try:
+            plotter.show()
+        except Exception as e:
+            logger.error(f"Error displaying plot for {data_name}: {e}")

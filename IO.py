@@ -64,7 +64,7 @@ def get_JSON(dir,name=None):
             data = json.load(json_file)
     except FileNotFoundError:
         print("MetaData doesn't exist", dir, name)
-        data = {}  # Create an empty dictionary if the file doesn't exist
+        return None
     return data
 
 def writeJSON(directory,key,value,name=None):
