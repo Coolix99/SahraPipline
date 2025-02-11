@@ -30,6 +30,7 @@ def getData():
     df['log L AP'] = np.log(df['L AP'])
     df['log L PD'] = np.log(df['L PD'])
 
+    print(df.columns)
 
     return df
 
@@ -172,15 +173,15 @@ def plot_full():
     cleaned_df = getData()
 
     print(cleaned_df.columns)
-
+    cleaned_df=cleaned_df[cleaned_df["condition"].isin(["Development", "Regeneration"])]
 
     # Define the color and marker dictionaries
     color_dict = {'Regeneration': 'orange',
                  'Development': 'blue', 
-                 '72FF_cut':'black',
-                 '48FF_cut':'grey'
+                #  '72FF_cut':'black',
+                #  '48FF_cut':'grey'
                  }
-    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle','72FF_cut':'square','48FF_cut':'circle'}
+    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle'}
 
     p_left, p_middle, p_right = plot_flexible_timeseries(
         df=cleaned_df,

@@ -495,4 +495,4 @@ def plot_fit_and_derivative():
 
 if __name__ == "__main__":
     plot_fit_and_derivative()
-    #main()
+    main()

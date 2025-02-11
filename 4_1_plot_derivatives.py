@@ -35,7 +35,7 @@ def getData():
 
 from scipy.interpolate import UnivariateSpline
 
-def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 100,s: float = 0):
+def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200,s: float = 0):
     results = {}
     grouped = df.groupby('condition')
 
@@ -57,7 +57,7 @@ def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 100,s: fl
         }
         for _ in range(N):
             # Sample around mean with std
-            sampled_values = np.random.normal(stats['mean'], stats['std'])
+            sampled_values = np.random.normal(stats['mean'], stats['std']/2)
             # Fit a UnivariateSpline
             
             spline = UnivariateSpline(stats['time in hpf'], sampled_values,w=1/stats['std'], s=s,k=2)
@@ -93,88 +93,88 @@ def main():
         'fits': res['Regeneration']['fitted_values']
     }
 
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1,y_name=r'Area $$(\mu m)^2$$',test_significance=True,y0=0)
-    #show(p)
-    p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
-    p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1,y_name=r'Area $$(\mu m)^2$$',test_significance=True,y0=0)
+    # #show(p)
+    # p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
+    # p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    # show(p)
 
-    p = figure(title=f"Surface Area growth rate",
-               x_axis_label=r'time in hpf',
-               y_axis_label=r'dArea/dt $$(\mu m)^2/h$$',
-               width=700, height=400,
-               tools="pan,wheel_zoom,box_zoom,reset,save")
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['derivative']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['derivative']
-    }
-    p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
-    p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
-    show(p)
-    import time
-    time.sleep(2.5)
-    p = figure(title=f"relative Surface Area growth rate",
-               x_axis_label=r'time in hpf',
-               y_axis_label=r'dArea/dt/Area $$1/h$$',
-               width=700, height=400,
-               tools="pan,wheel_zoom,box_zoom,reset,save")
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['relative_derivative']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['relative_derivative']
-    }
-    p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
-    p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
-    show(p)
+    # p = figure(title=f"Surface Area growth rate",
+    #            x_axis_label=r'time in hpf',
+    #            y_axis_label=r'dArea/dt $$(\mu m)^2/h$$',
+    #            width=700, height=400,
+    #            tools="pan,wheel_zoom,box_zoom,reset,save")
+    # fit_results_dev = {
+    #     't_values': res['Development']['time'],
+    #     'fits': res['Development']['derivative']
+    # }
+    # fit_results_reg = {
+    #     't_values': res['Regeneration']['time'],
+    #     'fits': res['Regeneration']['derivative']
+    # }
+    # p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
+    # p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    # show(p)
+    # import time
+    # time.sleep(2.5)
+    # p = figure(title=f"relative Surface Area growth rate",
+    #            x_axis_label=r'time in hpf',
+    #            y_axis_label=r'dArea/dt/Area $$1/h$$',
+    #            width=700, height=400,
+    #            tools="pan,wheel_zoom,box_zoom,reset,save")
+    # fit_results_dev = {
+    #     't_values': res['Development']['time'],
+    #     'fits': res['Development']['relative_derivative']
+    # }
+    # fit_results_reg = {
+    #     't_values': res['Regeneration']['time'],
+    #     'fits': res['Regeneration']['relative_derivative']
+    # }
+    # p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
+    # p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    # show(p)
     
-    #endregion
+    # #endregion
 
-    #region Volume
-    res=fit_and_sample_derivatives(df, 'Volume', N=500,s=0.5e1)
+    # #region Volume
+    # res=fit_and_sample_derivatives(df, 'Volume', N=500,s=0.5e1)
     
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['fitted_values']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['fitted_values']
-    }
+    # fit_results_dev = {
+    #     't_values': res['Development']['time'],
+    #     'fits': res['Development']['fitted_values']
+    # }
+    # fit_results_reg = {
+    #     't_values': res['Regeneration']['time'],
+    #     'fits': res['Regeneration']['fitted_values']
+    # }
 
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Volume', style='violin',y_scaling=1,y_name=r'Volume $$(\mu m)^3$$',test_significance=True,y0=0)
-    show(p)
-    p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
-    p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Volume', style='violin',y_scaling=1,y_name=r'Volume $$(\mu m)^3$$',test_significance=True,y0=0)
+    # show(p)
+    # p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
+    # p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    # show(p)
 
-    p = figure(title=f"Volume growth rate",
-               x_axis_label=r'time in hpf',
-               y_axis_label=r'dV/dt $$(\mu m)^3/h$$',
-               width=700, height=400,
-               tools="pan,wheel_zoom,box_zoom,reset,save")
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['derivative']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['derivative']
-    }
-    p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
-    p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
-    show(p)
-    import time
-    time.sleep(2.5)
+    # p = figure(title=f"Volume growth rate",
+    #            x_axis_label=r'time in hpf',
+    #            y_axis_label=r'dV/dt $$(\mu m)^3/h$$',
+    #            width=700, height=400,
+    #            tools="pan,wheel_zoom,box_zoom,reset,save")
+    # fit_results_dev = {
+    #     't_values': res['Development']['time'],
+    #     'fits': res['Development']['derivative']
+    # }
+    # fit_results_reg = {
+    #     't_values': res['Regeneration']['time'],
+    #     'fits': res['Regeneration']['derivative']
+    # }
+    # p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
+    # p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    # show(p)
+    # import time
+    # time.sleep(2.5)
     p = figure(title=f"relative Volume growth rate",
-               x_axis_label=r'time in hpf',
-               y_axis_label=r'dV/dt/V $$1/h$$',
+               x_axis_label=r'hpf [t]',
+               y_axis_label=r'$$\dot{V}/V \quad [1/h]$$',
                width=700, height=400,
                tools="pan,wheel_zoom,box_zoom,reset,save")
     fit_results_dev = {
@@ -187,6 +187,10 @@ def main():
     }
     p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
     p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    p.xaxis.axis_label_text_font_size = "14pt"
+    p.yaxis.axis_label_text_font_size = "14pt"
+    p.xaxis.major_label_text_font_size = "12pt"
+    p.yaxis.major_label_text_font_size = "12pt"
     show(p)
     #endregion
 
