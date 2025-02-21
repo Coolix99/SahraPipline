@@ -4,10 +4,11 @@ import pyvista as pv
 import logging
 from scipy.spatial import cKDTree
 from tqdm import tqdm
+import pandas as pd
 from zf_pf_geometry.utils import load_tif_image
 from simple_file_checksum import get_checksum
 from zf_pf_geometry.metadata_manager import should_process, write_JSON
-
+from zf_pf_diffeo.project import project_df_surface
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 
-def process_geometry(geometry_dir, output_dir):
+def process_geometry(geometry_dir, cell_props_dir, output_dir):
     """
     Processes all geometry files by projecting images onto surfaces.
 
@@ -28,59 +29,51 @@ def process_geometry(geometry_dir, output_dir):
     # Find all subdirectories in geometry_dir
     geometry_subfolders = [d for d in os.listdir(geometry_dir) if os.path.isdir(os.path.join(geometry_dir, d))]
 
-    for dataset_name in tqdm(geometry_subfolders, desc="Processing Surfaces", unit="dataset"):
-        dataset_path = os.path.join(geometry_dir, dataset_name)
+    for geometry_name in tqdm(geometry_subfolders, desc="Processing Surfaces", unit="dataset"):
+        dataset_name = geometry_name.removesuffix("_FlatFin")
+        dataset_path = os.path.join(geometry_dir, geometry_name)
 
         # Define output path
         output_path = os.path.join(output_dir, dataset_name)
         os.makedirs(output_path, exist_ok=True)
 
         # Check if processing is needed
-        bre_folder_path=os.path.join(bre_dir,dataset_name)
-        smoc_folder_path=os.path.join(smoc_dir,dataset_name)
-        res = should_process([dataset_path, bre_folder_path, smoc_folder_path], ['thickness', 'Image_BRE', 'Image_Smoc'], output_path, "projected_data")
+        cell_props_folder_path=os.path.join(cell_props_dir,dataset_name)
        
+        res = should_process([dataset_path, cell_props_folder_path], ['Thickness_MetaData', 'MetaData_EDcell_props'], output_path, "projected_data")
+        
         if not res:
             logger.info(f"Skipping {dataset_name}: No processing needed.")
             continue
 
         input_data, input_checksum = res
-        scale=np.array(input_data['thickness']['scale'])
 
+        #scale=np.array(input_data['Thickness_MetaData']['scales ZYX'])
+   
         # Load surface
-        surface = pv.read(os.path.join(dataset_path,input_data['thickness']['Surface(Thickness) file name']))
+        surface = pv.read(os.path.join(dataset_path,input_data['Thickness_MetaData']['Surface file']))
        
-        # Load BRE and Smoc images
-        try:
-            bre_image = load_tif_image(bre_folder_path)
-            logger.info(f"Loaded BRE image for {dataset_name}.")
-        except Exception as e:
-            logger.error(f"Failed to load BRE image for {dataset_name}: {e}")
-            continue
-
-        try:
-            smoc_image = load_tif_image(smoc_folder_path)
-            logger.info(f"Loaded Smoc image for {dataset_name}.")
-        except Exception as e:
-            logger.error(f"Failed to load Smoc image for {dataset_name}: {e}")
-            continue
+        # Load cellprop df
+        cell_props_file=os.path.join(cell_props_folder_path,input_data["MetaData_EDcell_props"]["EDcell_props file"])
+        cell_prop_df=pd.read_hdf(cell_props_file)
+        cell_prop_df['2I1/I2+I3']=2*cell_prop_df['moments_eigvals 1']/(cell_prop_df['moments_eigvals 2']+cell_prop_df['moments_eigvals 3'])
+        #print(cell_prop_df.head())
 
         # Project image data onto surface
-        logger.info(f"Projecting BRE data for {dataset_name}.")
-        surface = project_image_to_surface(surface, bre_image,scale,'BRE')
-
-        logger.info(f"Projecting Smoc data for {dataset_name}.")
-        surface = project_image_to_surface(surface, smoc_image,scale,'Smoc')
-
-
-        surface.save(os.path.join(output_path, dataset_name+ ".vtk"))
+        logger.info(f"Projecting cell props {dataset_name}.")
+        surface = project_df_surface(surface, cell_prop_df,['centroids_scaled Z',  'centroids_scaled Y',  'centroids_scaled X'],
+                                     ['Volume','Surface Area','Solidity','2I1/I2+I3'])
+        #print(surface.point_data)
+        
+        output_file=os.path.join(output_path, dataset_name+ ".vtk")
+        surface.save(output_file)
         logger.info(f"Saved updated surface: {output_path}")
 
         # Update metadata
-        updated_metadata = input_data["thickness"]
+        updated_metadata = input_data["Thickness_MetaData"]
         updated_metadata["Projected Surface file name"] = dataset_name + ".vtk"
         updated_metadata['input_data_checksum'] = input_checksum
-        updated_metadata["Projected Surface checksum"] = get_checksum(output_path, algorithm="SHA1")
+        updated_metadata["Projected Surface checksum"] = get_checksum(output_file, algorithm="SHA1")
 
         write_JSON(output_path, "projected_data", updated_metadata)
 
@@ -90,8 +83,6 @@ if __name__ == "__main__":
     # Define folder paths
     geometry_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/for_curv_thick/FlatFin"
     output_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/projected_surfaces"
-
-    bre_dir = "/home/max/Documents/02_Data/structured_data/structured_vinita/BRE"
-    smoc_dir = "/home/max/Documents/02_Data/structured_data/structured_vinita/Smoc"
+    cell_props_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/ED_cell_props"
     # Run processing
-    process_geometry(geometry_dir, bre_dir, smoc_dir, output_dir)
+    process_geometry(geometry_dir, cell_props_dir, output_dir)
