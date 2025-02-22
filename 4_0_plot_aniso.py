@@ -76,16 +76,17 @@ def fit_and_plot_sklearn(cleaned_df,p):
 def plot():
     cleaned_df = getData()
 
-    print(cleaned_df.columns)
+    print(cleaned_df.head())
 
 
     # Define the color and marker dictionaries
     color_dict = {'Regeneration': 'orange',
                  'Development': 'blue', 
                  '72FF_cut':'black',
+                 '4850cut':'grey',
                  '48FF_cut':'grey'
                  }
-    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle','72FF_cut':'square','48FF_cut':'circle'}
+    marker_dict = {'Development': 'circle', 'Regeneration': 'triangle','72FF_cut':'square','4850cut':'circle','48FF_cut':'circle'}
 
     _, p, _ = plot_flexible_timeseries(
         df=cleaned_df,
@@ -217,9 +218,69 @@ def plot_full():
 
     show(row(p_left, p_middle, p_right))
 
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import linregress
+
+def plot_matplotlib():
+    cleaned_df = getData()
+
+    # Define the color and marker dictionaries
+    color_dict = {'Regeneration': 'orange', 'Development': 'blue'}
+    marker_dict = {'Development': 'o', 'Regeneration': '^'}  # Matplotlib markers
+
+    # Filter the DataFrame to keep only valid conditions
+    cleaned_df = cleaned_df[cleaned_df['condition'].isin(color_dict.keys())]
+
+    # Extract relevant columns and apply log transformation
+    log_L_PD = np.log(cleaned_df['L PD'])
+    log_L_AP = np.log(cleaned_df['L AP'])
+
+    # Fit a power-law model (linear fit in log-log space)
+    slope, intercept, r_value, _, _ = linregress(log_L_PD, log_L_AP)
+    anisotropy = slope  # Slope is the anisotropy measure
+
+    # Generate fit line for plotting
+    log_L_PD_fit = np.linspace(log_L_PD.min(), log_L_PD.max(), 100)
+    log_L_AP_fit = intercept + slope * log_L_PD_fit  # Power-law best fit
+
+    # Fit isotropic line with forced slope=1
+    mean_intercept = np.mean(log_L_AP - log_L_PD)  # Compute mean vertical offset
+    log_L_AP_iso = log_L_PD_fit + mean_intercept  # Isotropic reference line
+
+    # Create plot
+    fig, ax = plt.subplots(figsize=(7, 7))
+
+    # Scatter plot of the data
+    for condition in cleaned_df['condition'].unique():
+        subset = cleaned_df[cleaned_df['condition'] == condition]
+        ax.scatter(np.log(subset['L PD']), np.log(subset['L AP']),
+                   label=condition, color=color_dict[condition], marker=marker_dict[condition])
+
+    # Plot power-law fit
+    ax.plot(log_L_PD_fit, log_L_AP_fit, 'k-', label=f'Power-law fit (slope={slope:.2f})')
+
+    # Plot isotropic reference line with forced slope=1
+    ax.plot(log_L_PD_fit, log_L_AP_iso, 'k--', label='Isotropic fit (slope=1)')
+
+    # Labels and legend
+    ax.set_xlabel('log L PD')
+    ax.set_ylabel('log L AP')
+    ax.set_title('Log-Log Plot of L PD vs L AP')
+    ax.legend()
+    
+    fig.savefig("/home/max/Downloads/log_log_plot.png", dpi=300, bbox_inches='tight')
+    fig.savefig("/home/max/Downloads/log_log_plot.pdf", bbox_inches='tight')
+    fig.savefig("/home/max/Downloads/log_log_plot.svg", bbox_inches='tight')
+
+    plt.show()
+
+    # Print anisotropy estimate
+    print(f"Estimated Anisotropy (slope of power law fit): {anisotropy:.2f}")
 
 
 if __name__ == "__main__":
-    plot_full()
+    #plot_full()
     #plot()
 
+    plot_matplotlib()
