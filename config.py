@@ -8,7 +8,7 @@ if(machine=='Home'):
     
 
 if(machine=='Laptop'):
-    #Sahra_Shivani_path=(r'C:\Users\s0095413\Documents\02_Data\share_Sarah\{}').format("")
+    Sahra_Shivani_path=(r'\\vs-grp07.zih.tu-dresden.de\max_kotz\sahra_shivani_data')
     script_dir = os.path.dirname(os.path.abspath(__file__))
 
 if(machine=='BA'):

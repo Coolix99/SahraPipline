@@ -4,6 +4,10 @@ from zf_pf_diffeo.plot_movie import show_temporal_mesh_evolution,movie_temporal_
 from zf_pf_diffeo.plot_static import plot_all_reference_meshes,plot_all_reference_data
 from zf_pf_diffeo.pipeline import do_temporalHistInterpolation
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from config import *
+
 def data_to_value_function(hist_data):
     #print("Keys in .npz file:", hist_data.files)
     
@@ -81,21 +85,24 @@ def data_to_value_function_Elongation(hist_data):
 
 if __name__ == "__main__":
     # Define folder paths
-    proj_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/projected_surfaces"
-    maps_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/Maps"
-    temp_maps_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/Maps_temp"
-    
-    #plot_all_reference_meshes(maps_dir, scale_unit="µm")
-    #plot_all_reference_data(maps_dir, data_to_value_function_Volume, scale_unit="µm",separate_windows=False,vmin=100,vmax=400)
-    #plot_all_reference_data(maps_dir, data_to_value_function_SurfaceArea, scale_unit="µm",separate_windows=False,vmin=100)
-    #plot_all_reference_data(maps_dir, data_to_value_function_Solidity, scale_unit="µm",separate_windows=False)
-    # plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=10.0)
-    # plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=5.0)
-    # plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=3.0)
+    # proj_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/projected_surfaces"
+    # maps_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/Maps"
+    # temp_maps_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/Maps_temp"
+    proj_dir = os.path.join(Output_path,"morphoMaps","projected_surfaces")
+    maps_dir = os.path.join(Output_path,"morphoMaps","Maps")
+    temp_maps_dir = os.path.join(Output_path,"morphoMaps","Maps_temp")
+
+    plot_all_reference_meshes(maps_dir, scale_unit="µm")
+    plot_all_reference_data(maps_dir, data_to_value_function_Volume, scale_unit="µm",separate_windows=False,vmin=100,vmax=400)
+    plot_all_reference_data(maps_dir, data_to_value_function_SurfaceArea, scale_unit="µm",separate_windows=False,vmin=100)
+    plot_all_reference_data(maps_dir, data_to_value_function_Solidity, scale_unit="µm",separate_windows=False)
+    plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=10.0)
+    plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=5.0)
+    plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=3.0)
     #raise
     
-    # show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Development"))
-    # show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Regeneration"))
+    show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Development"))
+    show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Regeneration"))
     
     do_temporalHistInterpolation(proj_dir,temp_maps_dir, "time in hpf", ["genotype","condition"], {"vol": data_to_value_function_Volume,
                                                                                                    "area": data_to_value_function_SurfaceArea,

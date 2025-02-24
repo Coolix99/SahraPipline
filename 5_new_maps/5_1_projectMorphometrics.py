@@ -10,6 +10,10 @@ from simple_file_checksum import get_checksum
 from zf_pf_geometry.metadata_manager import should_process, write_JSON
 from zf_pf_diffeo.project import project_df_surface
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from config import *
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -81,8 +85,8 @@ def process_geometry(geometry_dir, cell_props_dir, output_dir):
 
 if __name__ == "__main__":
     # Define folder paths
-    geometry_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/for_curv_thick/FlatFin"
-    output_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/morphoMaps/projected_surfaces"
-    cell_props_dir = "/media/max_kotz/sahra_shivani_data/sorted_data/ED_cell_props"
+    geometry_dir = FlatFin_path
+    output_dir = os.path.join(Output_path,"morphoMaps","projected_surfaces")
+    cell_props_dir = os.path.join(Output_path,"ED_cell_props")
     # Run processing
     process_geometry(geometry_dir, cell_props_dir, output_dir)
