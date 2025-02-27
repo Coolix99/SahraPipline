@@ -53,19 +53,29 @@ def saveArr(arr,path):
 def loadArr(path):
     return np.load(path+".npy")
 
-def get_JSON(dir,name=None):
+def get_JSON(dir, name=None):
     if name is None:
-        name='MetaData.json'
+        name = 'MetaData.json'
     else:
-        name = 'MetaData_'+name+'.json'
-    json_file_path=os.path.join(dir, name)
+        name = f'MetaData_{name}.json'
+
+    if not os.path.isdir(dir):  # Ensure dir is actually a valid directory
+        print(f"Directory doesn't exist: {dir}")
+        return {}
+
+    json_file_path = os.path.join(dir, name)
+
+    if not os.path.exists(json_file_path):  # Check if JSON file exists before opening
+        print(f"MetaData doesn't exist: {dir}, {name}")
+        return {}
+
     try:
-        with open(json_file_path, 'r') as json_file:
-            data = json.load(json_file)
-    except FileNotFoundError:
-        print("MetaData doesn't exist", dir, name)
-        return None
-    return data
+        with open(json_file_path, 'r', encoding="utf-8") as json_file:
+            return json.load(json_file)
+    except (FileNotFoundError, json.JSONDecodeError, PermissionError) as e:
+        print(f"[ERROR] Cannot read JSON: {json_file_path} -> {e}")
+        return {}
+
 
 def writeJSON(directory,key,value,name=None):
     if name is None:

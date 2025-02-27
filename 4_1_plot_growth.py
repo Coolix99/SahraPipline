@@ -237,5 +237,26 @@ def main():
     corner_plot = plot_scatter_corner(df=df, parameters=['Volume','Surface Area','V / A', 'Volume ED','N_objects'], color_col='time in hpf',color_dict=color_dict,marker_col='condition',marker_dict=marker_dict)
     show(corner_plot)
     
+def new_plots():
+    df=getData()
+    
+    
+    print(df.columns)
+    print(df.head())
+
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
+    # show(p)
+
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='Volume',category='4850cut',y_scaling=1e-6,color='black',width=width)
+    show(p)
+
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='V / A', style='violin',y_scaling=1,y_name=r'Mean Thickness $$\mu m$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='V / A',category='4850cut',y_scaling=1,color='black',width=width)
+    show(p)
+
 if __name__ == "__main__":
-    main()
+    #main()
+
+    new_plots()

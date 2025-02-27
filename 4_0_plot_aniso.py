@@ -226,8 +226,8 @@ def plot_matplotlib():
     cleaned_df = getData()
 
     # Define the color and marker dictionaries
-    color_dict = {'Regeneration': 'orange', 'Development': 'blue'}
-    marker_dict = {'Development': 'o', 'Regeneration': '^'}  # Matplotlib markers
+    color_dict = {'Regeneration': 'orange', 'Development': 'blue', '4850cut':'black'}  # Matplotlib colors
+    marker_dict = {'Development': 'o', 'Regeneration': '^', '4850cut': 'x'}  # Matplotlib markers
 
     # Filter the DataFrame to keep only valid conditions
     cleaned_df = cleaned_df[cleaned_df['condition'].isin(color_dict.keys())]

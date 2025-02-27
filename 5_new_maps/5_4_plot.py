@@ -99,7 +99,7 @@ if __name__ == "__main__":
     plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=10.0)
     plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=5.0)
     plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=3.0)
-    #raise
+    raise
     
     show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Development"))
     show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Regeneration"))

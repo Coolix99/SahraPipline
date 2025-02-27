@@ -142,6 +142,7 @@ def register_finmask_special(condition_name,skip_existing=True):
             # import napari
             # viewer = napari.Viewer()
             # viewer.add_image(nuclei_and_membrane,scale=voxel_size_um)
+            # viewer.add_image(bre,scale=voxel_size_um)
             # viewer.add_image(mask,scale=voxel_size_um)
             # napari.run()
 
@@ -185,7 +186,7 @@ def register_finmask_special(condition_name,skip_existing=True):
 
             #bre
             bre_im_path=os.path.join(bre_folder_path,img_name)
-            save_array_as_tiff(nuclei_and_membrane,bre_im_path)
+            save_array_as_tiff(bre,bre_im_path)
 
             MetaData_bre={}
             repo = git.Repo(gitPath,search_parent_directories=True)
@@ -201,11 +202,6 @@ def register_finmask_special(condition_name,skip_existing=True):
             check=get_checksum(bre_im_path, algorithm="SHA1")
             MetaData_bre['bre checksum']=check
             writeJSON(bre_folder_path,'MetaData_bre',MetaData_bre)
-
-
-        
-        
-        
         
 
       
