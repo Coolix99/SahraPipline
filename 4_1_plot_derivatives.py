@@ -40,7 +40,7 @@ def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200,s: fl
     grouped = df.groupby('condition')
 
     for condition, group in grouped:
-        if condition == '4850cut' or condition == '48FF_cut' or condition == '72FF_cut':
+        if  condition == '48FF_cut' or condition == '72FF_cut':
             continue
         
         # Calculate mean and std for each time
@@ -81,9 +81,8 @@ def main():
     df=getData()
     print(df.columns)
 
-    #region Surface Area
 
-    res=fit_and_sample_derivatives(df, 'Surface Area', N=500,s=0.5e1)
+    res=fit_and_sample_derivatives(df, 'Volume', N=500,s=0.5e1)
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['fitted_values']
@@ -91,6 +90,11 @@ def main():
     fit_results_reg = {
         't_values': res['Regeneration']['time'],
         'fits': res['Regeneration']['fitted_values']
+    }
+
+    fit_results_4850 = {
+        't_values': res['4850cut']['time'],
+        'fits': res['4850cut']['fitted_values']
     }
 
     # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1,y_name=r'Area $$(\mu m)^2$$',test_significance=True,y0=0)
@@ -177,6 +181,7 @@ def main():
                y_axis_label=r'$$\dot{V}/V \quad [1/h]$$',
                width=700, height=400,
                tools="pan,wheel_zoom,box_zoom,reset,save")
+    
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['relative_derivative']
@@ -185,8 +190,14 @@ def main():
         't_values': res['Regeneration']['time'],
         'fits': res['Regeneration']['relative_derivative']
     }
+
+    fit_results_4850 = {
+        't_values': res['4850cut']['time'],
+        'fits': res['4850cut']['relative_derivative']
+    }
     p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
     p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    p = add_fit_to_plot_II(p, fit_results_4850, color='black',label='48hpf 50%')  
     p.xaxis.axis_label_text_font_size = "14pt"
     p.yaxis.axis_label_text_font_size = "14pt"
     p.xaxis.major_label_text_font_size = "12pt"

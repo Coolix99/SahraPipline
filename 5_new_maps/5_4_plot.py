@@ -95,11 +95,11 @@ if __name__ == "__main__":
     plot_all_reference_meshes(maps_dir, scale_unit="µm")
     plot_all_reference_data(maps_dir, data_to_value_function_Volume, scale_unit="µm",separate_windows=False,vmin=100,vmax=400)
     plot_all_reference_data(maps_dir, data_to_value_function_SurfaceArea, scale_unit="µm",separate_windows=False,vmin=100)
-    plot_all_reference_data(maps_dir, data_to_value_function_Solidity, scale_unit="µm",separate_windows=False)
+    plot_all_reference_data(maps_dir, data_to_value_function_Solidity, scale_unit="µm",separate_windows=False,vmin=0.65,vmax=0.9)
     plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=10.0)
     plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=5.0)
     plot_all_reference_data(maps_dir, data_to_value_function_Elongation, scale_unit="µm",separate_windows=False,vmin=1.0,vmax=3.0)
-    raise
+    #raise
     
     show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Development"))
     show_temporal_mesh_evolution(os.path.join(temp_maps_dir,"WT_Regeneration"))
