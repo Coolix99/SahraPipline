@@ -339,9 +339,89 @@ def new_plots():
     p=plot_scatter_II(df, x_col='Surface Area', y_col='L AP * L PD', mode='category',show_fit=True,show_div='Residual')
     p=add_data_scatter_II(df,p, x_col='Surface Area', y_col='L AP * L PD',category='4850cut',color='black')
     show(p)
+
+    p=plot_scatter_II(df, x_col='Volume', y_col='Surface Area', mode='category',show_fit=True,show_div='Residual')
+    p=add_data_scatter_II(df,p,x_col='Volume', y_col='Surface Area',category='4850cut',color='black')
+    show(p)
    
 
-if __name__ == "__main__":
-    #main()
+import matplotlib.pyplot as plt
+def plot_variance(df, quantity='Volume'):
+    """
+    Plots the mean with standard deviation error bars over time for each condition.
+    Also plots the standard deviation with its error to analyze the spread of values.
+    
+    Parameters:
+    df (pd.DataFrame): The dataset containing time in hpf, condition, and the quantity to analyze.
+    quantity (str): The column name of the quantity to plot.
+    """
 
-    new_plots()
+    # Define colors for each condition
+    condition_colors = {
+        'Development': 'blue',
+        'Regeneration': 'orange',
+        '4850cut': 'black'
+    }
+
+    # Group data by condition and time
+    grouped = df.groupby(['condition', 'time in hpf'])[quantity]
+
+    # Compute mean, std, and std error
+    stats = grouped.agg(['mean', 'std', 'count']).reset_index()
+    stats['std_err_std'] = stats['std'] / np.sqrt(2 * (stats['count'] - 1))
+
+    # Create figure with two subplots
+    fig, axs = plt.subplots(3, 1, figsize=(10, 20), sharex=True)
+
+    # Plot mean with std error
+    for condition, color in condition_colors.items():
+        subset = stats[stats['condition'] == condition]
+        axs[0].errorbar(subset['time in hpf'], subset['mean'], yerr=subset['std'], 
+                        fmt='o-', label=condition, color=color, capsize=5)
+    
+    axs[0].set_ylabel(f'Mean {quantity}')
+    axs[0].set_title(f'Time Evolution of {quantity}')
+    axs[0].legend()
+    axs[0].grid(True)
+
+    # Plot std with its error
+    for condition, color in condition_colors.items():
+        subset = stats[stats['condition'] == condition]
+        axs[1].errorbar(subset['time in hpf'], subset['std'], yerr=subset['std_err_std'], 
+                        fmt='s-', label=condition, color=color, capsize=5)
+    
+    axs[1].set_ylabel(f'Standard Deviation of {quantity}')
+    axs[1].legend()
+    axs[1].grid(True)
+
+     # Plot std with its error
+    for condition, color in condition_colors.items():
+        subset = stats[stats['condition'] == condition]
+        axs[2].errorbar(subset['time in hpf'], subset['std']/subset['mean'], yerr=subset['std_err_std']/subset['mean'], 
+                        fmt='s-', label=condition, color=color, capsize=5)
+    
+    axs[2].set_xlabel('Time in hpf')
+    axs[2].set_ylabel(f'Relative Standard Deviation of {quantity}')
+    axs[2].legend()
+    axs[2].grid(True)
+
+    plt.show()
+
+def plot_all_variance():
+    df=getData()
+    
+    
+    print(df.columns)
+    print(df.head())
+    df['Volume']=df['Volume']*1e-6
+    df['Surface Area']=df['Surface Area']*1e-4
+
+    plot_variance(df, quantity='Volume')
+    plot_variance(df, quantity='Surface Area')
+    plot_variance(df, quantity='V / A')
+
+if __name__ == "__main__":
+
+    #new_plots()
+
+    plot_all_variance()

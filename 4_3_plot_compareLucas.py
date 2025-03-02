@@ -79,9 +79,19 @@ def getData_Lucas():
     
     return df_merged
 
+def getData_Lucas_new():
+    df = pd.read_csv("DataLucasNuclei.csv")
+    df = df[df['genotype'] == 'WT']
+    df['condition'] = df['is control'].apply(lambda x: 'Development' if x else 'Regeneration')
+    df.rename(columns={'total_area': 'Surface Area','hight': 'V / A'}, inplace=True)
+
+    print(df.head())
+    print(df.columns)
+    return df
 
 def main():
-    df_Lucas=getData_Lucas()
+    #df_Lucas=getData_Lucas()
+    df_Lucas=getData_Lucas_new()
     print(df_Lucas)
     
     df_SS=getData_SS()
