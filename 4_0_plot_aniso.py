@@ -227,6 +227,7 @@ def plot_matplotlib():
 
     # Define the color and marker dictionaries
     color_dict = {'Regeneration': 'orange', 'Development': 'blue', '4850cut':'black'}  # Matplotlib colors
+    color_dict = {'Regeneration': 'orange', 'Development': 'blue'}  # Matplotlib colors
     marker_dict = {'Development': 'o', 'Regeneration': '^', '4850cut': 'x'}  # Matplotlib markers
 
     # Filter the DataFrame to keep only valid conditions

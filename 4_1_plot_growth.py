@@ -205,7 +205,8 @@ def main():
     # #simple_plot(df, filter_col='condition', filter_value='Regeneration', y_col='Volume') #just debuggin
 
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
-    plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Tissue Volume $$10^6 \mu m^3$$',test_significance=True,y0=0)
+    plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Tissue Volume $$10^6 \mu m^3$$',test_significance=True,y0=0,show_n=False)
+    return
     plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
     plot_double_timeseries(df, y_col='L PD', style='violin',y_scaling=1,y_name=r'$$L_{DP} in \mu m$$',test_significance=True,y0=0)
     plot_double_timeseries(df, y_col='L AP', style='violin',y_scaling=1,y_name=r'$$L_{AP} in \mu m$$',test_significance=True,y0=0)
@@ -299,7 +300,25 @@ def new_plots():
     for i, series in enumerate(time_series_list):
         print(f"Time Series {i+1}: {series}")
 
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False)
+    # show(p)
+
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+                                      test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
+    show(p)
     
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L PD', style='violin',y_scaling=1,y_name=r'L proximal-distal $$\mu m$$',test_significance=False,
+                                      y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,y_max=600)
+    show(p)
+
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L AP', style='violin',y_scaling=1,y_name=r'L anterior-posterior $$\mu m$$',test_significance=False,
+                                      y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,y_max=600)
+    show(p)
+
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='V / A', style='box',y_scaling=1,y_name=r'Mean Thickness $$\mu m$$',test_significance=False,
+                                      y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=50)
+    show(p)
+    return
 
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
     p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
@@ -422,6 +441,6 @@ def plot_all_variance():
 
 if __name__ == "__main__":
 
-    #new_plots()
+    new_plots()
 
-    plot_all_variance()
+    #plot_all_variance()

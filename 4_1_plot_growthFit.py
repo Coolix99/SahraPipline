@@ -259,9 +259,9 @@ def make_4850cut_Parameters_Dose(df_Posterior_setPoint):
 
 def main():
     df=getData()
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
-    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False)
+    # p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
+    # show(p)
     
     max_samples=None
     ############Set Point model fitted with Reg Dev Area##########################################
@@ -381,19 +381,32 @@ def main():
     # show(p)
 
     
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
-    show(p)
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+                                      test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
     p = add_fit_to_plot_II(p, fit_results_dev_setPoint, color='#5056fa',label='Development (SP)')  
     p = add_fit_to_plot_II(p, fit_results_reg_setPoint, color='#fac150',label='Regeneration (SP)')
-    p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#02067a',label='Development (D)')  
-    p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#855901',label='Regeneration (D)')
     show(p)
-    p = add_fit_to_plot_II(p, fit_results_4850cut_1_setPoint, color='#72fc79',label='4850cut (SP I)')
-    p = add_fit_to_plot_II(p, fit_results_4850cut_2_setPoint, color='#017d07',label='4850cut (SP II)')
-    p = add_fit_to_plot_II(p, fit_results_4850cut_1_Dose, color='#c253f5',label='4850cut (D I)')
-    p = add_fit_to_plot_II(p, fit_results_4850cut_2_Dose, color='#570080',label='4850cut (D II)')
+
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+                                      test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
+    p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#5056fa',label='Development (D)')  
+    p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#fac150',label='Regeneration (D)')
     show(p)
-    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
+
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+    #                                   test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
+    # p = add_fit_to_plot_II(p, fit_results_4850cut_2_setPoint, color='#555555',label='4850cut (SP II)')
+    # p = add_fit_to_plot_II(p, fit_results_4850cut_1_Dose, color='#AAAAAA',label='4850cut (D I)')
+    # show(p)
+    # p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width,show_quantilles=False,base_line_width=2.0,show_scatter=False)
+    # show(p)
+
+    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+                                      test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
+    p = add_fit_to_plot_II(p, fit_results_4850cut_2_setPoint, color='#29852f',label='4850cut (SP II)')
+    p = add_fit_to_plot_II(p, fit_results_4850cut_1_Dose, color='#81f089',label='4850cut (D I)')
+    show(p)
+    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='#265429',width=width,show_quantilles=False,base_line_width=2.0,show_scatter=False)
     show(p)
     return
 
@@ -494,5 +507,5 @@ def plot_fit_and_derivative():
 
 
 if __name__ == "__main__":
-    plot_fit_and_derivative()
+    #plot_fit_and_derivative()
     main()
