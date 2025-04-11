@@ -1,8 +1,9 @@
 import pandas as pd
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 
-from plotHelper import plot_scatter_corner,plot_double_timeseries_II,add_data_to_plot_II,add_fit_to_plot_II
+from plotHelper.plotBokehHelper_old import plot_scatter_corner,plot_double_timeseries_II,add_data_to_plot_II,add_fit_to_plot_II
 from bokeh.io import show
 from bokeh.plotting import figure
 
@@ -76,26 +77,86 @@ def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200,s: fl
     
     return results
 
+def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, ylabel, ymin=0,ymax=None,xmax=None,xmin=None,dy=None,dx=None):
+    """
+    Plot fit results with uncertainty bands using Matplotlib.
+
+    Parameters:
+    -----------
+    fit_results_list : list of dict
+        List of fit result dictionaries. Each should have 't_values' and 'fits'.
+    colors : list of str
+        List of colors corresponding to each category.
+    labels : list of str
+        List of labels for the legend.
+    title : str
+        Plot title.
+    xlabel : str
+        X-axis label.
+    ylabel : str
+        Y-axis label.
+    """
+    plt.rcParams['svg.fonttype'] = 'none'
+    plt.rcParams['font.family'] = ['sans-serif']
+    plt.rcParams['font.sans-serif'] = ['Arial']
+
+    fig = plt.figure(figsize=(6, 4))
+
+    for fit_results, color, label in zip(fit_results_list, colors, labels):
+        t_values = fit_results['t_values']
+        fits = fit_results['fits']
+
+        fit_lower2sig, fit_lowersig, fit_mean, fit_uppersig, fit_upper2sig = np.percentile(
+            fits, [2.3, 15.9, 50, 84.1, 97.7], axis=0
+        )
+
+        plt.plot(t_values, fit_mean, color=color, linewidth=2, label=label)
+        plt.fill_between(t_values, fit_lowersig, fit_uppersig, color=color, alpha=0.2)
+        #plt.fill_between(t_values, fit_lower2sig, fit_upper2sig, color=color, alpha=0.1)
+
+    plt.xlabel(xlabel, fontsize=20)
+    plt.ylabel(ylabel, fontsize=20)
+    plt.title(title, fontsize=22)
+
+    if ymin is None:
+        ymin = plt.ylim()[0]
+    if ymax is None:
+        ymax = plt.ylim()[1]
+    if xmin is None:
+        xmin = plt.xlim()[0]
+    if xmax is None:
+        xmax = plt.xlim()[1]
+    if dx is None:
+        dx = (xmax - xmin) / 10
+    if dy is None:
+        dy = (ymax - ymin) / 10
+    plt.ylim(ymin, ymax)
+    plt.xlim(xmin, xmax)
+    plt.xticks(np.arange(xmin, xmax, dx), fontsize=16)
+    plt.yticks(np.arange(ymin, ymax, dy), fontsize=16)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
 
 def main():
     df=getData()
     print(df.columns)
 
 
-    res=fit_and_sample_derivatives(df, 'Volume', N=500,s=0.5e1)
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['fitted_values']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['fitted_values']
-    }
+    # res=fit_and_sample_derivatives(df, 'Volume', N=500,s=0.5e1)
+    # fit_results_dev = {
+    #     't_values': res['Development']['time'],
+    #     'fits': res['Development']['fitted_values']
+    # }
+    # fit_results_reg = {
+    #     't_values': res['Regeneration']['time'],
+    #     'fits': res['Regeneration']['fitted_values']
+    # }
 
-    fit_results_4850 = {
-        't_values': res['4850cut']['time'],
-        'fits': res['4850cut']['fitted_values']
-    }
+    # fit_results_4850 = {
+    #     't_values': res['4850cut']['time'],
+    #     'fits': res['4850cut']['fitted_values']
+    # }
 
     # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1,y_name=r'Area $$(\mu m)^2$$',test_significance=True,y0=0)
     # #show(p)
@@ -176,12 +237,55 @@ def main():
     # show(p)
     # import time
     # time.sleep(2.5)
-    p = figure(title=f"relative Volume growth rate",
-               x_axis_label=r'hpf [t]',
-               y_axis_label=r'$$\dot{V}/V \quad [1/h]$$',
-               width=700, height=400,
-               tools="pan,wheel_zoom,box_zoom,reset,save")
+    # p = figure(title=f"relative Volume growth rate",
+    #            x_axis_label=r'hpf [t]',
+    #            y_axis_label=r'$$\dot{V}/V \quad [1/h]$$',
+    #            width=700, height=400,
+    #            tools="pan,wheel_zoom,box_zoom,reset,save")
     
+    # fit_results_dev = {
+    #     't_values': res['Development']['time'],
+    #     'fits': res['Development']['relative_derivative']
+    # }
+    # fit_results_reg = {
+    #     't_values': res['Regeneration']['time'],
+    #     'fits': res['Regeneration']['relative_derivative']
+    # }
+
+    # fit_results_4850 = {
+    #     't_values': res['4850cut']['time'],
+    #     'fits': res['4850cut']['relative_derivative']
+    # }
+    # p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
+    # p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
+    # p = add_fit_to_plot_II(p, fit_results_4850, color='black',label='48hpf 50%')  
+    # p.xaxis.axis_label_text_font_size = "14pt"
+    # p.yaxis.axis_label_text_font_size = "14pt"
+    # p.xaxis.major_label_text_font_size = "12pt"
+    # p.yaxis.major_label_text_font_size = "12pt"
+    # show(p)
+    res=fit_and_sample_derivatives(df, 'Volume', N=1000,s=0.5e1)
+    fit_results_dev = {
+        't_values': res['Development']['time'],
+        'fits': res['Development']['derivative']
+    }
+    fit_results_reg = {
+        't_values': res['Regeneration']['time'],
+        'fits': res['Regeneration']['derivative']
+    }
+    plot_fit_with_uncertainty(
+        fit_results_list=[fit_results_dev, fit_results_reg],
+        colors=['blue', 'orange'],
+        labels=['Development', 'Regeneration'],
+        title='Volume Growth Rate',
+        xlabel='t [hpf]',
+        ylabel=r'$\dot{V} \quad [\mu m^3/h]$',
+        ymin=0,
+        xmin=48,
+        dx=12,
+        dy=10000,
+    )
+
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['relative_derivative']
@@ -190,19 +294,62 @@ def main():
         't_values': res['Regeneration']['time'],
         'fits': res['Regeneration']['relative_derivative']
     }
+    plot_fit_with_uncertainty(
+        fit_results_list=[fit_results_dev, fit_results_reg],
+        colors=['blue', 'orange'],
+        labels=['Development', 'Regeneration'],
+        title='Relative Volume Growth Rate',
+        xlabel='t [hpf]',
+        ylabel=r'$\dot{V}/V \quad [1/h]$',
+        ymin=0,
+        xmin=48,
+        dx=12,
+        dy=0.02,
+    )
 
-    fit_results_4850 = {
-        't_values': res['4850cut']['time'],
-        'fits': res['4850cut']['relative_derivative']
+    res=fit_and_sample_derivatives(df, 'Surface Area', N=1000,s=0.5e1)
+    fit_results_dev = {
+        't_values': res['Development']['time'],
+        'fits': res['Development']['derivative']
     }
-    p = add_fit_to_plot_II(p, fit_results_dev, color='blue',label='Development')  
-    p = add_fit_to_plot_II(p, fit_results_reg, color='orange',label='Regeneration')  
-    p = add_fit_to_plot_II(p, fit_results_4850, color='black',label='48hpf 50%')  
-    p.xaxis.axis_label_text_font_size = "14pt"
-    p.yaxis.axis_label_text_font_size = "14pt"
-    p.xaxis.major_label_text_font_size = "12pt"
-    p.yaxis.major_label_text_font_size = "12pt"
-    show(p)
+    fit_results_reg = {
+        't_values': res['Regeneration']['time'],
+        'fits': res['Regeneration']['derivative']
+    }
+    plot_fit_with_uncertainty(
+        fit_results_list=[fit_results_dev, fit_results_reg],
+        colors=['blue', 'orange'],
+        labels=['Development', 'Regeneration'],
+        title='Area Growth Rate',
+        xlabel='t [hpf]',
+        ylabel=r'$\dot{A} \quad [\mu m^2/h]$',
+        ymin=0,
+        xmin=48,
+        dx=12,
+        dy=1000,
+    )
+
+    fit_results_dev = {
+        't_values': res['Development']['time'],
+        'fits': res['Development']['relative_derivative']
+    }
+    fit_results_reg = {
+        't_values': res['Regeneration']['time'],
+        'fits': res['Regeneration']['relative_derivative']
+    }
+    plot_fit_with_uncertainty(
+        fit_results_list=[fit_results_dev, fit_results_reg],
+        colors=['blue', 'orange'],
+        labels=['Development', 'Regeneration'],
+        title='Relative Area Growth Rate',
+        xlabel='t [hpf]',
+        ylabel=r'$\dot{A}/A \quad [1/h]$',
+        ymin=0,
+        xmin=48,
+        dx=12,
+        dy=0.02,
+    )
+
     #endregion
 
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
