@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import numpy as np
 
-from plotHelper import plot_scatter_corner,plot_double_timeseries_II,add_data_to_plot_II,add_fit_to_plot_II
+from plotHelper.plotBokehHelper_old import plot_scatter_corner,plot_double_timeseries_II,add_data_to_plot_II,add_fit_to_plot_II
 from bokeh.io import show
 from bokeh.plotting import figure
 
@@ -381,17 +381,17 @@ def main():
     # show(p)
 
     
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
-                                      test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
-    p = add_fit_to_plot_II(p, fit_results_dev_setPoint, color='#5056fa',label='Development (SP)')  
-    p = add_fit_to_plot_II(p, fit_results_reg_setPoint, color='#fac150',label='Regeneration (SP)')
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+    #                                   test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
+    # p = add_fit_to_plot_II(p, fit_results_dev_setPoint, color='#5056fa',label='Development (SP)')  
+    # p = add_fit_to_plot_II(p, fit_results_reg_setPoint, color='#fac150',label='Regeneration (SP)')
+    # show(p)
 
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
-                                      test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
-    p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#5056fa',label='Development (D)')  
-    p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#fac150',label='Regeneration (D)')
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+    #                                   test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
+    # p = add_fit_to_plot_II(p, fit_results_dev_Dose, color='#5056fa',label='Development (D)')  
+    # p = add_fit_to_plot_II(p, fit_results_reg_Dose, color='#fac150',label='Regeneration (D)')
+    # show(p)
 
     # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
     #                                   test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
@@ -404,7 +404,7 @@ def main():
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
                                       test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
     p = add_fit_to_plot_II(p, fit_results_4850cut_2_setPoint, color='#29852f',label='4850cut (SP II)')
-    p = add_fit_to_plot_II(p, fit_results_4850cut_1_Dose, color='#81f089',label='4850cut (D I)')
+    #p = add_fit_to_plot_II(p, fit_results_4850cut_1_Dose, color='#81f089',label='4850cut (D I)')
     show(p)
     p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='#265429',width=width,show_quantilles=False,base_line_width=2.0,show_scatter=False)
     show(p)

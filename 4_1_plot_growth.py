@@ -2,7 +2,7 @@ import pandas as pd
 import os
 import numpy as np
 
-from plotHelper import plot_scatter_corner,plot_double_timeseries_II,add_data_to_plot_II,plot_scatter_II,add_data_scatter_II,add_lines_to_time_series
+from plotHelper.plotBokehHelper_old import plot_scatter_corner,plot_double_timeseries_II,add_data_to_plot_II,plot_scatter_II,add_data_scatter_II,add_lines_to_time_series
 from bokeh.io import show
 
 from config import *
@@ -206,7 +206,7 @@ def main():
 
     # plot_single_timeseries(df, filter_col='condition', filter_value='Regeneration', y_col='Volume', style='violin', color='orange',width=None)
     plot_double_timeseries(df, y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Tissue Volume $$10^6 \mu m^3$$',test_significance=True,y0=0,show_n=False)
-    return
+    
     plot_double_timeseries(df, y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
     plot_double_timeseries(df, y_col='L PD', style='violin',y_scaling=1,y_name=r'$$L_{DP} in \mu m$$',test_significance=True,y0=0)
     plot_double_timeseries(df, y_col='L AP', style='violin',y_scaling=1,y_name=r'$$L_{AP} in \mu m$$',test_significance=True,y0=0)
@@ -214,7 +214,7 @@ def main():
     # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
     # p=add_data_to_plot_II(df,p,y_col='Surface Area',category='72FF_cut',y_scaling=1e-4,color='black',width=width)
     # show(p)
-    return
+    
     df=add_ED_Data(df)
     plot_double_timeseries(df, y_col='Volume ED', style='violin',y_scaling=1e-5,y_name=r'Endosceletal disc Volume $$10^5 \mu m^3$$',test_significance=True,y0=0)
     plot_double_timeseries(df, y_col='N_objects', style='violin',y_name=r'Endosceletal disc Cell number',test_significance=True,y0=0)
@@ -426,6 +426,52 @@ def plot_variance(df, quantity='Volume'):
 
     plt.show()
 
+def plot_compare_CoV(df, quantity='Volume'):
+    """
+    Plots a bar chart comparing coefficient of variation (CoV = std/mean) between
+    48 hpf and 144 hpf for each condition, with error bars.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing columns 'time in hpf', 'condition', and the target quantity.
+    quantity (str): The column name of the quantity to analyze.
+    """
+
+    # Only use data from 48 and 144 hpf
+    df_filtered = df[df['time in hpf'].isin([48, 144])]
+
+    # Group by condition and time
+    grouped = df_filtered.groupby(['condition', 'time in hpf'])[quantity]
+    stats = grouped.agg(['mean', 'std', 'count']).reset_index()
+
+    # Coefficient of Variation
+    stats['cov'] = stats['std'] / stats['mean']
+
+    # Error of CoV: derived from delta method
+    stats['cov_err'] = stats['cov'] * np.sqrt(1/(2 * (stats['count'] - 1)) + (stats['std']**2) / (stats['mean']**2 * stats['count']))
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(8, 6))
+    width = 0.35
+    timepoints = [48, 144]
+    conditions = ['Development', 'Regeneration']
+
+    x = np.arange(len(timepoints))
+    for i, cond in enumerate(conditions):
+        subset = stats[stats['condition'] == cond]
+        cov_vals = subset.set_index('time in hpf').loc[timepoints, 'cov']
+        cov_errs = subset.set_index('time in hpf').loc[timepoints, 'cov_err']
+        ax.bar(x + i * width, cov_vals, width, yerr=cov_errs, capsize=5, label=cond)
+
+    ax.set_xticks(x + width * (len(conditions) - 1) / 2)
+    ax.set_xticklabels([f'{t} hpf' for t in timepoints])
+    ax.set_ylabel('Coefficient of Variation')
+    ax.set_title(f'CoV of {quantity} at 48 and 144 hpf')
+    ax.legend()
+    ax.grid(True)
+
+    plt.tight_layout()
+    plt.show()
+
 def plot_all_variance():
     df=getData()
     
@@ -435,12 +481,18 @@ def plot_all_variance():
     df['Volume']=df['Volume']*1e-6
     df['Surface Area']=df['Surface Area']*1e-4
 
+    plot_compare_CoV(df, quantity='Surface Area')
+    return
+
+
     plot_variance(df, quantity='Volume')
     plot_variance(df, quantity='Surface Area')
     plot_variance(df, quantity='V / A')
 
+
+
 if __name__ == "__main__":
+    #main()
+    #new_plots()
 
-    new_plots()
-
-    #plot_all_variance()
+    plot_all_variance()

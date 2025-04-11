@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from plotBokehHelper import plot_double_timeseries
-from plotHelper import plot_scatter_corner
+from plotHelper.plotBokehHelper_old import plot_scatter_corner
 from bokeh.io import show
 import pyvista as pv
 
@@ -25,11 +25,11 @@ def collect_dfs():
 
         # Load the dataframe
         df_prop = pd.read_hdf(os.path.join(EDprop_folder_path, EDpropMetaData['MetaData_EDcell_props']['EDcell_props file']), key='data')
-
+        
         # Add metadata as new columns
         df_prop['time in hpf'] = EDpropMetaData['MetaData_EDcell_props']['time in hpf']
         df_prop['condition'] = EDpropMetaData['MetaData_EDcell_props']['condition']
-
+        df_prop['folder_name'] = EDprop_folder
         # Append the dataframe to the list
         all_dfs.append(df_prop)
 
@@ -92,17 +92,145 @@ def collect_dfs_proj():
     merged_df = pd.concat(all_dfs, ignore_index=True)
     return merged_df
 
+import pandas as pd
+import numpy as np
+import re
+import statsmodels.formula.api as smf
 
+def extract_day_from_folder(folder_name):
+    match = re.match(r'^(\d{6,8})', str(folder_name))
+    return int(match.group(1)) if match else None
+
+def compute_hierarchical_icc(df, value_col):
+    if df['day'].nunique() < 2 or df['folder_name'].nunique() < 2:
+        return None, None, None, None
+    try:
+        model = smf.mixedlm(
+            formula=f"{value_col} ~ 1",
+            data=df,
+            groups=df['day'],
+            re_formula="1"
+        )
+        result = model.fit(reml=True)
+        var_day = result.cov_re.iloc[0, 0]
+
+        # Now folder-level as nested groups
+        df['day_folder'] = df['day'].astype(str) + '_' + df['folder_name'].astype(str)
+        model_nested = smf.mixedlm(
+            formula=f"{value_col} ~ 1",
+            data=df,
+            groups=df['day_folder'],
+            re_formula="1"
+        )
+        result_nested = model_nested.fit(reml=True)
+        var_folder = result_nested.cov_re.iloc[0, 0]
+        var_within = result_nested.scale
+
+        total_var = var_day + var_folder + var_within
+        icc_day = var_day / total_var
+        icc_folder = var_folder / total_var
+        total_icc = icc_day + icc_folder
+
+        return total_icc, icc_day, icc_folder, var_within
+    except:
+        return None, None, None, None
+
+def compute_design_effects(df, value_col, folder_col, group_cols):
+    df = df.copy()
+    df['day'] = df[folder_col].apply(extract_day_from_folder)
+
+    results = []
+    for keys, group_df in df.groupby(group_cols):
+        total_icc, icc_day, icc_folder, var_w = compute_hierarchical_icc(group_df, value_col=value_col)
+        N = len(group_df)
+        n = group_df['day'].nunique()
+
+        if total_icc is None or n <= 1:
+            continue
+
+        m_bar = N / n
+        design_effect = 1 + (m_bar - 1) * total_icc
+        N_eff = N / design_effect
+
+        result_row = {col: val for col, val in zip(group_cols, keys)}
+        result_row.update({
+            'N': N,
+            'n_days': n,
+            'ICC Total': total_icc,
+            'ICC Day': icc_day,
+            'ICC Folder': icc_folder,
+            'Design Effect': design_effect,
+            'N_eff': N_eff,
+            'Within Var': var_w
+        })
+        results.append(result_row)
+
+    return pd.DataFrame(results)
+import scipy.stats as stats
+def plot_volume_histogram_by_condition(df, value_col='Volume', time_points=[96, 144], condition_col='condition', time_col='time in hpf', volume_threshold=600):
+    fig, axes = plt.subplots(len(time_points), 1, figsize=(10, 6), sharex=True)
+    colors = {'Development': 'blue', 'Regeneration': 'orange'}
+
+    df = df[df[value_col] <= volume_threshold].copy()
+
+    for i, t in enumerate(time_points):
+        ax = axes[i] if len(time_points) > 1 else axes
+        df_sub = df[df[time_col] == t].copy()
+        df_sub['day'] = df_sub['folder_name'].apply(extract_day_from_folder)
+
+        conds = df_sub[condition_col].unique()
+        values = []
+        means = {}
+        neffs = {}
+        stds = {}
+
+        for cond in conds:
+            vals = df_sub[df_sub[condition_col] == cond][value_col]
+            n = len(vals)
+            df_sub_group = df_sub[df_sub[condition_col] == cond].copy()
+            total_icc, *_ = compute_hierarchical_icc(df_sub_group, value_col)
+            m_bar = n / df_sub_group['day'].nunique() if df_sub_group['day'].nunique() > 1 else 1
+            design_effect = 1 + (m_bar - 1) * total_icc if total_icc is not None else 1
+            neff = n / design_effect if design_effect > 0 else n
+            neffs[cond] = neff
+            stds[cond] = vals.std()
+
+            ax.hist(vals, bins=50, alpha=0.6, density=True, label=f'{cond} (N_eff={neff:.1f})', color=colors.get(cond, None))
+            mu = vals.mean()
+            ax.axvline(mu, linestyle='--', color=colors.get(cond, None))
+            values.append(vals)
+            means[cond] = mu
+
+        if len(conds) == 2:
+            try:
+                mu_diff = means[conds[0]] - means[conds[1]]
+                se_diff = np.sqrt(stds[conds[0]]**2 / neffs[conds[0]] + stds[conds[1]]**2 / neffs[conds[1]])
+                t_stat = mu_diff / se_diff
+                df_denom = min(neffs[conds[0]], neffs[conds[1]]) - 1
+                p_val = 2 * (1 - stats.t.cdf(np.abs(t_stat), df=df_denom))
+                ax.text(0.95, 0.95, f'p = {p_val*100:.1f}%', transform=ax.transAxes,
+                    ha='right', va='top', fontsize=12)
+            except Exception as e:
+                ax.text(0.95, 0.95, 't-test failed', transform=ax.transAxes,
+                        ha='right', va='top', fontsize=12, color='red')
+
+        ax.set_ylabel(f'{t} hpf')
+        ax.legend()
+
+    axes[-1].set_xlabel(value_col)
+    fig.suptitle(f'{value_col} distribution at selected timepoints (<= {volume_threshold})')
+    plt.tight_layout()
+    plt.show()
 
 def main():
-    #merged_df=collect_dfs()
-    #merged_df.to_hdf('data.h5', key='df', mode='w')
-    prop_df = pd.read_hdf('data.h5', key='df')
-   
+    # merged_df=collect_dfs()
+    # merged_df.to_csv('data.csv', index=False)
+    prop_df = pd.read_csv('data.csv')
+    # print(prop_df.columns)
     #proj_df=collect_dfs_proj()
     #proj_df.to_hdf('data_proj.h5', key='df', mode='w')
     proj_df = pd.read_hdf('data_proj.h5', key='df')
-
+    # print(proj_df.columns)
     merged_df = pd.merge(prop_df, proj_df, on=['Label','time in hpf','condition'], how='inner')
 
     merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
@@ -132,13 +260,26 @@ def main():
     # )
 
     print(merged_df.columns)
-    # print(merged_df)
+    print(merged_df.head())
+    print(merged_df.shape)
+
+
+    # df_summary = compute_design_effects(
+    #     df=merged_df,
+    #     value_col='Volume',
+    #     folder_col='folder_name',
+    #     group_cols=['time in hpf', 'condition']
+    # )
+    # print(df_summary)
+
+    #plot_volume_histogram_by_condition(merged_df, value_col='Volume', time_points=[96, 144], condition_col='condition', time_col='time in hpf')
+
     # return
-    # plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
+    plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Surface Area', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Solidity', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Sphericity', style='violin',test_significance=True,y0=0,show_scatter=False)
-    plot_double_timeseries(merged_df, y_col='elongation', style='violin',test_significance=True,y0=0,show_scatter=False)
+    # plot_double_timeseries(merged_df, y_col='elongation', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='I1+I2/2I3', style='violin',test_significance=True,y0=0,show_scatter=False)
     #plot_double_timeseries(merged_df, y_col='orientation', style='violin',test_significance=True,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='I1/I2', style='violin',test_significance=True,y0=0,show_scatter=False)
