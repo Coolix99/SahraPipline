@@ -207,5 +207,4 @@ def register_finmask_special(condition_name,skip_existing=True):
       
 
 if __name__ == "__main__":
-
-    register_finmask_special('4850cut')
+    register_finmask_special('7230cut')

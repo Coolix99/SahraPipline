@@ -292,77 +292,127 @@ def new_plots():
     print(df.columns)
     print(df.head())
     filtered_df = df[df["condition"] == "4850cut"]
-    print(filtered_df)
+    time_series_list_4850 = group_time_series(filtered_df)
 
-    time_series_list = group_time_series(filtered_df)
+    filtered_df = df[df["condition"] == "7230cut"]
+    time_series_list_7230 = group_time_series(filtered_df)
+    
 
     # Output result
-    for i, series in enumerate(time_series_list):
+    for i, series in enumerate(time_series_list_4850):
         print(f"Time Series {i+1}: {series}")
 
     # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False)
     # show(p)
 
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
-                                      test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='box',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',
+    #                                   test_significance=False,y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=14)
+    # show(p)
     
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L PD', style='violin',y_scaling=1,y_name=r'L proximal-distal $$\mu m$$',test_significance=False,
-                                      y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,y_max=600)
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L PD', style='violin',y_scaling=1,y_name=r'L proximal-distal $$\mu m$$',test_significance=False,
+    #                                   y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,y_max=600)
+    # show(p)
 
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L AP', style='violin',y_scaling=1,y_name=r'L anterior-posterior $$\mu m$$',test_significance=False,
-                                      y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,y_max=600)
-    show(p)
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L AP', style='violin',y_scaling=1,y_name=r'L anterior-posterior $$\mu m$$',test_significance=False,
+    #                                   y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,y_max=600)
+    # show(p)
 
-    p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='V / A', style='box',y_scaling=1,y_name=r'Mean Thickness $$\mu m$$',test_significance=False,
-                                      y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=50)
-    show(p)
-    return
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='V / A', style='box',y_scaling=1,y_name=r'Mean Thickness $$\mu m$$',test_significance=False,
+    #                                   y0=0,show_n=False,base_line_width=2.0,show_quantilles=False,show_scatter=False,y_max=50)
+    # show(p)
+    
 
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
+    # p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='Surface Area',color='black',y_scaling=1e-4)
+    # show(p)
+    
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='Volume',category='4850cut',y_scaling=1e-6,color='black',width=width)
+    # p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='Volume',color='black',y_scaling=1e-6)
+    # show(p)
+
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='V / A', style='violin',y_scaling=1,y_name=r'Mean Thickness $$\mu m$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='V / A',category='4850cut',y_scaling=1,color='black',width=width)
+    # p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='V / A',color='black')
+    # show(p)
+
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L PD', style='violin',y_scaling=1,y_name=r'L proximal-distal $$\mu m$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='L PD',category='4850cut',y_scaling=1,color='black',width=width)
+    # p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='L PD',color='black')
+    # show(p)
+
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L AP', style='violin',y_scaling=1,y_name=r'L anterior-posterior $$\mu m$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='L AP',category='4850cut',y_scaling=1,color='black',width=width)
+    # p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='L AP',color='black')
+    # show(p)
+
+    # p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L DV', style='violin',y_scaling=1,y_name=r'L dorso-ventral $$\mu m$$',test_significance=True,y0=0)
+    # p=add_data_to_plot_II(df,p,y_col='L DV',category='4850cut',y_scaling=1,color='black',width=width)
+    # p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='L DV',color='black')
+    # show(p)
+
+    
+    # p=plot_scatter_II(df, x_col='L DV', y_col='V / A', mode='category',show_fit=True,show_div='Residual')
+    # p=add_data_scatter_II(df,p,x_col='L DV', y_col='V / A',category='4850cut',color='black')
+    # show(p)
+
+    # p=plot_scatter_II(df, x_col='Surface Area', y_col='L AP * L PD', mode='category',show_fit=True,show_div='Residual')
+    # p=add_data_scatter_II(df,p, x_col='Surface Area', y_col='L AP * L PD',category='4850cut',color='black')
+    # show(p)
+
+    # p=plot_scatter_II(df, x_col='Volume', y_col='Surface Area', mode='category',show_fit=True,show_div='Residual')
+    # p=add_data_scatter_II(df,p,x_col='Volume', y_col='Surface Area',category='4850cut',color='black')
+    # show(p)
+    
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Surface Area', style='violin',y_scaling=1e-4,y_name=r'Area $$(100 \mu m)^2$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='Surface Area',category='7230cut',y_scaling=1e-4,color='purple',width=width)
+    p=add_lines_to_time_series(df,time_series_list_7230,p,y_col='Surface Area',color='purple',y_scaling=1e-4)
+    show(p)
     p=add_data_to_plot_II(df,p,y_col='Surface Area',category='4850cut',y_scaling=1e-4,color='black',width=width)
-    p=add_lines_to_time_series(df,time_series_list,p,y_col='Surface Area',color='black',y_scaling=1e-4)
+    p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='Surface Area',color='black',y_scaling=1e-4)
     show(p)
     
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='Volume', style='violin',y_scaling=1e-6,y_name=r'Volume $$(100 \mu m)^3$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='Volume',category='7230cut',y_scaling=1e-6,color='purple',width=width)
+    p=add_lines_to_time_series(df,time_series_list_7230,p,y_col='Volume',color='purple',y_scaling=1e-6)
+    show(p)
     p=add_data_to_plot_II(df,p,y_col='Volume',category='4850cut',y_scaling=1e-6,color='black',width=width)
-    p=add_lines_to_time_series(df,time_series_list,p,y_col='Volume',color='black',y_scaling=1e-6)
+    p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='Volume',color='black',y_scaling=1e-6)
     show(p)
 
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='V / A', style='violin',y_scaling=1,y_name=r'Mean Thickness $$\mu m$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='V / A',category='7230cut',y_scaling=1,color='purple',width=width)
+    p=add_lines_to_time_series(df,time_series_list_7230,p,y_col='V / A',color='purple')
+    show(p)
     p=add_data_to_plot_II(df,p,y_col='V / A',category='4850cut',y_scaling=1,color='black',width=width)
-    p=add_lines_to_time_series(df,time_series_list,p,y_col='V / A',color='black')
+    p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='V / A',color='black')
     show(p)
 
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L PD', style='violin',y_scaling=1,y_name=r'L proximal-distal $$\mu m$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='L PD',category='7230cut',y_scaling=1,color='purple',width=width)
+    p=add_lines_to_time_series(df,time_series_list_7230,p,y_col='L PD',color='purple')
+    show(p)
     p=add_data_to_plot_II(df,p,y_col='L PD',category='4850cut',y_scaling=1,color='black',width=width)
-    p=add_lines_to_time_series(df,time_series_list,p,y_col='L PD',color='black')
+    p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='L PD',color='black')
     show(p)
 
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L AP', style='violin',y_scaling=1,y_name=r'L anterior-posterior $$\mu m$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='L AP',category='7230cut',y_scaling=1,color='purple',width=width)
+    p=add_lines_to_time_series(df,time_series_list_7230,p,y_col='L AP',color='purple')
+    show(p)
     p=add_data_to_plot_II(df,p,y_col='L AP',category='4850cut',y_scaling=1,color='black',width=width)
-    p=add_lines_to_time_series(df,time_series_list,p,y_col='L AP',color='black')
+    p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='L AP',color='black')
     show(p)
 
     p,width=plot_double_timeseries_II(df,categories=('Development','Regeneration'), y_col='L DV', style='violin',y_scaling=1,y_name=r'L dorso-ventral $$\mu m$$',test_significance=True,y0=0)
+    p=add_data_to_plot_II(df,p,y_col='L DV',category='7230cut',y_scaling=1,color='purple',width=width)
+    p=add_lines_to_time_series(df,time_series_list_7230,p,y_col='L DV',color='purple')
+    show(p)
     p=add_data_to_plot_II(df,p,y_col='L DV',category='4850cut',y_scaling=1,color='black',width=width)
-    p=add_lines_to_time_series(df,time_series_list,p,y_col='L DV',color='black')
+    p=add_lines_to_time_series(df,time_series_list_4850,p,y_col='L DV',color='black')
     show(p)
 
-    
-    p=plot_scatter_II(df, x_col='L DV', y_col='V / A', mode='category',show_fit=True,show_div='Residual')
-    p=add_data_scatter_II(df,p,x_col='L DV', y_col='V / A',category='4850cut',color='black')
-    show(p)
-
-    p=plot_scatter_II(df, x_col='Surface Area', y_col='L AP * L PD', mode='category',show_fit=True,show_div='Residual')
-    p=add_data_scatter_II(df,p, x_col='Surface Area', y_col='L AP * L PD',category='4850cut',color='black')
-    show(p)
-
-    p=plot_scatter_II(df, x_col='Volume', y_col='Surface Area', mode='category',show_fit=True,show_div='Residual')
-    p=add_data_scatter_II(df,p,x_col='Volume', y_col='Surface Area',category='4850cut',color='black')
-    show(p)
-   
 
 import matplotlib.pyplot as plt
 def plot_variance(df, quantity='Volume'):
@@ -493,6 +543,6 @@ def plot_all_variance():
 
 if __name__ == "__main__":
     #main()
-    #new_plots()
+    new_plots()
 
-    plot_all_variance()
+    #plot_all_variance()
