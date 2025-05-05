@@ -205,5 +205,5 @@ def register_finmask(skip_existing=True):
        
 
 if __name__ == "__main__":
-    #register_raw()
-    register_finmask()
+    register_raw()
+    #register_finmask()

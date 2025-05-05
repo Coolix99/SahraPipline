@@ -7,6 +7,8 @@ import git
 from simple_file_checksum import get_checksum
 import re
 
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config import *
 from IO import *
@@ -66,4 +68,4 @@ def register_EDcells(skip_existing=True):
        
 
 if __name__ == "__main__":
-    register_EDcells()
+    register_EDcells(False)

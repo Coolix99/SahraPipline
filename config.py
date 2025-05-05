@@ -34,19 +34,20 @@ ED_cell_props_path=os.path.join(Output_path,'ED_cell_props')
 finmasks_path=os.path.join(Output_path,'finmasks')
 nucmem_path=os.path.join(Output_path,'nucmem')
 bre_path=os.path.join(Output_path,'bre')
+scalar_path=os.path.join(Output_path,'scalarData')
 
 # #Part I
 FlatFin_path=os.path.join(Output_path,'for_curv_thick','FlatFin')
 
 #Part II
-Curv_Thick_path=os.path.join(Output_path,'for_curv_thick')
-Diffeo_path=os.path.join(Curv_Thick_path,'Diffeo')
-ElementaryDiffeos_path=os.path.join(Diffeo_path,'ElementaryDiffeos')
-Hist_path=os.path.join(Diffeo_path,'Histogramms')
+# Curv_Thick_path=os.path.join(Output_path,'for_curv_thick')
+# Diffeo_path=os.path.join(Curv_Thick_path,'Diffeo')
+# ElementaryDiffeos_path=os.path.join(Diffeo_path,'ElementaryDiffeos')
+# Hist_path=os.path.join(Diffeo_path,'Histogramms')
 
 # #Part III
 Lucas_res=os.path.join(Output_path,'compare_Lucas')
-AvgShape_path=os.path.join(Curv_Thick_path,'AvgShape')
+# AvgShape_path=os.path.join(Curv_Thick_path,'AvgShape')
 # EpSeg_path=os.path.join(Output_path,'epithelia_flat_test')
 # EpSeg_path=os.path.join(EpSeg_path,'fin')
 
