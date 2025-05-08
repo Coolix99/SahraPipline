@@ -1,10 +1,13 @@
 import os
 import pandas as pd
-from plotBokehHelper import plot_double_timeseries
 from plotHelper.plotBokehHelper_old import plot_scatter_corner
+from plotHelper.bokeh_timeseries_plot import plot_double_timeseries
 from bokeh.io import show
 import pyvista as pv
 
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import *
 from IO import *
 
@@ -24,7 +27,7 @@ def collect_dfs():
             continue
 
         # Load the dataframe
-        df_prop = pd.read_hdf(os.path.join(EDprop_folder_path, EDpropMetaData['MetaData_EDcell_props']['EDcell_props file']), key='data')
+        df_prop = pd.read_csv(os.path.join(EDprop_folder_path, EDpropMetaData['MetaData_EDcell_props']['EDcell_props file']),sep=';')
         
         # Add metadata as new columns
         df_prop['time in hpf'] = EDpropMetaData['MetaData_EDcell_props']['time in hpf']
@@ -223,18 +226,18 @@ def plot_volume_histogram_by_condition(df, value_col='Volume', time_points=[96, 
     plt.show()
 
 def main():
-    # merged_df=collect_dfs()
+    merged_df=collect_dfs()
     # merged_df.to_csv('data.csv', index=False)
-    prop_df = pd.read_csv('data.csv')
+    # prop_df = pd.read_csv('data.csv')
     # print(prop_df.columns)
-    #proj_df=collect_dfs_proj()
-    #proj_df.to_hdf('data_proj.h5', key='df', mode='w')
-    proj_df = pd.read_hdf('data_proj.h5', key='df')
+    # proj_df=collect_dfs_proj()
+    # proj_df.to_hdf('data_proj.h5', key='df', mode='w')
+    # proj_df = pd.read_hdf('data_proj.h5', key='df')
     # print(proj_df.columns)
-    merged_df = pd.merge(prop_df, proj_df, on=['Label','time in hpf','condition'], how='inner')
+    # merged_df = pd.merge(prop_df, proj_df, on=['Label','time in hpf','condition'], how='inner')
 
-    merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
-    merged_df = merged_df.dropna()
+    # merged_df = merged_df.replace([np.inf, -np.inf], np.nan)
+    # merged_df = merged_df.dropna()
 
 
     merged_df['2I1/I2+I3']=2*merged_df['moments_eigvals 1']/(merged_df['moments_eigvals 2']+merged_df['moments_eigvals 3'])
@@ -243,15 +246,15 @@ def main():
     merged_df['I1/I2']=merged_df['moments_eigvals 1']/merged_df['moments_eigvals 2']
     merged_df['I2/I3']=merged_df['moments_eigvals 2']/merged_df['moments_eigvals 3']
 
-    merged_df['orientation'] = (
-    merged_df['eigvec1_X'] * merged_df['normal vector X'] +
-    merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
-    merged_df['eigvec1_Z'] * merged_df['normal vector Z']
-    )*(
-    merged_df['eigvec1_X'] * merged_df['normal vector X'] +
-    merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
-    merged_df['eigvec1_Z'] * merged_df['normal vector Z']
-    )
+    # merged_df['orientation'] = (
+    # merged_df['eigvec1_X'] * merged_df['normal vector X'] +
+    # merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
+    # merged_df['eigvec1_Z'] * merged_df['normal vector Z']
+    # )*(
+    # merged_df['eigvec1_X'] * merged_df['normal vector X'] +
+    # merged_df['eigvec1_Y'] * merged_df['normal vector Y'] +
+    # merged_df['eigvec1_Z'] * merged_df['normal vector Z']
+    # )
 
     # merged_df['orientation'] = np.abs(
     # merged_df['eigvec1_X'] * merged_df['e2 X'] +
@@ -275,7 +278,20 @@ def main():
     #plot_volume_histogram_by_condition(merged_df, value_col='Volume', time_points=[96, 144], condition_col='condition', time_col='time in hpf')
 
     # return
-    plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
+    colors = {'7230cut': 'purple', '4850cut': 'black'}
+    categories = {'Development': 'blue', 'Regeneration': 'orange'}
+    p, width = plot_double_timeseries(
+            merged_df,
+            categories=categories,
+            y_col='Volume',
+            style='violin',
+            y_scaling=1,
+            y_name=r'Cell Volume $$\mu m^3$$',
+            test_significance=True,
+            y0=0
+        )
+    show(p)
+    #plot_double_timeseries(merged_df, y_col='Volume', style='violin',y_scaling=1,y_name=r'Cell Volume $$\mu m^3$$',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Surface Area', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Solidity', style='violin',test_significance=True,y0=0,show_scatter=False)
     # plot_double_timeseries(merged_df, y_col='Sphericity', style='violin',test_significance=True,y0=0,show_scatter=False)
