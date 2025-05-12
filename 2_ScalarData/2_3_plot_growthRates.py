@@ -4,6 +4,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 
+from powersmooth.powersmooth import powersmooth_upsampled,powersmooth
+
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import *
@@ -72,6 +74,83 @@ def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200,s: fl
     
     return results
 
+def fit_and_sample_derivatives_powersmooth(df: pd.DataFrame, column: str, order: int = 2, factor: int = 5, weight: float = 1.0, N: int = 200):
+    results = {}
+    grouped = df.groupby('condition')
+
+    for condition, group in grouped:
+        if condition in ['4850cut', '7230cut']:
+            continue
+
+        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
+        t_raw = stats['time in hpf'].values
+
+        # Build dense time grid using interpolation between existing points
+        t_dense = []
+        for i in range(len(t_raw) - 1):
+            segment = np.linspace(t_raw[i], t_raw[i + 1], factor + 2)[:-1]  # exclude last to prevent duplication
+            t_dense.extend(segment)
+        t_dense.append(t_raw[-1])  # add last point
+        t_dense = np.array(t_dense)
+
+        condition_fits = {
+            'fitted_values': [],
+            'derivative': [],
+            'relative_derivative': [],
+            'time': t_dense
+        }
+
+        for _ in range(N):
+            sampled_values = np.random.normal(stats['mean'], stats['std'] / 2)
+            smooth_vals = powersmooth_upsampled(sampled_values, order=order, weight=weight, factor=factor)
+
+            dt = np.gradient(t_dense)
+            derivative = np.gradient(smooth_vals, dt)
+            relative_derivative = derivative / smooth_vals
+
+            condition_fits['fitted_values'].append(smooth_vals)
+            condition_fits['derivative'].append(derivative)
+            condition_fits['relative_derivative'].append(relative_derivative)
+
+        results[condition] = condition_fits
+
+    return results
+
+def fit_and_sample_derivatives_powersmooth(df: pd.DataFrame, column: str, order: int = 2, weight: float = 1.0, N: int = 200):
+    results = {}
+    grouped = df.groupby('condition')
+
+    for condition, group in grouped:
+        if condition in ['4850cut', '7230cut']:
+            continue
+
+        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
+        t_raw = stats['time in hpf'].values
+
+        condition_fits = {
+            'fitted_values': [],
+            'derivative': [],
+            'relative_derivative': [],
+            'time': t_raw
+        }
+
+        for _ in range(N):
+            sampled_values = np.random.normal(stats['mean'], stats['std'] / 2)
+            smooth_vals = powersmooth(sampled_values, order=order, weight=weight)
+
+            dt = np.gradient(t_raw)
+            derivative = np.gradient(smooth_vals, dt)
+            relative_derivative = derivative / smooth_vals
+
+            condition_fits['fitted_values'].append(smooth_vals)
+            condition_fits['derivative'].append(derivative)
+            condition_fits['relative_derivative'].append(relative_derivative)
+
+        results[condition] = condition_fits
+
+    return results
+
+
 def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, ylabel, ymin=0,ymax=None,xmax=None,xmin=None,dy=None,dx=None):
     """
     Plot fit results with uncertainty bands using Matplotlib.
@@ -138,6 +217,7 @@ def main():
     print(df.columns)
 
     res=fit_and_sample_derivatives(df, 'Volume', N=1000,s=0.4e1)
+    # res=fit_and_sample_derivatives_powersmooth(df, 'Volume', N=1000,weight=3e-1,order=1)
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['fitted_values']
@@ -152,7 +232,7 @@ def main():
         labels=['Development', 'Regeneration'],
         title='Volume ',
         xlabel='t [hpf]',
-        ylabel=r'$\dot{V} \quad [\mu m^3]$',
+        ylabel=r'$V \quad [\mu m^3]$',
         # ymin=0,
         # xmin=48,
         # dx=12,
@@ -202,6 +282,7 @@ def main():
     )
 
     res=fit_and_sample_derivatives(df, 'Surface Area', N=1000,s=0.5e1)
+    # res=fit_and_sample_derivatives_powersmooth(df, 'Surface Area', N=1000)
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['derivative']
