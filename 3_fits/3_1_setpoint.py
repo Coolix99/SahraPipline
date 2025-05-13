@@ -1,12 +1,15 @@
+import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import numpy as np
 import arviz as az
-import stan
-import asyncio
-from utilsScalar import getData
-
+from cmdstanpy import CmdStanModel
+from bebi103.viz import corner, predictive_regression
+from bokeh.io import output_file, save
+from scipy.integrate import solve_ivp
+from utilsScalar import getData, scalar_path
+from bokeh.io import output_file, save
 
 def explorative_plotting(df: pd.DataFrame):
     sns.scatterplot(data=df, x="time in hpf", y="Surface Area", hue="condition")
@@ -16,10 +19,6 @@ def explorative_plotting(df: pd.DataFrame):
     plt.tight_layout()
     plt.show()
 
-
-from scipy.integrate import solve_ivp
-
-
 def ode_system(t, y, alpha, beta_, A_end, A_cut):
     A, g = y
     dA_dt = g * A
@@ -28,7 +27,6 @@ def ode_system(t, y, alpha, beta_, A_end, A_cut):
     else:
         dg_dt = -alpha * (g - beta_ * (A_end - A) / A_end)
     return [dA_dt, dg_dt]
-
 
 def simulate_prior_predictive_ODE(t_vals, df: pd.DataFrame, n_samples=50):
     np.random.seed(42)
@@ -71,41 +69,47 @@ def simulate_prior_predictive_ODE(t_vals, df: pd.DataFrame, n_samples=50):
     plt.tight_layout()
     plt.show()
 
-import nest_asyncio
-
-
-nest_asyncio.apply()  # Needed for environments like Jupyter/IPython
-
-def run_async(coro):
-    """Safely run an async coroutine even in an existing event loop."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    else:
-        if loop.is_running():
-            return loop.create_task(coro)
-        else:
-            return loop.run_until_complete(coro)
-
-
-
-def compile_and_fit_stan_model(model_code: str, data_dict: dict):
-    posterior = stan.build(model_code, data=data_dict)
-    fit = posterior.sample(num_chains=4, num_samples=1000, num_warmup=3000, show_console=True)
+def compile_and_fit_stan_model(model_path: str, data_dict: dict):
+    model = CmdStanModel(stan_file=model_path)
+    fit = model.sample(data=data_dict, chains=4, iter_warmup=3000, iter_sampling=1000, show_progress=True)
     return fit
 
-def posterior_diagnostics(fit):
-    az_data = az.from_pystan(posterior=fit)
-    az.plot_trace(az_data)
-    plt.tight_layout()
-    plt.show()
+def posterior_diagnostics(fit, data_dict):
+    az_data = az.from_cmdstanpy(posterior=fit, posterior_predictive=["A_Dev_ppc", "A_Reg_ppc"])
+    samples = az_data
+    f_ppc_dev = samples.posterior_predictive.A_Dev_ppc.stack({"sample": ("chain", "draw")}).transpose("sample", "A_Dev_ppc_dim_0")
+    f_ppc_reg = samples.posterior_predictive.A_Reg_ppc.stack({"sample": ("chain", "draw")}).transpose("sample", "A_Reg_ppc_dim_0")
 
-    az.plot_pair(az_data, kind='kde', marginals=True)
-    plt.tight_layout()
-    plt.show()
 
-    print(az.summary(az_data))
+    output_file("corner_Dev.html")
+    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Dev", "g_0_Dev", "alpha", "beta_"], xtick_label_orientation=np.pi/4))
+
+    output_file("corner_Reg.html")
+    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Reg", "g_0_Reg", "alpha", "beta_"], xtick_label_orientation=np.pi/4))
+
+    output_file("ppc_Dev.html")
+    save(predictive_regression(
+        f_ppc_dev,
+        samples_x=np.array(data_dict["t_ppc"]),
+        data=np.dstack((data_dict["t_Dev"], data_dict["A_Dev"])).squeeze(),
+        x_axis_label='t',
+        y_axis_label='A'))
+
+    output_file("ppc_Reg.html")
+    save(predictive_regression(
+        f_ppc_reg,
+        samples_x=np.array(data_dict["t_ppc"]),
+        data=np.dstack((data_dict["t_Reg"], data_dict["A_Reg"])).squeeze(),
+        x_axis_label='t',
+        y_axis_label='A'))
+
+    # Save posterior samples to CSV
+    posterior = samples.posterior
+    results = {var_name: posterior[var_name].values.flatten() for var_name in posterior.data_vars}
+    results_df = pd.DataFrame(results)
+    fit_results_path = os.path.join(scalar_path, "fit_results")
+    os.makedirs(fit_results_path, exist_ok=True)
+    results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_setPoint.csv"), index=False)
 
 def prepare_stan_data(df: pd.DataFrame, cond_dev="Development", cond_reg="Regeneration") -> dict:
     df_dev = df[df["condition"] == cond_dev].copy()
@@ -114,12 +118,12 @@ def prepare_stan_data(df: pd.DataFrame, cond_dev="Development", cond_reg="Regene
     # Sort Dev data by time
     df_dev = df_dev.sort_values("time in hpf")
     t_dev = df_dev["time in hpf"].to_numpy()
-    A_dev = df_dev["Surface Area"].to_numpy() * 1e-4
+    A_dev = df_dev["Surface Area"].to_numpy() 
 
     # Sort Reg data by time
     df_reg = df_reg.sort_values("time in hpf")
     t_reg = df_reg["time in hpf"].to_numpy()
-    A_reg = df_reg["Surface Area"].to_numpy() * 1e-4
+    A_reg = df_reg["Surface Area"].to_numpy() 
 
     t_ppc = np.linspace(48, 144, 100)
 
@@ -131,6 +135,9 @@ def prepare_stan_data(df: pd.DataFrame, cond_dev="Development", cond_reg="Regene
 
 def main():
     df = getData()
+    df['Surface Area'] = df['Surface Area'] / 10000
+    df = df[~df['condition'].isin(['4850cut', '7230cut'])]
+
     df = df[["time in hpf", "Surface Area", "condition"]].dropna()
 
     explorative_plotting(df)
@@ -138,15 +145,11 @@ def main():
     simulate_prior_predictive_ODE(t_range,df)
     
 
-    # Load Stan model
-    with open("3_fits/fit_setPoint.stan", "r") as f:
-        model_code = f.read()
-
     data_dict = prepare_stan_data(df)
 
-
-    fit = compile_and_fit_stan_model(model_code, data_dict)
-    posterior_diagnostics(fit)
+    model_path = "3_fits/fit_setPoint.stan"
+    fit = compile_and_fit_stan_model(model_path, data_dict)
+    posterior_diagnostics(fit,data_dict)
 
 
 if __name__ == "__main__":
