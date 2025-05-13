@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import UnivariateSpline
 
-from powersmooth.powersmooth import powersmooth_upsampled,powersmooth
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -74,78 +73,50 @@ def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200,s: fl
     
     return results
 
-def fit_and_sample_derivatives_powersmooth(df: pd.DataFrame, column: str, order: int = 2, factor: int = 5, weight: float = 1.0, N: int = 200):
+from powersmooth.powersmooth import powersmooth_general, upsample_with_mask
+
+def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200, dx: float = 1.0) -> dict:
     results = {}
     grouped = df.groupby('condition')
 
     for condition, group in grouped:
-        if condition in ['4850cut', '7230cut']:
+        if condition in {'4850cut', '7230cut'}:
             continue
 
         stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
-        t_raw = stats['time in hpf'].values
-
-        # Build dense time grid using interpolation between existing points
-        t_dense = []
-        for i in range(len(t_raw) - 1):
-            segment = np.linspace(t_raw[i], t_raw[i + 1], factor + 2)[:-1]  # exclude last to prevent duplication
-            t_dense.extend(segment)
-        t_dense.append(t_raw[-1])  # add last point
-        t_dense = np.array(t_dense)
+        x = stats['time in hpf'].values
+        y_mean = stats['mean'].values
+        y_std = stats['std'].values
 
         condition_fits = {
             'fitted_values': [],
             'derivative': [],
             'relative_derivative': [],
-            'time': t_dense
         }
 
         for _ in range(N):
-            sampled_values = np.random.normal(stats['mean'], stats['std'] / 2)
-            smooth_vals = powersmooth_upsampled(sampled_values, order=order, weight=weight, factor=factor)
+            y_sample = np.random.normal(y_mean, y_std / 2)
+            x_up, y_up, mask_up = upsample_with_mask(x, y_sample, dx=dx)
+            y_smooth = powersmooth_general(x_up, y_up, weights={2: 5e+2, 3: 1e+3}, mask=mask_up)
 
-            dt = np.gradient(t_dense)
-            derivative = np.gradient(smooth_vals, dt)
-            relative_derivative = derivative / smooth_vals
+            # plt.plot(x_up, y_smooth, color='gray', alpha=0.1)
+            # plt.scatter(x, y_sample, color='blue', alpha=0.1)
+            # plt.scatter(x, y_mean, color='red', alpha=0.1)
+            # plt.legend()
+            # plt.title(f'Condition: {condition}')
+            # plt.xlabel('Time [hpf]')
+            # plt.ylabel(column)
+            # plt.show()
+            # break
 
-            condition_fits['fitted_values'].append(smooth_vals)
-            condition_fits['derivative'].append(derivative)
-            condition_fits['relative_derivative'].append(relative_derivative)
+            D1 = np.gradient(y_smooth, x_up)
+            rel_D1 = D1 / y_smooth
 
-        results[condition] = condition_fits
+            condition_fits['fitted_values'].append(y_smooth)
+            condition_fits['derivative'].append(D1)
+            condition_fits['relative_derivative'].append(rel_D1)
 
-    return results
-
-def fit_and_sample_derivatives_powersmooth(df: pd.DataFrame, column: str, order: int = 2, weight: float = 1.0, N: int = 200):
-    results = {}
-    grouped = df.groupby('condition')
-
-    for condition, group in grouped:
-        if condition in ['4850cut', '7230cut']:
-            continue
-
-        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
-        t_raw = stats['time in hpf'].values
-
-        condition_fits = {
-            'fitted_values': [],
-            'derivative': [],
-            'relative_derivative': [],
-            'time': t_raw
-        }
-
-        for _ in range(N):
-            sampled_values = np.random.normal(stats['mean'], stats['std'] / 2)
-            smooth_vals = powersmooth(sampled_values, order=order, weight=weight)
-
-            dt = np.gradient(t_raw)
-            derivative = np.gradient(smooth_vals, dt)
-            relative_derivative = derivative / smooth_vals
-
-            condition_fits['fitted_values'].append(smooth_vals)
-            condition_fits['derivative'].append(derivative)
-            condition_fits['relative_derivative'].append(relative_derivative)
-
+        condition_fits['time'] = x_up
         results[condition] = condition_fits
 
     return results
@@ -216,8 +187,8 @@ def main():
     df=getData()
     print(df.columns)
 
-    res=fit_and_sample_derivatives(df, 'Volume', N=1000,s=0.4e1)
-    # res=fit_and_sample_derivatives_powersmooth(df, 'Volume', N=1000,weight=3e-1,order=1)
+    # res=fit_and_sample_derivatives(df, 'Volume', N=1000,s=0.4e1)
+    res=fit_and_sample_derivatives(df, 'Volume', N=1000,dx=1)
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['fitted_values']
@@ -281,8 +252,8 @@ def main():
         dy=0.02,
     )
 
-    res=fit_and_sample_derivatives(df, 'Surface Area', N=1000,s=0.5e1)
-    # res=fit_and_sample_derivatives_powersmooth(df, 'Surface Area', N=1000)
+    res=fit_and_sample_derivatives(df, 'Surface Area', N=1000,dx=1)
+    
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['derivative']
