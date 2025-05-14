@@ -28,42 +28,44 @@ def ode_system(t, y, alpha, beta_, A_end, A_cut):
         dg_dt = -alpha * (g - beta_ * (A_end - A) / A_end)
     return [dA_dt, dg_dt]
 
+def g_A_piecewise(A, beta_, A_end, A_cut):
+    if A < A_cut:
+        return beta_ * (A_end - A_cut) / A_end
+    else:
+        return beta_ * (A_end - A) / A_end
+
+def ode_simplified(t, y, beta_, A_end, A_cut):
+    A = y[0]
+    g = g_A_piecewise(A, beta_, A_end, A_cut)
+    return [A * g]
+
 def simulate_prior_predictive_ODE(t_vals, df: pd.DataFrame, n_samples=50):
     np.random.seed(42)
-
     plt.figure(figsize=(10, 6))
 
     for _ in range(n_samples):
-        alpha_tilde = np.random.normal(-0.5, 0.5)
-        beta_tilde = np.random.normal(0, 0.1)
-
+        beta_tilde = np.random.normal(-1.0, 0.5)
         A_end_tilde = np.random.normal(1.0, 0.1)
         A_cut_tilde = np.random.normal(0, 1)
-
         A_0_tilde = np.random.normal(0.3, 0.15)
-        g_0 = np.random.normal(0, 0.1)
 
-        alpha = 10 ** alpha_tilde
-        beta_ = (alpha / 4) * 10 ** beta_tilde
+        beta_ = 10 ** beta_tilde
         A_end = 10 ** A_end_tilde
         A_cut = 2 + 4 * (1 / (1 + np.exp(-A_cut_tilde)))
         A_0 = 10 ** A_0_tilde
 
         sol = solve_ivp(
-            lambda t, y: ode_system(t, y, alpha, beta_, A_end, A_cut),
+            lambda t, y: ode_simplified(t, y, beta_, A_end, A_cut),
             [t_vals[0], t_vals[-1]],
-            [A_0, g_0],
+            [A_0],
             t_eval=t_vals,
-            method="RK45",
-            vectorized=False
+            method="RK45"
         )
 
         plt.plot(sol.t, sol.y[0], color="gray", alpha=0.3)
 
-    # Overlay real data
     sns.scatterplot(data=df, x="time in hpf", y="Surface Area", hue="condition", palette="tab10")
-
-    plt.title("Prior Predictive Trajectories vs Observed Data")
+    plt.title("Simplified Prior Predictive Trajectories vs Observed Data")
     plt.xlabel("Time (hpf)")
     plt.ylabel("Surface Area A(t)")
     plt.tight_layout()
@@ -82,10 +84,11 @@ def posterior_diagnostics(fit, data_dict):
 
 
     output_file("corner_Dev.html")
-    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Dev", "g_0_Dev", "alpha", "beta_"], xtick_label_orientation=np.pi/4))
+    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Dev", "beta_"], xtick_label_orientation=np.pi/4))
 
     output_file("corner_Reg.html")
-    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Reg", "g_0_Reg", "alpha", "beta_"], xtick_label_orientation=np.pi/4))
+    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Reg", "beta_"], xtick_label_orientation=np.pi/4))
+
 
     output_file("ppc_Dev.html")
     save(predictive_regression(
@@ -109,7 +112,7 @@ def posterior_diagnostics(fit, data_dict):
     results_df = pd.DataFrame(results)
     fit_results_path = os.path.join(scalar_path, "fit_results")
     os.makedirs(fit_results_path, exist_ok=True)
-    results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_setPoint.csv"), index=False)
+    results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_delayless.csv"), index=False)
 
     sigma_samples = samples.posterior["sigma"].values.flatten()
     sigma_mean = np.mean(sigma_samples)
@@ -149,10 +152,9 @@ def main():
     t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
     simulate_prior_predictive_ODE(t_range,df)
     
-
     data_dict = prepare_stan_data(df)
 
-    model_path = "3_fits/fit_setPoint.stan"
+    model_path = "3_fits/fit_delayless.stan"
     fit = compile_and_fit_stan_model(model_path, data_dict)
     posterior_diagnostics(fit,data_dict)
 
