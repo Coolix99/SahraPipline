@@ -22,8 +22,18 @@ model_config = {
             [t[0], t[-1]], [p['A_0'], p['g_0']], t_eval=t
         )
     },
+    "linear": {
+        "filename":"area_sampled_parameter_results_delayless_lin.csv",
+        "param_map_dev": {'A_0_Dev': 'A_0'},
+        "param_map_reg": {'A_0_Reg': 'A_0'},
+        "required_columns": ['A_0', 'A_end', 'beta_', 'sigma'],
+        "ode_solver": lambda t, p: solve_ivp(
+            lambda t, y: [y[0] * (p['beta_']*(p['A_end'] - y[0])/p['A_end'])],
+            [t[0], t[-1]], [p['A_0']], t_eval=t
+        )
+    },
     "delayless": {
-        "filename":"area_sampled_parameter_results_setPoint.csv",
+        "filename":"area_sampled_parameter_results_delayless_full.csv",
         "param_map_dev": {'A_0_Dev': 'A_0'},
         "param_map_reg": {'A_0_Reg': 'A_0'},
         "required_columns": ['A_0', 'A_cut', 'A_end', 'beta_', 'sigma'],
@@ -86,4 +96,5 @@ def plot_model(model_name="setPoint", max_samples=None):
 
 if __name__ == "__main__":
     #plot_model(model_name="delayless")  
-    plot_model(model_name="setPoint")  
+    #plot_model(model_name="setPoint")  
+    plot_model(model_name="linear")  

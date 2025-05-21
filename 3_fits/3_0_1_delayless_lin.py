@@ -19,24 +19,13 @@ def explorative_plotting(df: pd.DataFrame):
     plt.tight_layout()
     plt.show()
 
-def ode_system(t, y, alpha, beta_, A_end, A_cut):
-    A, g = y
-    dA_dt = g * A
-    if A < A_cut:
-        dg_dt = -alpha * (g - beta_ * (A_end - A_cut) / A_end)
-    else:
-        dg_dt = -alpha * (g - beta_ * (A_end - A) / A_end)
-    return [dA_dt, dg_dt]
 
-def g_A_piecewise(A, beta_, A_end, A_cut):
-    if A < A_cut:
-        return beta_ * (A_end - A_cut) / A_end
-    else:
-        return beta_ * (A_end - A) / A_end
+def g_A_piecewise(A, beta_, A_end):
+    return beta_ * (A_end - A) / A_end
 
-def ode_simplified(t, y, beta_, A_end, A_cut):
+def ode_simplified(t, y, beta_, A_end):
     A = y[0]
-    g = g_A_piecewise(A, beta_, A_end, A_cut)
+    g = g_A_piecewise(A, beta_, A_end)
     return [A * g]
 
 def simulate_prior_predictive_ODE(t_vals, df: pd.DataFrame, n_samples=50):
@@ -46,16 +35,14 @@ def simulate_prior_predictive_ODE(t_vals, df: pd.DataFrame, n_samples=50):
     for _ in range(n_samples):
         beta_tilde = np.random.normal(-1.0, 0.5)
         A_end_tilde = np.random.normal(1.0, 0.1)
-        A_cut_tilde = np.random.normal(0, 1)
         A_0_tilde = np.random.normal(0.3, 0.15)
 
         beta_ = 10 ** beta_tilde
         A_end = 10 ** A_end_tilde
-        A_cut = 2 + 4 * (1 / (1 + np.exp(-A_cut_tilde)))
         A_0 = 10 ** A_0_tilde
 
         sol = solve_ivp(
-            lambda t, y: ode_simplified(t, y, beta_, A_end, A_cut),
+            lambda t, y: ode_simplified(t, y, beta_, A_end),
             [t_vals[0], t_vals[-1]],
             [A_0],
             t_eval=t_vals,
@@ -83,14 +70,14 @@ def posterior_diagnostics(fit, data_dict):
     f_ppc_reg = samples.posterior_predictive.A_Reg_ppc.stack({"sample": ("chain", "draw")}).transpose("sample", "A_Reg_ppc_dim_0")
 
 
-    output_file("corner_Dev.html")
-    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Dev", "beta_"], xtick_label_orientation=np.pi/4))
+    output_file("3_fits/fig_3_0_1/corner_Dev.html")
+    save(corner(samples, parameters=["A_end", "A_0_Dev", "beta_"], xtick_label_orientation=np.pi/4))
 
-    output_file("corner_Reg.html")
-    save(corner(samples, parameters=["A_end", "A_cut", "A_0_Reg", "beta_"], xtick_label_orientation=np.pi/4))
+    output_file("3_fits/fig_3_0_1/corner_Reg.html")
+    save(corner(samples, parameters=["A_end", "A_0_Reg", "beta_"], xtick_label_orientation=np.pi/4))
 
 
-    output_file("ppc_Dev.html")
+    output_file("3_fits/fig_3_0_1/ppc_Dev.html")
     save(predictive_regression(
         f_ppc_dev,
         samples_x=np.array(data_dict["t_ppc"]),
@@ -98,7 +85,7 @@ def posterior_diagnostics(fit, data_dict):
         x_axis_label='t',
         y_axis_label='A'))
 
-    output_file("ppc_Reg.html")
+    output_file("3_fits/fig_3_0_1/ppc_Reg.html")
     save(predictive_regression(
         f_ppc_reg,
         samples_x=np.array(data_dict["t_ppc"]),
@@ -112,7 +99,7 @@ def posterior_diagnostics(fit, data_dict):
     results_df = pd.DataFrame(results)
     fit_results_path = os.path.join(scalar_path, "fit_results")
     os.makedirs(fit_results_path, exist_ok=True)
-    results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_delayless.csv"), index=False)
+    results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_delayless_lin.csv"), index=False)
 
     sigma_samples = samples.posterior["sigma"].values.flatten()
     sigma_mean = np.mean(sigma_samples)
@@ -154,7 +141,7 @@ def main():
     
     data_dict = prepare_stan_data(df)
 
-    model_path = "3_fits/fit_delayless.stan"
+    model_path = "3_fits/fit_delayless_lin.stan"
     fit = compile_and_fit_stan_model(model_path, data_dict)
     posterior_diagnostics(fit,data_dict)
 
