@@ -83,7 +83,7 @@ def largest_connected_component(mask):
     # Create a mask with only the largest connected component
     largest_component_mask = (labeled_mask == largest_component_index)
     
-    return largest_component_mask.astype(np.bool)
+    return largest_component_mask.astype(np.bool_)
 
 
 def getVolthr(im,scales):
@@ -104,7 +104,7 @@ def getVolthr(im,scales):
     return largest_connected_component(processed_mask[:original_shape[0], :original_shape[1], :original_shape[2]])
 
 def register_finmask_special(condition_name,skip_existing=True):
-    Lucas_folders_path='/media/max_kotz/sahra_shivani_data/from_Lucas'
+    Lucas_folders_path='/media/ssd2/New_different_cuts/48hpf_50cut'
 
     time_folders_list= [item for item in os.listdir(Lucas_folders_path) if os.path.isdir(os.path.join(Lucas_folders_path, item))]
  
@@ -207,4 +207,4 @@ def register_finmask_special(condition_name,skip_existing=True):
       
 
 if __name__ == "__main__":
-    register_finmask_special('7230cut')
+    register_finmask_special('4850cut')
