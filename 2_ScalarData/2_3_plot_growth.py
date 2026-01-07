@@ -359,6 +359,6 @@ if __name__ == "__main__":
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='box', title="Box Plot Explanation"))
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='violin', title="Violin Plot Explanation"))
     #corner_plots()
-    plot_time_series(plot_lines=False, include_7230cut=False, include_4850cut=False)
+    plot_time_series(plot_lines=False, include_7230cut=True, include_4850cut=True)
     plot_all_variance()
     plot_scatter_data(mode='both')

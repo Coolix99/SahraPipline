@@ -1,195 +1,257 @@
 from functools import reduce
-import pyvista as pv
-import pandas as pd
 import os
 import sys
-from scipy.spatial import cKDTree
+import numpy as np
+import pandas as pd
+import pyvista as pv
 from tqdm import tqdm
+from scipy.spatial import cKDTree
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config import *
 from IO import *
 
-def find_matching_subfolder(base_path: str, target: str) -> str | None:
-    matches = [name for name in os.listdir(base_path)
-               if os.path.isdir(os.path.join(base_path, name)) and name.startswith(target)]
 
+# ============================================================
+# Geometry helpers (same as mesh-paper pipeline)
+# ============================================================
+
+def mesh_in_c1c2_space(mesh):
+    c1 = mesh.point_data['coord_1']
+    c2 = mesh.point_data['coord_2']
+    pts = np.column_stack([c1, c2, np.zeros_like(c1)])
+    mesh2d = mesh.copy()
+    mesh2d.points = pts
+    return mesh2d
+
+
+def extract_contour_length(mesh2d, normal, origin):
+    sliced = mesh2d.slice(normal=normal, origin=origin)
+    if sliced.n_points < 2:
+        return 0.0, None
+
+    lines = sliced.split_bodies()
+    max_len = 0.0
+    best_line = None
+
+    for line in lines:
+        if line.n_points < 2:
+            continue
+        if line.length > max_len:
+            max_len = line.length
+            best_line = line
+
+    return max_len, best_line
+
+
+def extract_PD_line(mesh2d, c2_value):
+    return extract_contour_length(mesh2d, normal=(0, 1, 0), origin=(0, c2_value, 0))
+
+
+def extract_AP_line(mesh2d, c1_value):
+    return extract_contour_length(mesh2d, normal=(1, 0, 0), origin=(c1_value, 0, 0))
+
+
+# ============================================================
+# Main
+# ============================================================
+
+def find_matching_subfolder(base_path: str, target: str):
+    matches = [
+        name for name in os.listdir(base_path)
+        if os.path.isdir(os.path.join(base_path, name)) and name.startswith(target)
+    ]
     if len(matches) == 1:
         return matches[0]
-    elif len(matches) > 1:
-        print(f"Multiple matches found for {target}: {matches}")
-        #raise ValueError(f"Multiple subfolders matched: {matches}")
-    else:
-        return None
+    return None
+
 
 def main():
-    finmasks_folder_list= [item for item in os.listdir(finmasks_path) if os.path.isdir(os.path.join(finmasks_path, item))]
+
+    finmasks_folder_list = [
+        item for item in os.listdir(finmasks_path)
+        if os.path.isdir(os.path.join(finmasks_path, item))
+    ]
+
     data_list = []
+
     for mask_folder in tqdm(finmasks_folder_list, desc="Processing folders", unit="folder"):
-        print(mask_folder)
-        mask_folder_path=os.path.join(finmasks_path,mask_folder)
-        
-        maskMetaData=get_JSON(mask_folder_path)
-        if maskMetaData=={}:
-            print('no mask')
-            continue
-        membrane_folder_path=os.path.join(membranes_path,mask_folder)
-        MetaData=get_JSON(membrane_folder_path)
+        mask_folder_path = os.path.join(finmasks_path, mask_folder)
 
-        mask_img=getImage(os.path.join(mask_folder_path,maskMetaData['MetaData_finmasks']['finmasks file']))
-        if  MetaData=={}:
-            MetaData['MetaData_membrane']=maskMetaData['MetaData_finmasks']
-        MetaData=MetaData['MetaData_membrane']
-        voxel_size=reduce(lambda x, y: x * y, MetaData['scales ZYX'])
-        Volume=np.sum(mask_img>0)*voxel_size
-
-        FlatFin_dir_path = os.path.join(FlatFin_path, mask_folder+'_FlatFin')
-        MetaData = get_JSON(FlatFin_dir_path)
-        if 'Thickness_MetaData' not in MetaData:
+        maskMetaData = get_JSON(mask_folder_path)
+        if not maskMetaData:
             continue
-        
-        mesh=pv.read(os.path.join(FlatFin_dir_path, MetaData['Thickness_MetaData']['Surface file']))
-        L_1=np.max(mesh.point_data['coord_1'])-np.min(mesh.point_data['coord_1'])
-        L_2=np.max(mesh.point_data['coord_2'])-np.min(mesh.point_data['coord_2'])
-        
+
+        membrane_folder_path = os.path.join(membranes_path, mask_folder)
+        MetaData_mem = get_JSON(membrane_folder_path)
+
+        mask_img = getImage(
+            os.path.join(mask_folder_path, maskMetaData['MetaData_finmasks']['finmasks file'])
+        )
+
+        if not MetaData_mem:
+            MetaData_mem['MetaData_membrane'] = maskMetaData['MetaData_finmasks']
+
+        MetaData_mem = MetaData_mem['MetaData_membrane']
+
+        voxel_size = reduce(lambda x, y: x * y, MetaData_mem['scales ZYX'])
+        Volume = np.sum(mask_img > 0) * voxel_size
+
+        # ----------------------------------------------------
+        # FlatFin mesh + metadata
+        # ----------------------------------------------------
+        FlatFin_dir = os.path.join(FlatFin_path, mask_folder + '_FlatFin')
+        MetaData_flat = get_JSON(FlatFin_dir)
+
+        if 'Thickness_MetaData' not in MetaData_flat:
+            continue
+
+        MetaData_flat = MetaData_flat['Thickness_MetaData']
+        mesh = pv.read(os.path.join(FlatFin_dir, MetaData_flat['Surface file']))
+
+        coord_1 = mesh.point_data['coord_1']
+        coord_2 = mesh.point_data['coord_2']
+        thickness = mesh.point_data['thickness']
+
+        # ----------------------------------------------------
+        # Volume / surface / integrated thickness
+        # ----------------------------------------------------
         total_surface_area = mesh.area
-        thickness_data = mesh.point_data['thickness']
 
         cell_areas = mesh.compute_cell_sizes()['Area']
+        faces = mesh.faces.reshape((-1, 4))[:, 1:]
+
         total_integrated_thickness = 0.0
-        for i, cell in enumerate(mesh.faces.reshape((-1, 4))[:, 1:]):  # cells are stored as (N, 4) where first number is # of points
-            # Get the points of the current cell (triangle)
-            points_ids = cell
-            points_thickness = thickness_data[points_ids]
-            avg_thickness = np.mean(points_thickness)
+        for i, cell in enumerate(faces):
+            avg_thickness = np.mean(thickness[cell])
             total_integrated_thickness += cell_areas[i] * avg_thickness
 
-        #DV axis
-        coord_1 = mesh.point_data.get('coord_1', None)
-        coord_2 = mesh.point_data.get('coord_2', None)
-        thickness = mesh.point_data.get('thickness', None)
-        
-        if coord_1 is None or coord_2 is None or thickness is None:
-            print(f"UnExpected",mask_folder)
-            raise
-        
-        threshold=10
-        # Filter points based on coord_1 within threshold
-        mask = (coord_2 >= -threshold) & (coord_2 <= threshold)
-        filtered_data = {
-            'coord_1': coord_1[mask],
-            'thickness': thickness[mask],
-        }
+        # ----------------------------------------------------
+        # NEW PD / AP geometry
+        # ----------------------------------------------------
+        mesh2d = mesh_in_c1c2_space(mesh)
 
-        # Sort by coord_2
-        sorted_indices = filtered_data['coord_1'].argsort()
-        c1 = filtered_data['coord_1'][sorted_indices]
-        d = filtered_data['thickness'][sorted_indices]
-        
-        # Normalize coord_1
-        c1 = c1 / np.max(c1)
-        rel_pos=0.4
-        # Apply the mask to filter values
-        mask = (c1 >= rel_pos - 0.05) & (c1 <= rel_pos + 0.05)
-        filtered_d = d[mask]
+        c1_min, c1_max = coord_1.min(), coord_1.max()
+        c2_min, c2_max = coord_2.min(), coord_2.max()
 
-        # Calculate mean or assign NaN
-        if filtered_d.size > 0:
-            DV=np.mean(filtered_d)
-        else:
-            raise
+        L_PD_BB = c1_max - c1_min
+        L_AP_BB = c2_max - c2_min
 
-        MetaData=MetaData['Thickness_MetaData']
+        mid_AP = c2_min + 0.5 * L_AP_BB
+        L_PD_midline, _ = extract_PD_line(mesh2d, mid_AP)
+
+        PD_40 = c1_min + 0.4 * L_PD_BB
+        L_AP_40line, _ = extract_AP_line(mesh2d, PD_40)
+
+        PD_positions = np.linspace(c1_min, c1_max, 200)
+        L_AP_longline = 0.0
+        PD_long_rel = np.nan
+
+        for PD in PD_positions:
+            L, _ = extract_AP_line(mesh2d, PD)
+            if L > L_AP_longline:
+                L_AP_longline = L
+                PD_long_rel = (PD - c1_min) / L_PD_BB
+
+        # ----------------------------------------------------
+        # NEW DV (thickness) via KD-tree
+        # ----------------------------------------------------
+        points_2d = np.column_stack([coord_1, coord_2])
+        tree = cKDTree(points_2d)
+
+        radius = 10.0
+        idx = tree.query_ball_point([PD_40, mid_AP], r=radius)
+
+        L_DV = float(np.mean(thickness[idx])) if idx else np.nan
+
+        # ----------------------------------------------------
+        # Base data
+        # ----------------------------------------------------
         data = {
             'Mask Folder': mask_folder,
             'Volume': Volume,
             'Surface Area': total_surface_area,
             'Integrated Thickness': total_integrated_thickness,
-            'L PD': L_1,
-            'L AP': L_2,
-            'L DV': DV,
-            'condition': MetaData.get('condition', None),
-            'time in hpf': MetaData.get('time in hpf', None),
-            'experimentalist': MetaData.get('experimentalist', None),
-            'genotype': MetaData.get('genotype', None)
+
+            'L_PD_BB': L_PD_BB,
+            'L_PD_midline': L_PD_midline,
+
+            'L_AP_BB': L_AP_BB,
+            'L_AP_40line': L_AP_40line,
+            'L_AP_longline': L_AP_longline,
+            'PD_long_rel': PD_long_rel,
+
+            'L_DV': L_DV,
+            'L_DV_npts': len(idx),
+
+            'condition': MetaData_flat.get('condition'),
+            'time in hpf': MetaData_flat.get('time in hpf'),
+            'experimentalist': MetaData_flat.get('experimentalist'),
+            'genotype': MetaData_flat.get('genotype'),
         }
 
-        os.path.join(ED_cells_path,mask_folder)
-        subfolder_ED_cells=find_matching_subfolder(ED_cells_path,mask_folder)
-        if subfolder_ED_cells is None:
-            print('no ED cells')
+        # ----------------------------------------------------
+        # ED CELLS (BB ONLY)
+        # ----------------------------------------------------
+        subfolder_ED = find_matching_subfolder(ED_cells_path, mask_folder)
+        if subfolder_ED is None:
             data_list.append(data)
             continue
 
-        ED_cells_folder_path=os.path.join(ED_cells_path,subfolder_ED_cells)
-        MetaData_ED_cells=get_JSON(ED_cells_folder_path)
-        cell_file=MetaData_ED_cells['MetaData_EDcells']['EDcells file']
-        ED_cells_img=getImage(os.path.join(ED_cells_folder_path,cell_file))
-        ED_mask=ED_cells_img>0
+        ED_cells_folder = os.path.join(ED_cells_path, subfolder_ED)
+        MetaData_ED = get_JSON(ED_cells_folder)
+        cell_file = MetaData_ED['MetaData_EDcells']['EDcells file']
 
-        mask_voxels = np.column_stack(np.where(ED_mask > 0))  # shape (M, 3)
-        scales = np.array(MetaData['scales ZYX'])  # Z, Y, X order
-        mask_points_world = mask_voxels * scales  # shape (M, 3)
-        vertices = mesh.points  # shape (N, 3)
-        tree = cKDTree(vertices)
-        _, closest_indices = tree.query(mask_points_world)  # shape (M,)
+        ED_cells_img = getImage(os.path.join(ED_cells_folder, cell_file))
+        ED_mask = ED_cells_img > 0
+
+        ED_mask_volume = np.sum(ED_mask) * voxel_size
+        N_ED_cells = len(np.unique(ED_cells_img)) - (1 if 0 in ED_cells_img else 0)
+
+        mask_voxels = np.column_stack(np.where(ED_mask))
+        scales = np.array(MetaData_mem['scales ZYX'])
+        mask_points_world = mask_voxels * scales
+
+        tree = cKDTree(mesh.points)
+        _, closest_idx = tree.query(mask_points_world)
+
         mesh_mask = np.zeros(mesh.n_points, dtype=bool)
-        mesh_mask[np.unique(closest_indices)] = True
-
-        # import napari
-        # viewer = napari.Viewer(ndisplay=3)
-        # viewer.add_labels(ED_cells_img, name='ED_cells_img')
-        # viewer.add_labels(ED_mask, name='ED_mask')
-        # viewer.add_labels(mask_img, name='mask_img')
-
-        # vertex_values = mesh_mask.astype(float)
-        # faces = mesh.faces.reshape(-1, 4)[:, 1:]
-        # viewer.add_surface((vertices / scales, faces, vertex_values), name='pyvista_mesh_surface')
-
-        # napari.run()
-        
-        ED_mask_volume=np.sum(ED_mask)*voxel_size
-       
+        mesh_mask[np.unique(closest_idx)] = True
 
         coord1_ED = coord_1[mesh_mask]
         coord2_ED = coord_2[mesh_mask]
 
-        try:
-            L_1_ED = np.max(coord1_ED) - np.min(coord1_ED)
-            L_2_ED = np.max(coord2_ED) - np.min(coord2_ED)
-        except ValueError:
-            print(f"UnExpected",mask_folder)
-            raise
+        L_PD_ED = coord1_ED.max() - coord1_ED.min()
+        L_AP_ED = coord2_ED.max() - coord2_ED.min()
 
         area_ED = mesh.extract_points(mesh_mask).area
-        N_ED_cells = len(np.unique(ED_cells_img)) - (1 if 0 in ED_cells_img else 0)
 
-        cell_areas = mesh.compute_cell_sizes()['Area']
         total_integrated_thickness_ED = 0.0
-        faces = mesh.faces.reshape((-1, 4))[:, 1:]
         for i, cell in enumerate(faces):
             if np.all(mesh_mask[cell]):
-                points_thickness = thickness[cell]
-                avg_thickness = np.mean(points_thickness)
+                avg_thickness = np.mean(thickness[cell])
                 total_integrated_thickness_ED += cell_areas[i] * avg_thickness
-
 
         data.update({
             'ED Mask Volume': ED_mask_volume,
             'N ED cells': N_ED_cells,
-            'Integrated Thickness ED': total_integrated_thickness_ED,
             'Surface Area ED': area_ED,
-            'L PD ED': L_1_ED,
-            'L AP ED': L_2_ED
+            'Integrated Thickness ED': total_integrated_thickness_ED,
+            'L_PD_ED': L_PD_ED,
+            'L_AP_ED': L_AP_ED,
         })
 
         data_list.append(data)
         
-    # After loop, convert list of dictionaries to DataFrame
+    # --------------------------------------------------------
+    # Save
+    # --------------------------------------------------------
     df = pd.DataFrame(data_list)
-    print(df)
-    df.to_csv(os.path.join(scalar_path,'scalarGrowthData.csv'), index=False,sep=';')
-        
+    out_file = os.path.join(scalar_path, 'scalarGrowthData_meshBased.csv')
+    df.to_csv(out_file, index=False)
+    print(f"Saved: {out_file}")
+
 
 if __name__ == "__main__":
     main()
