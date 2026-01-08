@@ -6,7 +6,11 @@ import os
 # --- Load your mesh ---
 main_folder = "/media/grp07_max/sahra_shivani_data/sorted_data/for_curv_thick/FlatFin"
 sample = "20240103sox10_clau126hpfreg4_Stitch"
+sample = '20240103sox10_clau126hpfreg3_Stitch'
 vtk_path = os.path.join(main_folder, sample+'_FlatFin', sample + "_surface.vtk")
+
+# vtk_path = "/home/max/Downloads/20240103sox10_clau126hpfreg4_Stitch_FlatFin_sox.vtk"
+
 mesh = pv.read(vtk_path)
 
 # Extract triangle connectivity (faces)
