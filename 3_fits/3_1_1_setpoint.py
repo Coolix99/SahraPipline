@@ -12,12 +12,56 @@ from utilsScalar import getData, scalar_path
 from bokeh.io import output_file, save
 
 def explorative_plotting(df: pd.DataFrame):
-    sns.scatterplot(data=df, x="time in hpf", y="Surface Area", hue="condition")
+    plt.figure(figsize=(8, 6))
+
+    # Create a consistent color mapping per condition
+    conditions = df["condition"].unique()
+    palette = dict(zip(conditions, sns.color_palette("tab10", len(conditions))))
+
+    # Scatter plot
+    sns.scatterplot(
+        data=df,
+        x="time in hpf",
+        y="Surface Area",
+        hue="condition",
+        palette=palette,
+        alpha=0.5
+    )
+
+    # Compute mean and std
+    stats = (
+        df.groupby(["condition", "time in hpf"])["Surface Area"]
+        .agg(["mean", "std"])
+        .reset_index()
+    )
+
+    # Overlay mean ± std using the SAME colors
+    for cond, sub in stats.groupby("condition"):
+        color = palette[cond]
+
+        plt.plot(
+            sub["time in hpf"],
+            sub["mean"],
+            color=color,
+            linewidth=2
+        )
+
+        plt.fill_between(
+            sub["time in hpf"],
+            sub["mean"] - sub["std"],
+            sub["mean"] + sub["std"],
+            color=color,
+            alpha=0.25
+        )
+
     plt.title("Surface Area over Time by Condition")
     plt.xlabel("Time (hpf)")
     plt.ylabel("Surface Area")
+    plt.legend()
     plt.tight_layout()
     plt.show()
+
+
 
 def ode_system(t, y, alpha, beta_, A_end, A_cut):
     A, g = y
@@ -71,7 +115,7 @@ def simulate_prior_predictive_ODE(t_vals, df: pd.DataFrame, n_samples=50):
 
 def compile_and_fit_stan_model(model_path: str, data_dict: dict):
     model = CmdStanModel(stan_file=model_path)
-    fit = model.sample(data=data_dict, chains=4, iter_warmup=3000, iter_sampling=1000, show_progress=True)
+    fit = model.sample(data=data_dict, chains=4, iter_warmup=3000, iter_sampling=1000, show_progress=True, show_console=False)
     return fit
 
 def posterior_diagnostics(fit, data_dict):
@@ -105,16 +149,24 @@ def posterior_diagnostics(fit, data_dict):
 
     # Save posterior samples to CSV
     posterior = samples.posterior
-    results = {var_name: posterior[var_name].values.flatten() for var_name in posterior.data_vars}
+    scalar_vars = [
+        var for var in posterior.data_vars
+        if posterior[var].ndim == 2   # (chain, draw)
+    ]
+    results = {
+        var: posterior[var].values.reshape(-1)
+        for var in scalar_vars
+    }
     results_df = pd.DataFrame(results)
+
     fit_results_path = os.path.join(scalar_path, "fit_results")
     os.makedirs(fit_results_path, exist_ok=True)
     results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_setPoint.csv"), index=False)
 
-    sigma_samples = samples.posterior["sigma"].values.flatten()
-    sigma_mean = np.mean(sigma_samples)
-    sigma_std = np.std(sigma_samples)
-    print(f"Posterior sigma: mean = {sigma_mean:.4f}, std = {sigma_std:.4f}")
+    # sigma_samples = samples.posterior["sigma"].values.flatten()
+    # sigma_mean = np.mean(sigma_samples)
+    # sigma_std = np.std(sigma_samples)
+    # print(f"Posterior sigma: mean = {sigma_mean:.4f}, std = {sigma_std:.4f}")
 
 def prepare_stan_data(df: pd.DataFrame, cond_dev="Development", cond_reg="Regeneration") -> dict:
     df_dev = df[df["condition"] == cond_dev].copy()
@@ -141,15 +193,14 @@ def prepare_stan_data(df: pd.DataFrame, cond_dev="Development", cond_reg="Regene
 def main():
     df = getData()
     df['Surface Area'] = df['Surface Area'] / 10000
-    df = df[~df['condition'].isin(['4850cut', '7230cut'])]
+    # df = df[~df['condition'].isin(['4850cut', '7230cut'])]
 
-    df = df[["time in hpf", "Surface Area", "condition"]].dropna()
+    # df = df[["time in hpf", "Surface Area", "condition"]].dropna()
 
-    explorative_plotting(df)
-    t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
-    simulate_prior_predictive_ODE(t_range,df)
+    # explorative_plotting(df)
+    # t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
+    # simulate_prior_predictive_ODE(t_range,df)
     
-
     data_dict = prepare_stan_data(df)
 
     model_path = "3_fits/fit_setPoint.stan"

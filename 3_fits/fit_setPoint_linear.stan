@@ -1,29 +1,27 @@
 functions {
-    // Define the system of first-order ODEs with A_cut condition
+    // Define the system of first-order ODEs 
     vector ode_system(real t, vector y, array[] real params) {
         real A = y[1];
         real g = y[2];
         real alpha = params[1];
         real beta_ = params[2];
         real A_end = params[3];
-        real A_cut = params[4];
+
         
         vector[2] dydt;
         dydt[1] = g * A;  // dA/dt
         
-        if (A < A_cut) {
-            dydt[2] = -alpha * (g - beta_ * (A_end - A_cut) / A_end);  // dg/dt for A < A_cut
-        } else {
-            dydt[2] = -alpha * (g - beta_ * (A_end - A) / A_end);  // dg/dt for A >= A_cut
-        }
+
+        dydt[2] = -alpha * (g - beta_ * (A_end - A) / A_end);  // dg/dt 
+      
         
         return dydt;
     }
 
     // Solve the ODE system
-    array[] real A_theor(array[] real t, real A_0, real g_0, real alpha, real beta_, real A_end, real A_cut) {
+    array[] real A_theor(array[] real t, real A_0, real g_0, real alpha, real beta_, real A_end) {
         vector[2] y0 = [A_0, g_0]';
-        array[4] real params = {alpha, beta_, A_end, A_cut};
+        array[3] real params = {alpha, beta_, A_end};
 
         array[num_elements(t)] vector[2] sol = ode_rk45(ode_system, y0, 47.999, t, params);
         array[num_elements(t)] real A;
@@ -36,9 +34,9 @@ functions {
     }
 
     // For use with individual time points
-    real A_theor(real t, real A_0, real g_0, real alpha, real beta_, real A_end, real A_cut) {
+    real A_theor(real t, real A_0, real g_0, real alpha, real beta_, real A_end) {
         array[1] real t_arr = {t};
-        return A_theor(t_arr, A_0, g_0, alpha, beta_, A_end, A_cut)[1];
+        return A_theor(t_arr, A_0, g_0, alpha, beta_, A_end)[1];
     }
 }
 
@@ -66,7 +64,6 @@ parameters {
     real beta_tilde;
 
     real A_end_tilde;
-    real A_cut_tilde;
 
     real A_0_Dev_tilde;
     real g_0_Dev;
@@ -79,7 +76,6 @@ transformed parameters {
    real beta_ = (alpha / 4) * 10^beta_tilde;
 
    real A_end = 10^A_end_tilde;
-   real A_cut = 2 + 4 * inv_logit(A_cut_tilde);
 
    real A_0_Dev = 10^A_0_Dev_tilde;
    real A_0_Reg = 10^A_0_Reg_tilde;
@@ -104,9 +100,7 @@ model {
     beta_tilde ~ normal(0, 0.1);
 
     A_end_tilde ~ normal(1.0, 0.1);
-    A_cut_tilde ~ normal(0, 1);  
 
-        
     g_0_Dev ~ normal(0, 0.1);
     A_0_Dev_tilde ~ normal(0.3, 0.15);
     g_0_Reg ~ normal(0, 0.1);
@@ -115,11 +109,11 @@ model {
     // Likelihood
     // ---- Solve ODE ONCE per condition ----
     Ahat_Dev = to_vector(
-        A_theor(t_Dev, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut)
+        A_theor(t_Dev, A_0_Dev, g_0_Dev, alpha, beta_, A_end)
     );
 
     Ahat_Reg = to_vector(
-        A_theor(t_Reg, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut)
+        A_theor(t_Reg, A_0_Reg, g_0_Reg, alpha, beta_, A_end)
     );
 
     // ---- Relative noise model ----
@@ -137,11 +131,11 @@ generated quantities {
     vector[N_ppc] A_Dev_ppc;
     vector[N_ppc] A_Reg_ppc;
     Ahat_Dev_ppc = to_vector(
-        A_theor(t_ppc, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut)
+        A_theor(t_ppc, A_0_Dev, g_0_Dev, alpha, beta_, A_end)
     );
 
     Ahat_Reg_ppc = to_vector(
-        A_theor(t_ppc, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut)
+        A_theor(t_ppc, A_0_Reg, g_0_Reg, alpha, beta_, A_end)
     );
 
     for (i in 1:N_ppc) {
