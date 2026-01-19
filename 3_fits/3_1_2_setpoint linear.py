@@ -190,7 +190,7 @@ def main():
     df['Surface Area'] = df['Surface Area'] / 10000
 
 
-    # explorative_plotting(df)
+    explorative_plotting(df)
     # t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
     # simulate_prior_predictive_ODE(t_range,df)
     
