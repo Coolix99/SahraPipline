@@ -59,7 +59,8 @@ def process_geometry(geometry_dir, cell_props_dir, output_dir):
        
         # Load cellprop df
         cell_props_file=os.path.join(cell_props_folder_path,input_data["MetaData_EDcell_props"]["EDcell_props file"])
-        cell_prop_df=pd.read_hdf(cell_props_file)
+        cell_prop_df=pd.read_csv(cell_props_file,sep=';')
+        
         cell_prop_df['2I1/I2+I3']=2*cell_prop_df['moments_eigvals 1']/(cell_prop_df['moments_eigvals 2']+cell_prop_df['moments_eigvals 3'])
         #print(cell_prop_df.head())
 
@@ -87,6 +88,5 @@ if __name__ == "__main__":
     # Define folder paths
     geometry_dir = FlatFin_path
     output_dir = os.path.join(Output_path,"morphoMaps","projected_surfaces")
-    cell_props_dir = os.path.join(Output_path,"ED_cell_props")
     # Run processing
-    process_geometry(geometry_dir, cell_props_dir, output_dir)
+    process_geometry(geometry_dir, ED_cell_props_path, output_dir)

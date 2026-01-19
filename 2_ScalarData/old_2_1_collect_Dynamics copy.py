@@ -3,6 +3,8 @@ import pyvista as pv
 import pandas as pd
 import os
 import sys
+from scipy.spatial import cKDTree
+from tqdm import tqdm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config import *
@@ -10,19 +12,20 @@ from IO import *
 
 def find_matching_subfolder(base_path: str, target: str) -> str | None:
     matches = [name for name in os.listdir(base_path)
-               if os.path.isdir(os.path.join(base_path, name)) and target in name]
+               if os.path.isdir(os.path.join(base_path, name)) and name.startswith(target)]
 
     if len(matches) == 1:
         return matches[0]
     elif len(matches) > 1:
-        raise ValueError(f"Multiple subfolders matched: {matches}")
+        print(f"Multiple matches found for {target}: {matches}")
+        #raise ValueError(f"Multiple subfolders matched: {matches}")
     else:
         return None
 
 def main():
     finmasks_folder_list= [item for item in os.listdir(finmasks_path) if os.path.isdir(os.path.join(finmasks_path, item))]
     data_list = []
-    for mask_folder in finmasks_folder_list:
+    for mask_folder in tqdm(finmasks_folder_list, desc="Processing folders", unit="folder"):
         print(mask_folder)
         mask_folder_path=os.path.join(finmasks_path,mask_folder)
         
@@ -67,7 +70,7 @@ def main():
         thickness = mesh.point_data.get('thickness', None)
         
         if coord_1 is None or coord_2 is None or thickness is None:
-            print(f"UnExpected")
+            print(f"UnExpected",mask_folder)
             raise
         
         threshold=10
@@ -122,31 +125,42 @@ def main():
         MetaData_ED_cells=get_JSON(ED_cells_folder_path)
         cell_file=MetaData_ED_cells['MetaData_EDcells']['EDcells file']
         ED_cells_img=getImage(os.path.join(ED_cells_folder_path,cell_file))
-
         ED_mask=ED_cells_img>0
+
+        mask_voxels = np.column_stack(np.where(ED_mask > 0))  # shape (M, 3)
+        scales = np.array(MetaData['scales ZYX'])  # Z, Y, X order
+        mask_points_world = mask_voxels * scales  # shape (M, 3)
+        vertices = mesh.points  # shape (N, 3)
+        tree = cKDTree(vertices)
+        _, closest_indices = tree.query(mask_points_world)  # shape (M,)
+        mesh_mask = np.zeros(mesh.n_points, dtype=bool)
+        mesh_mask[np.unique(closest_indices)] = True
+
+        # import napari
+        # viewer = napari.Viewer(ndisplay=3)
+        # viewer.add_labels(ED_cells_img, name='ED_cells_img')
+        # viewer.add_labels(ED_mask, name='ED_mask')
+        # viewer.add_labels(mask_img, name='mask_img')
+
+        # vertex_values = mesh_mask.astype(float)
+        # faces = mesh.faces.reshape(-1, 4)[:, 1:]
+        # viewer.add_surface((vertices / scales, faces, vertex_values), name='pyvista_mesh_surface')
+
+        # napari.run()
+        
         ED_mask_volume=np.sum(ED_mask)*voxel_size
        
-        scales = MetaData['scales ZYX']
-        coords_voxel = (mesh.points / scales[::-1]).round().astype(int)
-        shape_z, shape_y, shape_x = ED_mask.shape
-        valid = (
-            (coords_voxel[:, 0] >= 0) & (coords_voxel[:, 0] < shape_z) &
-            (coords_voxel[:, 1] >= 0) & (coords_voxel[:, 1] < shape_y) &
-            (coords_voxel[:, 2] >= 0) & (coords_voxel[:, 2] < shape_x)
-        )
-        coords_voxel = coords_voxel[valid]
-        mesh_mask = np.zeros(mesh.n_points, dtype=bool)
-        mesh_mask[valid] = ED_mask[
-            coords_voxel[:, 0],
-            coords_voxel[:, 1],
-            coords_voxel[:, 2]
-        ]
+
         coord1_ED = coord_1[mesh_mask]
         coord2_ED = coord_2[mesh_mask]
 
+        try:
+            L_1_ED = np.max(coord1_ED) - np.min(coord1_ED)
+            L_2_ED = np.max(coord2_ED) - np.min(coord2_ED)
+        except ValueError:
+            print(f"UnExpected",mask_folder)
+            raise
 
-        L_1_ED = np.max(coord1_ED) - np.min(coord1_ED)
-        L_2_ED = np.max(coord2_ED) - np.min(coord2_ED)
         area_ED = mesh.extract_points(mesh_mask).area
         N_ED_cells = len(np.unique(ED_cells_img)) - (1 if 0 in ED_cells_img else 0)
 
@@ -170,7 +184,7 @@ def main():
         })
 
         data_list.append(data)
-    
+        
     # After loop, convert list of dictionaries to DataFrame
     df = pd.DataFrame(data_list)
     print(df)

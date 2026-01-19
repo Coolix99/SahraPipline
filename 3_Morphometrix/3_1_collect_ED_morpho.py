@@ -1,10 +1,12 @@
-from functools import reduce
 import pandas as pd
 import git
 from simple_file_checksum import get_checksum
 from skimage.graph import pixel_graph
-
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import reg_prop_3d as prop3
+from tqdm import tqdm
 from config import *
 from IO import *
 
@@ -192,8 +194,7 @@ def find_touching_pairs(label_mask):
 def main(find_cell_props=True, find_topology=True):
     EDcells_folder_list= [item for item in os.listdir(ED_cells_path) if os.path.isdir(os.path.join(ED_cells_path, item))]
     finmask_folder_list= [item for item in os.listdir(finmasks_path) if os.path.isdir(os.path.join(finmasks_path, item))]
-    data_list = []
-    for EDcells_folder in EDcells_folder_list:
+    for EDcells_folder in tqdm(EDcells_folder_list, desc="Processing folders", unit="folder"):
         print(EDcells_folder)
         EDcells_folder_path=os.path.join(ED_cells_path,EDcells_folder)
         
@@ -221,24 +222,8 @@ def main(find_cell_props=True, find_topology=True):
             Meta_Data_membrane=Meta_Data_membrane['MetaData_membrane']
         
         MetaData=combine_metadata(Meta_Data_finmask, Meta_Data_membrane)
-        
-        voxel_size=reduce(lambda x, y: x * y, MetaData['scales ZYX'])
         EDcells_img=getImage(os.path.join(EDcells_folder_path,EDcellsMetaData['MetaData_EDcells']['EDcells file'])).astype(np.uint16)
-        Volume=np.sum(EDcells_img>0)*voxel_size
 
-        unique_values = np.unique(EDcells_img)
-        N_objects = len(unique_values)-1
-
-        data = {
-            'data_name': data_name,
-            'Volume ED': Volume,
-            'N_objects': N_objects,
-            'condition': MetaData.get('condition', None),
-            'time in hpf': MetaData.get('time in hpf', None),
-            'experimentalist': MetaData.get('experimentalist', None),
-            'genotype': MetaData.get('genotype', None)
-        }    
-        data_list.append(data)
         
         #individual cell properties
         if find_cell_props:
@@ -247,19 +232,19 @@ def main(find_cell_props=True, find_topology=True):
             cell_props_path=os.path.join(ED_cell_props_path,data_name)
             make_path(cell_props_path)
 
-            cell_df.to_hdf(os.path.join(cell_props_path,'cell_props.h5'), key='data', mode='w')
+            cell_df.to_csv(os.path.join(cell_props_path,'cell_props.csv'), index=False,sep=';')
 
             MetaData_EDcell_props={}
             repo = git.Repo(gitPath,search_parent_directories=True)
             sha = repo.head.object.hexsha
             MetaData_EDcell_props['git hash']=sha
             MetaData_EDcell_props['git repo']='Sahrapipline'
-            MetaData_EDcell_props['EDcell_props file']='cell_props.h5'
-            MetaData_EDcell_props['condition']=data['condition']
-            MetaData_EDcell_props['time in hpf']=data['time in hpf']
-            MetaData_EDcell_props['genotype']=data['genotype']
+            MetaData_EDcell_props['EDcell_props file']='cell_props.csv'
+            MetaData_EDcell_props['condition']=MetaData.get('condition', None)
+            MetaData_EDcell_props['time in hpf']=MetaData.get('time in hpf', None)
+            MetaData_EDcell_props['genotype']=MetaData.get('experimentalist', None)
             MetaData_EDcell_props['scales ZYX']=MetaData['scales ZYX']
-            check=get_checksum(os.path.join(cell_props_path,'cell_props.h5'), algorithm="SHA1")
+            check=get_checksum(os.path.join(cell_props_path,'cell_props.csv'), algorithm="SHA1")
             MetaData_EDcell_props['EDcell_props checksum']=check
             writeJSON(cell_props_path,'MetaData_EDcell_props',MetaData_EDcell_props)      
 
@@ -271,27 +256,23 @@ def main(find_cell_props=True, find_topology=True):
             cell_props_path=os.path.join(ED_cell_props_path,data_name)
             make_path(cell_props_path)
 
-            top_df.to_hdf(os.path.join(cell_props_path,'cell_top.h5'), key='data', mode='w')
+            top_df.to_csv(os.path.join(cell_props_path,'cell_top.csv'), index=False,sep=';')
 
             MetaData_EDcell_top={}
             repo = git.Repo(gitPath,search_parent_directories=True)
             sha = repo.head.object.hexsha
             MetaData_EDcell_top['git hash']=sha
             MetaData_EDcell_top['git repo']='Sahrapipline'
-            MetaData_EDcell_top['EDcell_top file']='cell_top.h5'
-            MetaData_EDcell_top['condition']=data['condition']
-            MetaData_EDcell_top['time in hpf']=data['time in hpf']
-            MetaData_EDcell_top['genotype']=data['genotype']
+            MetaData_EDcell_top['EDcell_top file']='cell_top.csv'
+            MetaData_EDcell_top['condition']=MetaData.get('condition', None)
+            MetaData_EDcell_top['time in hpf']=MetaData.get('time in hpf', None)
+            MetaData_EDcell_top['genotype']=MetaData.get('experimentalist', None)
             MetaData_EDcell_top['scales ZYX']=MetaData['scales ZYX']
-            check=get_checksum(os.path.join(cell_props_path,'cell_top.h5'), algorithm="SHA1")
+            check=get_checksum(os.path.join(cell_props_path,'cell_top.csv'), algorithm="SHA1")
             MetaData_EDcell_top['EDcell_top checksum']=check
             writeJSON(cell_props_path,'MetaData_EDcell_top',MetaData_EDcell_top)      
 
 
-    df = pd.DataFrame(data_list)
-    print(df)
-    df.to_hdf(os.path.join(Curv_Thick_path,'scalarGrowthDataED.h5'), key='data', mode='w')
-        
 
 if __name__ == "__main__":
-    main(find_cell_props=True,find_topology=False)
+    main(find_cell_props=True,find_topology=True)

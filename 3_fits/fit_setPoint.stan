@@ -57,7 +57,10 @@ data {
 }
 
 parameters {
-    real<lower=0> sigma;
+    real<lower=0> sigma_Dev;
+    real<lower=0> sigma_rel_Dev;
+    real<lower=0> sigma_Reg;
+    real<lower=0> sigma_rel_Reg;
 
     real alpha_tilde;
     real beta_tilde;
@@ -78,33 +81,78 @@ transformed parameters {
    real A_end = 10^A_end_tilde;
    real A_cut = 2 + 4 * inv_logit(A_cut_tilde);
 
- 
-
    real A_0_Dev = 10^A_0_Dev_tilde;
    real A_0_Reg = 10^A_0_Reg_tilde;
+
+
+
 }
 
 model {
-   // Priors
-    sigma ~ normal(0, 2.0);
+    vector[N_Dev] Ahat_Dev;
+    vector[N_Reg] Ahat_Reg;
+    vector[N_Dev] sigma_all_Dev;
+    vector[N_Reg] sigma_all_Reg;
+
+    // Priors
+    sigma_Dev ~ normal(0, 2.0);
+    sigma_rel_Dev ~ normal(0, 0.1);
+    sigma_Reg ~ normal(0, 2.0);
+    sigma_rel_Reg ~ normal(0, 0.25);
+
     alpha_tilde ~ normal(-0.5, 0.5);
     beta_tilde ~ normal(0, 0.1);
 
     A_end_tilde ~ normal(1.0, 0.1);
     A_cut_tilde ~ normal(0, 1);  
- 
+
         
     g_0_Dev ~ normal(0, 0.1);
     A_0_Dev_tilde ~ normal(0.3, 0.15);
     g_0_Reg ~ normal(0, 0.1);
     A_0_Reg_tilde ~ normal(0.3, 0.15);
 
-   // Likelihood
-    A_Dev ~ normal(A_theor(t_Dev, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut), sigma);
-    A_Reg ~ normal(A_theor(t_Reg, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut), sigma);
+    // Likelihood
+    // ---- Solve ODE ONCE per condition ----
+    Ahat_Dev = to_vector(
+        A_theor(t_Dev, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut)
+    );
+
+    Ahat_Reg = to_vector(
+        A_theor(t_Reg, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut)
+    );
+
+    // ---- Relative noise model ----
+    sigma_all_Dev = sigma_Dev + sigma_rel_Dev .* Ahat_Dev;
+    sigma_all_Reg = sigma_Reg + sigma_rel_Reg .* Ahat_Reg;
+
+    // ---- Likelihood ----
+    A_Dev ~ normal(Ahat_Dev, sigma_all_Dev);
+    A_Reg ~ normal(Ahat_Reg, sigma_all_Reg);
 }
 
 generated quantities {
-  array[N_ppc] real A_Dev_ppc = normal_rng(A_theor(t_ppc, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut), sigma);
-  array[N_ppc] real A_Reg_ppc = normal_rng(A_theor(t_ppc, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut), sigma);
+    vector[N_ppc] Ahat_Dev_ppc;
+    vector[N_ppc] Ahat_Reg_ppc;
+    vector[N_ppc] A_Dev_ppc;
+    vector[N_ppc] A_Reg_ppc;
+    Ahat_Dev_ppc = to_vector(
+        A_theor(t_ppc, A_0_Dev, g_0_Dev, alpha, beta_, A_end, A_cut)
+    );
+
+    Ahat_Reg_ppc = to_vector(
+        A_theor(t_ppc, A_0_Reg, g_0_Reg, alpha, beta_, A_end, A_cut)
+    );
+
+    for (i in 1:N_ppc) {
+        A_Dev_ppc[i] = normal_rng(
+            Ahat_Dev_ppc[i],
+            sigma_Dev + sigma_rel_Dev * Ahat_Dev_ppc[i]
+        );
+        A_Reg_ppc[i] = normal_rng(
+            Ahat_Reg_ppc[i],
+            sigma_Reg + sigma_rel_Reg * Ahat_Reg_ppc[i]
+        );
+    }
 }
+

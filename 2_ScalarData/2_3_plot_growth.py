@@ -3,37 +3,16 @@ import os
 import numpy as np
 
 from plotHelper.plotBokehHelper_old import plot_scatter_corner
+from plotHelper.bokeh_scatter_plot import plot_scatter
 from bokeh.io import show
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import *
-
+from utilsScalar import getData
 from plotHelper.bokeh_timeseries_plot import plot_double_timeseries, add_data_to_plot, add_lines_to_time_series, plot_explanation
 
     
-def getData():
-    df_file_path = os.path.join(scalar_path,'scalarGrowthData.csv')
-
-    # Load the DataFrame from the HDF5 file
-    df = pd.read_csv(df_file_path,sep=';')
-
-    # Calculate new columns:
-    # L AP * L PD
-    df['L AP * L PD'] = df['L AP'] * df['L PD']
-
-    # V / A (Volume / Surface Area)
-    df['V / A'] = df['Volume'] / df['Surface Area']
-
-    # Int_dA_d / A (Integrated Thickness / Surface Area)
-    df['Int_dA_d / A'] = df['Integrated Thickness'] / df['Surface Area']
-
-    df['log L AP'] = np.log(df['L AP'])
-    df['log L PD'] = np.log(df['L PD'])
-
-
-    return df
-
 
 def corner_plots():
     df=getData()
@@ -121,20 +100,35 @@ def plot_time_series(plot_lines=True, include_7230cut=True, include_4850cut=True
         ('L DV', r'L dorso-ventral $$\mu m$$', 1),
         ('ED Mask Volume', r'Volume ED $$(100 \mu m)^3$$', 1e-6),
         ('N ED cells', r'$$N_{ED}$$', 1),
-        ('Surface Area ED', r'Area ED $$(100 \mu m)^2$$', 1e-4)
+        ('Surface Area ED', r'Area ED $$(100 \mu m)^2$$', 1e-4),
+        ('Thickness ED', r'Thickness ED $$\mu m$$', 1),
+        ('Thickness ED+muscle+epithelium', r'Thickness ED+muscle+epithelium $$\mu m$$', 1),
+        ('Integrated Thickness ED', r' Volume ED+muscle+epithelium $$\mu m^3$$', 1),
+        ('Cell volume density ED', r'Cell volume density ED $$(100 \mu m)^{-3}$$', 1e6),
+        ('Cell area density ED', r'Cell area density ED $$(100 \mu m)^{-2}$$', 1e4),
+        ('A ED/A', r'Area ratio ED/Area $$1$$', 1),
+        ('V ED/V', r'Volume ratio ED/Volume $$1$$', 1),
     ]
 
     colors = {'7230cut': 'purple', '4850cut': 'black'}
     categories = {'Development': 'blue', 'Regeneration': 'orange'}
 
     for y_col, y_label, y_scale in plots:
+        n_before = len(df)
         df_cleaned = df.dropna(subset=[y_col])
+        n_after = len(df_cleaned)
+
+        if n_after < n_before:
+            df_cleaned = df_cleaned[~(
+                ((df_cleaned['condition'] == 'Regeneration') & (df_cleaned['time in hpf'] < 90)) |
+                ((df_cleaned['condition'] == 'Development') & (df_cleaned['time in hpf'] < 70))
+            )]
 
         p, width = plot_double_timeseries(
             df_cleaned,
             categories=categories,
             y_col=y_col,
-            style='violin',
+            style='box',
             y_scaling=y_scale,
             y_name=y_label,
             test_significance=True,
@@ -226,7 +220,7 @@ def plot_variance(df, quantity='Volume'):
 
     plt.show()
 
-def plot_compare_CoV(df, quantity='Volume'):
+def plot_compare_CoV(df, quantity='Volume',t1=48,t2=144):
     """
     Plots a bar chart comparing coefficient of variation (CoV = std/mean) between
     48 hpf and 144 hpf for each condition, with error bars.
@@ -236,8 +230,9 @@ def plot_compare_CoV(df, quantity='Volume'):
     quantity (str): The column name of the quantity to analyze.
     """
 
-    # Only use data from 48 and 144 hpf
-    df_filtered = df[df['time in hpf'].isin([48, 144])]
+    # Only use data from t1 and 144 hpf
+    df_filtered = df[df['time in hpf'].isin([t1, t2])]
+    df_filtered = df_filtered.dropna(subset=[quantity])
 
     # Group by condition and time
     grouped = df_filtered.groupby(['condition', 'time in hpf'])[quantity]
@@ -252,7 +247,7 @@ def plot_compare_CoV(df, quantity='Volume'):
     # Plotting
     fig, ax = plt.subplots(figsize=(8, 6))
     width = 0.35
-    timepoints = [48, 144]
+    timepoints = [t1, t2]
     conditions = ['Development', 'Regeneration']
 
     x = np.arange(len(timepoints))
@@ -265,7 +260,7 @@ def plot_compare_CoV(df, quantity='Volume'):
     ax.set_xticks(x + width * (len(conditions) - 1) / 2)
     ax.set_xticklabels([f'{t} hpf' for t in timepoints])
     ax.set_ylabel('Coefficient of Variation')
-    ax.set_title(f'CoV of {quantity} at 48 and 144 hpf')
+    ax.set_title(f'CoV of {quantity} at {t1} and {t2} hpf')
     ax.legend()
     ax.grid(True)
 
@@ -283,10 +278,15 @@ def plot_all_variance():
 
     plot_compare_CoV(df, quantity='Surface Area')
     plot_compare_CoV(df, quantity='Volume')
-    plot_compare_CoV(df, quantity='L PD')
-    plot_compare_CoV(df, quantity='L AP')
-    plot_compare_CoV(df, quantity='L DV')
+    # plot_compare_CoV(df, quantity='L PD')
+    # plot_compare_CoV(df, quantity='L AP')
+    # plot_compare_CoV(df, quantity='L DV')
     plot_compare_CoV(df, quantity='V / A')
+    plot_compare_CoV(df, quantity='ED Mask Volume',t1=96,t2=144)
+    plot_compare_CoV(df, quantity='N ED cells',t1=96,t2=144)
+    plot_compare_CoV(df, quantity='Surface Area ED',t1=96,t2=144)
+    plot_compare_CoV(df, quantity='Thickness ED',t1=96,t2=144)
+    plot_compare_CoV(df, quantity='Thickness ED+muscle+epithelium',t1=96,t2=144)
     return
 
 
@@ -294,7 +294,7 @@ def plot_all_variance():
     plot_variance(df, quantity='Surface Area')
     plot_variance(df, quantity='V / A')
 
-def plot_scatter_data():
+def plot_scatter_data(mode='both'):
     from plotHelper.bokeh_scatter_plot import plot_scatter
     from bokeh.io import show
 
@@ -313,23 +313,59 @@ def plot_scatter_data():
         'Development': 'circle'
     }
 
-    show(plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='category', show_fit=True, show_div='Residual', colors=colors, shapes=shapes))
-    show(plot_scatter(df, x_col='Integrated Thickness', y_col='Volume', mode='time', show_fit=True, show_div='Residual', colors=colors, shapes=shapes))
+    plot_configs = [
+        ('Integrated Thickness', 'Volume', {}),
+        ('L AP * L PD', 'Surface Area', {}),
+        ('L AP', 'L PD', {}),
+        ('log L PD', 'log L AP', {
+            'x_name': r'$$log(L_{PD})$$',
+            'y_name': r'$$log(L_{AP})$$',
+            'show_slope_1': True
+        }),
+        ('L AP ED', 'L PD ED', {}),
+        ('log L PD ED', 'log L AP ED', {
+            'x_name': r'$$log(L_{PD,ED})$$',
+            'y_name': r'$$log(L_{AP,ED})$$',
+            'show_slope_1': True
+        }),
+        ('N ED cells', 'ED Mask Volume',{}),
+        ('N ED cells', 'Surface Area ED',{}),
+        ('ED Mask Volume', 'Surface Area ED',{}),
+        ('ED Mask Volume', 'Volume',{}),
+        ('Surface Area ED', 'Surface Area',{}),
+    ]
 
-    show(plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='category', show_fit=True, show_div='Residual', colors=colors, shapes=shapes))
-    show(plot_scatter(df, x_col='L AP * L PD', y_col='Surface Area', mode='time', show_fit=True, show_div='Residual', colors=colors, shapes=shapes))
+    modes = ['category', 'time'] if mode == 'both' else [mode]
 
-    show(plot_scatter(df, x_col='L AP', y_col='L PD', mode='category', show_fit=True, show_div='Residual', colors=colors, shapes=shapes))
-    show(plot_scatter(df, x_col='L AP', y_col='L PD', mode='time', show_fit=True, show_div='Residual', colors=colors, shapes=shapes))
+    for x_col, y_col, extra_kwargs in plot_configs:
+        df_filtered = df.dropna(subset=[x_col])
+        df_filtered = df_filtered.dropna(subset=[y_col])
+        for m in modes:    
+            show(plot_scatter(
+                df_filtered,
+                x_col=x_col,
+                y_col=y_col,
+                mode=m,
+                show_fit=True,
+                show_div='Residual',
+                colors=colors,
+                shapes=shapes,
+                **extra_kwargs
+            ))
 
-    show(plot_scatter(df, x_col='log L PD', y_col='log L AP', x_name=r'$$log(L_{PD})$$', y_name=r'$$log(L_{AP})$$', mode='category', show_fit=True, show_div='Residual', show_slope_1=True, colors=colors, shapes=shapes))
-    show(plot_scatter(df, x_col='log L PD', y_col='log L AP', x_name=r'$$log(L_{PD})$$', y_name=r'$$log(L_{AP})$$', mode='time', show_fit=True, show_div='Residual', colors=colors, shapes=shapes))
 
 if __name__ == "__main__":
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='whiskers', title="Whiskers Explanation"))
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='box', title="Box Plot Explanation"))
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='violin', title="Violin Plot Explanation"))
+<<<<<<< HEAD:2_ScalarData/3_2_plot_growth.py
     # corner_plots()
     # plot_time_series()
     plot_all_variance()
     # plot_scatter_data()
+=======
+    #corner_plots()
+    plot_time_series(plot_lines=False, include_7230cut=True, include_4850cut=True)
+    plot_all_variance()
+    plot_scatter_data(mode='both')
+>>>>>>> 57384597f6b0e4e9890a75a7fab01700894713ce:2_ScalarData/2_3_plot_growth.py
