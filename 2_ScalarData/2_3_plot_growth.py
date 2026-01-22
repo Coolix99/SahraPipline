@@ -358,7 +358,14 @@ if __name__ == "__main__":
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='whiskers', title="Whiskers Explanation"))
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='box', title="Box Plot Explanation"))
     # show(plot_explanation(lower_bound=10, q1=20, q2=30, q3=40, upper_bound=50, plot_type='violin', title="Violin Plot Explanation"))
+<<<<<<< HEAD:2_ScalarData/3_2_plot_growth.py
+    # corner_plots()
+    # plot_time_series()
+    plot_all_variance()
+    # plot_scatter_data()
+=======
     #corner_plots()
     plot_time_series(plot_lines=False, include_7230cut=True, include_4850cut=True)
     plot_all_variance()
     plot_scatter_data(mode='both')
+>>>>>>> 57384597f6b0e4e9890a75a7fab01700894713ce:2_ScalarData/2_3_plot_growth.py
