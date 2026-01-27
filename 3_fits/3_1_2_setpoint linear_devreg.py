@@ -8,7 +8,7 @@ from cmdstanpy import CmdStanModel
 from bebi103.viz import corner, predictive_regression
 from bokeh.io import output_file, save
 from scipy.integrate import solve_ivp
-from utilsScalar import getData, scalar_path
+from utilsScalar import scalar_path
 from bokeh.io import output_file, save
 
 def explorative_plotting(df: pd.DataFrame):
@@ -61,6 +61,10 @@ def explorative_plotting(df: pd.DataFrame):
     plt.tight_layout()
     plt.show()
 
+def getData():
+    df = pd.read_csv(os.path.join(scalar_path,'Fin_measurements.csv'),sep=',')
+    df = df[['time in hpf', 'condition', 'Surface Area']]
+    return df
 
 
 def ode_system(t, y, alpha, beta_, A_end):
@@ -156,7 +160,7 @@ def posterior_diagnostics(fit, data_dict):
 
     fit_results_path = os.path.join(scalar_path, "fit_results")
     os.makedirs(fit_results_path, exist_ok=True)
-    results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_setPoint_linear.csv"), index=False)
+    results_df.to_csv(os.path.join(fit_results_path, "area_sampled_parameter_results_setPoint_linear_devreg.csv"), index=False)
 
     # sigma_samples = samples.posterior["sigma"].values.flatten()
     # sigma_mean = np.mean(sigma_samples)
@@ -185,20 +189,197 @@ def prepare_stan_data(df: pd.DataFrame, cond_dev="Development", cond_reg="Regene
         "t_ppc": t_ppc, "N_ppc": len(t_ppc)
     }
 
+def plot_fit_from_csv(
+    df: pd.DataFrame,
+    csv_path: str,
+    cond_dev="Development",
+    cond_reg="Regeneration",
+    n_ppc_draws=None,   # optionally subsample posterior
+):
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from scipy.integrate import solve_ivp
+
+    # -------------------------
+    # Style (gemdata-like)
+    # -------------------------
+    sns.set_style("white")
+    plt.rcParams.update({
+        "font.size": 8,
+        "axes.labelsize": 10,
+        "axes.titlesize": 10,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+    })
+
+    palette = {
+        cond_dev: sns.color_palette("tab10")[0],
+        cond_reg: sns.color_palette("tab10")[1],
+    }
+
+    # -------------------------
+    # Load posterior
+    # -------------------------
+    post = pd.read_csv(csv_path)
+
+    if n_ppc_draws is not None and n_ppc_draws < len(post):
+        post = post.sample(n_ppc_draws, random_state=0)
+
+    # -------------------------
+    # ODE system
+    # -------------------------
+    def ode_system(t, y, alpha, beta_, A_end):
+        A, g = y
+        return [
+            g * A,
+            -alpha * (g - beta_ * (A_end - A) / A_end),
+        ]
+
+    # -------------------------
+    # Time grid
+    # -------------------------
+    t_plot = np.linspace(
+        df["time in hpf"].min(),
+        df["time in hpf"].max(),
+        200,
+    )
+
+    # -------------------------
+    # Posterior predictive simulation
+    # -------------------------
+    def posterior_predictive(A0_key, g0_key, sigma_key, sigma_rel_key):
+        ppc = []
+
+        for _, row in post.iterrows():
+            sol = solve_ivp(
+                ode_system,
+                [t_plot[0], t_plot[-1]],
+                [row[A0_key], row[g0_key]],
+                t_eval=t_plot,
+                args=(row["alpha"], row["beta_"], row["A_end"]),
+                method="RK45",
+            )
+
+            Ahat = sol.y[0]
+
+            sigma = row[sigma_key] + row[sigma_rel_key] * Ahat
+            A_ppc = np.random.normal(Ahat, sigma)
+
+            ppc.append(A_ppc)
+
+        ppc = np.asarray(ppc)
+        return ppc.mean(axis=0), ppc.std(axis=0)
+
+    # -------------------------
+    # Dev & Reg PPC
+    # -------------------------
+    mean_dev, std_dev = posterior_predictive(
+        "A_0_Dev", "g_0_Dev", "sigma_Dev", "sigma_rel_Dev"
+    )
+    mean_reg, std_reg = posterior_predictive(
+        "A_0_Reg", "g_0_Reg", "sigma_Reg", "sigma_rel_Reg"
+    )
+
+    # -------------------------
+    # Shared y-limit
+    # -------------------------
+    ymax = max(
+        (mean_dev + std_dev).max(),
+        (mean_reg + std_reg).max(),
+        df["Surface Area"].max(),
+    ) * 1.05
+
+    # -------------------------
+    # Single-panel plot
+    # -------------------------
+    def single_panel(cond, mean, std):
+        plt.figure(figsize=(3.4, 2.4))
+        sub = df[df["condition"] == cond]
+
+        plt.scatter(
+            sub["time in hpf"],
+            sub["Surface Area"],
+            color=palette[cond],
+            alpha=0.6,
+            s=15,
+        )
+
+        plt.plot(
+            t_plot,
+            mean,
+            color=palette[cond],
+            linewidth=2,
+        )
+
+        plt.fill_between(
+            t_plot,
+            mean - std,
+            mean + std,
+            color=palette[cond],
+            alpha=0.25,
+        )
+
+        plt.xlabel("Developmental time [hpf]")
+        plt.ylabel(r"Surface area $(100\,\mu\mathrm{m})^2$")
+        plt.xticks(np.arange(48, 150, 12))
+        plt.ylim(0, ymax)
+
+        sns.despine()
+        plt.tight_layout()
+        plt.show()
+
+    single_panel(cond_dev, mean_dev, std_dev)
+    single_panel(cond_reg, mean_reg, std_reg)
+
+    # -------------------------
+    # Parameter summaries
+    # -------------------------
+    def summarize(vars_):
+        return pd.DataFrame({
+            "mean": post[vars_].mean(),
+            "std": post[vars_].std(),
+        })
+
+    summary_dev = summarize(
+        ["A_end", "alpha", "beta_", "A_0_Dev", "g_0_Dev", "sigma_Dev", "sigma_rel_Dev"]
+    )
+    summary_reg = summarize(
+        ["A_end", "alpha", "beta_", "A_0_Reg", "g_0_Reg", "sigma_Reg", "sigma_rel_Reg"]
+    )
+
+    print("\n=== Development (posterior mean ± std) ===")
+    print(summary_dev)
+
+    print("\n=== Regeneration (posterior mean ± std) ===")
+    print(summary_reg)
+
+    return summary_dev, summary_reg
+
+
 def main():
     df = getData()
     df['Surface Area'] = df['Surface Area'] / 10000
 
-
     explorative_plotting(df)
-    # t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
-    # simulate_prior_predictive_ODE(t_range,df)
+    t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
+    simulate_prior_predictive_ODE(t_range,df)
     
     data_dict = prepare_stan_data(df)
 
-    model_path = "3_fits/fit_setPoint_linear.stan"
+    model_path = "3_fits/fit_setPoint_linear_devreg.stan"
     fit = compile_and_fit_stan_model(model_path, data_dict)
     posterior_diagnostics(fit,data_dict)
+
+    plot_fit_from_csv(
+        df,
+        csv_path=os.path.join(
+            scalar_path,
+            "fit_results",
+            "area_sampled_parameter_results_setPoint_linear_devreg.csv",
+        ),
+    )
 
 
 if __name__ == "__main__":
