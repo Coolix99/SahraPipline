@@ -1,21 +1,11 @@
-#!/usr/bin/env python3
-"""
-growth_anisotropy.py
-
-Determine growth anisotropy from mesh-based scalars.
-
-- log-log scatter of L_PD_midline vs L_AP_40line
-- global fit (all data): black dotted line + shaded band
-- per-condition fits (Development=blue, Regeneration=orange)
-- optional: extra fit for Regeneration restricted to hpf >= 72 (orange dashed)
-"""
-
 import os
 import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.ticker import ScalarFormatter, FixedLocator
+
 
 # If you want to reuse your config scalar_path:
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -56,42 +46,52 @@ def fit_loglog_with_ci(x, y, xx, n_boot=2000, seed=0):
     """
     Fit log10(y) = a + b log10(x).
     Returns:
-      yhat(xx), (ylo(xx), yhi(xx)), (a, b)
-    Bootstrap CI is percentile band over predictions.
+      yhat(xx), (ylo(xx), yhi(xx)), (a, b), (sa, sb)
     """
     rng = np.random.default_rng(seed)
 
     lx = np.log10(x)
     ly = np.log10(y)
 
-    # OLS in log space
     A = np.vstack([np.ones_like(lx), lx]).T
-    a, b = np.linalg.lstsq(A, ly, rcond=None)[0]
+    coeffs, residuals, rank, svals = np.linalg.lstsq(A, ly, rcond=None)
+    a, b = coeffs
+
+    # --- standard errors ---
+    n = len(lx)
+    dof = n - 2
+    sigma2 = residuals[0] / dof if dof > 0 else np.nan
+    cov = sigma2 * np.linalg.inv(A.T @ A)
+    sa, sb = np.sqrt(np.diag(cov))
 
     lxx = np.log10(xx)
-    lyhat = a + b * lxx
-    yhat = 10 ** lyhat
+    yhat = 10 ** (a + b * lxx)
 
-    # bootstrap prediction bands
-    if len(x) < 3:
-        return yhat, (yhat, yhat), (a, b)
+    # --- bootstrap CI ---
+    if n < 3:
+        return yhat, (yhat, yhat), (a, b), (sa, sb)
 
-    preds = np.empty((n_boot, len(xx)), dtype=float)
-    n = len(x)
+    preds = np.empty((n_boot, len(xx)))
     idx = np.arange(n)
 
     for i in range(n_boot):
         samp = rng.choice(idx, size=n, replace=True)
-        lx_s = lx[samp]
-        ly_s = ly[samp]
-        A_s = np.vstack([np.ones_like(lx_s), lx_s]).T
-        a_s, b_s = np.linalg.lstsq(A_s, ly_s, rcond=None)[0]
+        A_s = np.vstack([np.ones_like(lx[samp]), lx[samp]]).T
+        a_s, b_s = np.linalg.lstsq(A_s, ly[samp], rcond=None)[0]
         preds[i] = 10 ** (a_s + b_s * lxx)
 
     ylo = np.percentile(preds, 2.5, axis=0)
     yhi = np.percentile(preds, 97.5, axis=0)
 
-    return yhat, (ylo, yhi), (a, b)
+    # --- R^2 in log space ---
+    ly_hat = a + b * lx
+    ss_res = np.sum((ly - ly_hat) ** 2)
+    ss_tot = np.sum((ly - np.mean(ly)) ** 2)
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else np.nan
+
+
+    return yhat, (ylo, yhi), (a, b), (sa, sb), r2
+
 
 
 def format_fit_label(a, b):
@@ -140,51 +140,122 @@ def plot_anisotropy_loglog(
     xmin, xmax = np.min(x_all), np.max(x_all)
     xx = np.logspace(np.log10(xmin), np.log10(xmax), 200)
 
-    # --- Scatter: per condition ---
-    for cond in conditions:
-        sub = df[df[condition_col] == cond]
-        x, y, _ = clean_xy(sub, xcol, ycol)
-        if len(x) == 0:
-            continue
-        ax.scatter(x, y, s=18, alpha=0.65, label=cond, color=palette.get(cond, None))
+    # --- Scatter ---
+    # Development
+    sub_dev = df[df[condition_col] == "Development"]
+    x, y, _ = clean_xy(sub_dev, xcol, ycol)
+    ax.scatter(x, y, s=5, alpha=1.0,
+            color=palette["Development"],
+            label="Development")
 
-    # --- Global fit: all data (black dotted + shaded) ---
-    yhat, (ylo, yhi), (a, b) = fit_loglog_with_ci(x_all, y_all, xx, n_boot=n_boot, seed=seed)
-    ax.plot(xx, yhat, linestyle=":", linewidth=2, color="black", label=f"All: {format_fit_label(a,b)}")
-    ax.fill_between(xx, ylo, yhi, color="black", alpha=0.12)
+    # Regeneration: early
+    sub_reg = df[df[condition_col] == "Regeneration"]
+
+    early_mask = sub_reg[time_col] < regen_time_cut
+    x_e, y_e, _ = clean_xy(sub_reg, xcol, ycol, extra_mask=early_mask)
+    ax.scatter(x_e, y_e, s=5, alpha=0.5,
+            color=palette["Regeneration"],
+            label=f"Regen <{regen_time_cut}hpf")
+
+    # Regeneration: late
+    late_mask = sub_reg[time_col] >= regen_time_cut
+    x_l, y_l, _ = clean_xy(sub_reg, xcol, ycol, extra_mask=late_mask)
+    ax.scatter(x_l, y_l, s=5, alpha=1.0,
+            color=palette["Regeneration"],
+            label=f"Regen ≥{regen_time_cut}hpf")
+
 
     # --- Per-condition fits (solid + shaded) ---
     for cond in conditions:
         sub = df[df[condition_col] == cond]
-        x, y, _ = clean_xy(sub, xcol, ycol)
-        if len(x) < 3:
-            continue
-        yhat_c, (ylo_c, yhi_c), (a_c, b_c) = fit_loglog_with_ci(
-            x, y, xx, n_boot=n_boot, seed=seed + (1 if cond == "Development" else 2)
-        )
-        ax.plot(xx, yhat_c, linewidth=2, color=palette.get(cond, None),
-                label=f"{cond}: {format_fit_label(a_c,b_c)}")
-        ax.fill_between(xx, ylo_c, yhi_c, color=palette.get(cond, None), alpha=0.18)
 
-    # --- Regeneration fit for late times only (hpf >= cut): dashed orange ---
-    if "Regeneration" in conditions and time_col in df.columns:
-        sub_reg = df[df[condition_col] == "Regeneration"].copy()
-        late_mask = np.asarray(sub_reg[time_col], dtype=float) >= float(regen_time_cut)
-        x_late, y_late, _ = clean_xy(sub_reg, xcol, ycol, extra_mask=late_mask)
-        if len(x_late) >= 3:
-            yhat_l, (ylo_l, yhi_l), (a_l, b_l) = fit_loglog_with_ci(
-                x_late, y_late, xx, n_boot=n_boot, seed=seed + 99
+        if cond != "Regeneration":
+            x, y, _ = clean_xy(sub, xcol, ycol)
+            if len(x) < 3:
+                continue
+
+            yhat_c, (ylo_c, yhi_c), (a_c, b_c), (sa_c, sb_c), r2_c = \
+                fit_loglog_with_ci(x, y, xx, n_boot=n_boot, seed=seed + 1)
+
+            print(
+                f"{cond}: "
+                f"a = {a_c:.3f} ± {sa_c:.3f}, "
+                f"b = {b_c:.3f} ± {sb_c:.3f}, "
+                f"R² = {r2_c:.3f}"
             )
-            ax.plot(xx, yhat_l, linestyle="--", linewidth=2,
-                    color=palette["Regeneration"],
-                    label=f"Regen ≥{regen_time_cut}hpf: {format_fit_label(a_l,b_l)}")
-            ax.fill_between(xx, ylo_l, yhi_l, color=palette["Regeneration"], alpha=0.10)
+
+            ax.plot(xx, yhat_c, linewidth=2,
+                    color=palette[cond],
+                    label=f"{cond}: {format_fit_label(a_c,b_c)}")
+            # ax.fill_between(xx, ylo_c, yhi_c,
+            #                 color=palette[cond], alpha=0.18)
+
+        else:
+            
+            # --- Regeneration: before cut ---
+            early_mask = sub[time_col] < regen_time_cut
+            x_e, y_e, _ = clean_xy(sub, xcol, ycol, extra_mask=early_mask)
+            xmin, xmax = np.min(x_e), np.max(x_e)
+            xx_e = np.logspace(np.log10(xmin), np.log10(xmax), 200)
+            if len(x_e) >= 3:
+                yhat_e, (ylo_e, yhi_e), (a_e, b_e), (sa_e, sb_e), r2_e = \
+                    fit_loglog_with_ci(x_e, y_e, xx_e, n_boot=n_boot, seed=seed + 2)
+
+                print(
+                    f"Regeneration <{regen_time_cut} hpf: "
+                    f"a = {a_e:.3f} ± {sa_e:.3f}, "
+                    f"b = {b_e:.3f} ± {sb_e:.3f}, "
+                    f"R² = {r2_e:.3f}"
+                )
+
+                ax.plot(xx_e, yhat_e, linewidth=2, linestyle="--",
+                        color=palette["Regeneration"],
+                        label=f"Regen <{regen_time_cut}hpf")
+                # ax.fill_between(xx_e, ylo_e, yhi_e,
+                #                 color=palette["Regeneration"], alpha=0.18)
+
+            # --- Regeneration: after cut ---
+            late_mask = sub[time_col] >= regen_time_cut
+            x_l, y_l, _ = clean_xy(sub, xcol, ycol, extra_mask=late_mask)
+
+            if len(x_l) >= 3:
+                yhat_l, (ylo_l, yhi_l), (a_l, b_l), (sa_l, sb_l), r2_l = \
+                    fit_loglog_with_ci(x_l, y_l, xx, n_boot=n_boot, seed=seed + 3)
+
+                print(
+                    f"Regeneration ≥{regen_time_cut} hpf: "
+                    f"a = {a_l:.3f} ± {sa_l:.3f}, "
+                    f"b = {b_l:.3f} ± {sb_l:.3f}, "
+                    f"R² = {r2_l:.3f}"
+                )
+
+                ax.plot(xx, yhat_l, linewidth=2,
+                        color=palette["Regeneration"],
+                        label=f"Regen ≥{regen_time_cut}hpf")
+                # ax.fill_between(xx, ylo_l, yhi_l,
+                #                 color=palette["Regeneration"], alpha=0.10)
+
 
     # --- Axes formatting ---
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("L_PD_midline")
-    ax.set_ylabel("L_AP_40line")
+
+    ticks = [100, 200, 300, 400, 500]
+    ax.xaxis.set_major_locator(FixedLocator(ticks))
+    ax.yaxis.set_major_locator(FixedLocator(ticks))
+
+    formatter = ScalarFormatter()
+    formatter.set_scientific(False)
+    formatter.set_useOffset(False)
+
+    ax.xaxis.set_major_formatter(formatter)
+    ax.yaxis.set_major_formatter(formatter)
+
+    ax.set_xlim(90, 590)
+    ax.set_ylim(90, 590)
+
+    ax.set_xlabel(r"PD Length [$\mu$m]")
+    ax.set_ylabel(r"AP Length [$\mu$m]")
     ax.set_title(title)
 
     sns.despine()
