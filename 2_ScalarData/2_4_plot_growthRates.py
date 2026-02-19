@@ -11,14 +11,14 @@ from config import *
 
 
 def getData():
-    df_file_path = os.path.join(scalar_path,'scalarGrowthData.csv')
+    df_file_path = os.path.join(scalar_path,'scalarGrowthData_meshBased.csv')
 
     # Load the DataFrame from the HDF5 file
-    df = pd.read_csv(df_file_path,sep=';')
+    df = pd.read_csv(df_file_path,sep=',')
 
     # Calculate new columns:
     # L AP * L PD
-    df['L AP * L PD'] = df['L AP'] * df['L PD']
+    df['L AP * L PD'] = df['L_AP_40line'] * df['L_PD_midline']
 
     # V / A (Volume / Surface Area)
     df['V / A'] = df['Volume'] / df['Surface Area']
@@ -26,8 +26,8 @@ def getData():
     # Int_dA_d / A (Integrated Thickness / Surface Area)
     df['Int_dA_d / A'] = df['Integrated Thickness'] / df['Surface Area']
 
-    df['log L AP'] = np.log(df['L AP'])
-    df['log L PD'] = np.log(df['L PD'])
+    df['log L AP'] = np.log(df['L_AP_40line'])
+    df['log L PD'] = np.log(df['L_PD_midline'])
 
     return df
 
@@ -183,12 +183,79 @@ def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, y
     plt.tight_layout()
     plt.show()
 
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel
+
+def fit_with_gp(df: pd.DataFrame, column: str, N_samples: int = 500) -> dict:
+    results = {}
+    grouped = df.groupby('condition')
+
+    for condition, group in grouped:
+        if condition in {'4850cut', '7230cut'}:
+            continue
+
+        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
+
+        X = stats['time in hpf'].values.reshape(-1, 1)
+        y = stats['mean'].values
+        y_std = stats['std'].values
+        print(np.mean(y))
+        print(np.mean(y_std))
+        # Define kernel
+        kernel = C(1.0, (1e-3, 1e3)) * RBF(length_scale=20.0, length_scale_bounds=(1, 200))
+        y_scale = np.mean(y)
+        y = y / y_scale
+        y_std = y_std / y_scale
+
+        gp = GaussianProcessRegressor(
+            kernel=kernel,
+            alpha=y_std**2+ 1e-8,   # observational noise
+            normalize_y=True,
+            n_restarts_optimizer=5
+        )
+
+        gp.fit(X, y)
+
+        # Dense time grid
+        X_dense = np.linspace(X.min(), X.max(), 400).reshape(-1, 1)
+
+        # Draw posterior samples
+        y_samples = gp.sample_y(X_dense, n_samples=N_samples)
+
+        fitted_values = []
+        derivatives = []
+        relative_derivatives = []
+
+        for i in range(N_samples):
+            y_s = y_samples[:, i]
+
+            D1 = np.gradient(y_s, X_dense.flatten())
+            rel_D1 = D1 / y_s
+
+            y_s = y_s * y_scale
+            D1 = D1 * y_scale
+
+            fitted_values.append(y_s)
+            derivatives.append(D1)
+            relative_derivatives.append(rel_D1)
+
+        results[condition] = {
+            'time': X_dense.flatten(),
+            'fitted_values': fitted_values,
+            'derivative': derivatives,
+            'relative_derivative': relative_derivatives
+        }
+
+    return results
+
+
 def main():
     df=getData()
     print(df.columns)
 
     # res=fit_and_sample_derivatives(df, 'Volume', N=1000,s=0.4e1)
-    res=fit_and_sample_derivatives(df, 'Volume', N=1000,dx=1)
+    # res=fit_and_sample_derivatives(df, 'Volume', N=1000,dx=1)
+    res = fit_with_gp(df, 'Volume', N_samples=1000)
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['fitted_values']
@@ -252,8 +319,8 @@ def main():
         dy=0.02,
     )
 
-    res=fit_and_sample_derivatives(df, 'Surface Area', N=1000,dx=1)
-    
+    # res=fit_and_sample_derivatives(df, 'Surface Area', N=1000,dx=1)
+    res = fit_with_gp(df, 'Surface Area', N_samples=1000)
     fit_results_dev = {
         't_values': res['Development']['time'],
         'fits': res['Development']['derivative']
@@ -296,6 +363,8 @@ def main():
         dy=0.02,
     )
 
+
+    
 
     
     
