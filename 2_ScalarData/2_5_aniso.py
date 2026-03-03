@@ -94,10 +94,8 @@ def fit_loglog_with_ci(x, y, xx, n_boot=2000, seed=0):
 
 
 
-def format_fit_label(a, b):
-    # y = 10^a * x^b
-    c = 10 ** a
-    return f"y = {c:.2g} · x^{b:.2f}"
+def format_fit_label(a, b, se):
+    return fr"$\epsilon$ = {b:.2g} ± {se:.2g}"
 
 
 # ============================================================
@@ -186,7 +184,7 @@ def plot_anisotropy_loglog(
 
             ax.plot(xx, yhat_c, linewidth=2,
                     color=palette[cond],
-                    label=f"{cond}: {format_fit_label(a_c,b_c)}")
+                    label=f"{cond}: {format_fit_label(a_c,b_c,sb_c)}")
             # ax.fill_between(xx, ylo_c, yhi_c,
             #                 color=palette[cond], alpha=0.18)
 
@@ -210,7 +208,7 @@ def plot_anisotropy_loglog(
 
                 ax.plot(xx_e, yhat_e, linewidth=2, linestyle="--",
                         color=palette["Regeneration"],
-                        label=f"Regen <{regen_time_cut}hpf")
+                        label=f"Regen <{regen_time_cut}hpf: {format_fit_label(a_e,b_e, sb_e)}")
                 # ax.fill_between(xx_e, ylo_e, yhi_e,
                 #                 color=palette["Regeneration"], alpha=0.18)
 
@@ -231,7 +229,7 @@ def plot_anisotropy_loglog(
 
                 ax.plot(xx, yhat_l, linewidth=2,
                         color=palette["Regeneration"],
-                        label=f"Regen ≥{regen_time_cut}hpf")
+                        label=f"Regen ≥{regen_time_cut}hpf: {format_fit_label(a_l,b_l, sb_l)}")
                 # ax.fill_between(xx, ylo_l, yhi_l,
                 #                 color=palette["Regeneration"], alpha=0.10)
 
@@ -296,7 +294,7 @@ def main():
         condition_col="condition",
         time_col="time in hpf",
         conditions=("Development", "Regeneration"),
-        regen_time_cut=84,
+        regen_time_cut=96,
         title="Growth anisotropy: AP vs PD (log-log)",
         fig_size=(3.4, 2.8),
         n_boot=2000,

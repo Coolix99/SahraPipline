@@ -71,172 +71,176 @@ def summarize_cov_by_groups(df, value_col, group_cols, n_boot=5000, seed=0):
 # =========================
 # Condition config
 # =========================
-COND_ORDER = ["Development", "Regeneration", "4850cut"]
+COND_ORDER = ["Development", "Regeneration", "4850cut", "7230cut"]
+
 COND_LABEL = {
     "Development": "Development",
     "Regeneration": "Regeneration 30%",
     "4850cut": "Regeneration 50%",
-}
-COND_COLOR = {
-    "Development": sns.color_palette()[0],  # blue
-    "Regeneration": sns.color_palette()[1],  # orange
-    "4850cut": sns.color_palette()[3],       # red-ish (tab:red-ish in seaborn)
+    "7230cut": "Late Amputation 30%",
 }
 
-# =========================
-# Plot 1: CoV at 48 vs 144 (grouped by condition)
-# =========================
-def plot_cov_surfacearea_48_144_grouped(
+COND_COLOR = {
+    "Development": sns.color_palette()[0],      # blue
+    "Regeneration": sns.color_palette()[1],     # orange
+    "4850cut": "cyan",                          # changed
+    "7230cut": "0.5",                           # grey
+}
+
+def plot_cov_grouped(
     df,
     value_col="Surface Area",
     time_col="time in hpf",
     condition_col="condition",
-    times=(48, 144),
-    conditions=("Development", "Regeneration", "4850cut"),
+    default_times=(48, 144),
+    special_times={"7230cut": (72, 144)},  # <-- key change
+    conditions=COND_ORDER,
     n_boot=5000,
     seed=0,
-    fig_size=(6.6, 3.4),
-    style="bar",          # "bar" or "point"
-    gap=0.8,              # gap between condition groups
-    within=0.9,           # spacing between 48 and 144 within group
+    fig_size=(7.5, 3.6),
+    style="bar",
+    gap=0.8,
+    within=0.9,
 ):
-    sub = df[df[time_col].isin(times) & df[condition_col].isin(conditions)].copy()
-    sub[value_col] = pd.to_numeric(sub[value_col], errors="coerce")
-
-    summ = summarize_cov_by_groups(
-        sub, value_col=value_col,
-        group_cols=[time_col, condition_col],
-        n_boot=n_boot, seed=seed
-    )
-
-    # order
-    summ[time_col] = pd.Categorical(summ[time_col], categories=list(times), ordered=True)
-    summ[condition_col] = pd.Categorical(summ[condition_col], categories=list(conditions), ordered=True)
-    summ = summ.sort_values([condition_col, time_col])
+    df = df.copy()
+    df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
 
     fig, ax = plt.subplots(figsize=fig_size)
 
-    # positions: for each condition -> two adjacent positions for 48/144, then a gap
-    x_pos = []
-    heights = []
-    yerr = []
-    colors = []
-
-    cond_centers = []
-    xticklabels = []
+    x_pos, heights, yerr, colors = [], [], [], []
+    cond_centers, xticklabels = [], []
 
     x0 = 0.0
+
     for cnd in conditions:
-        # positions for (48,144)
-        pos_48 = x0
-        pos_144 = x0 + within
-        cond_centers.append((pos_48 + pos_144) / 2.0)
-        xticklabels.append(COND_LABEL.get(cnd, str(cnd)))
 
-        for t, pos in zip(times, [pos_48, pos_144]):
-            row = summ[(summ[condition_col] == cnd) & (summ[time_col] == t)]
+        # --- choose which timepoints to compare ---
+        times = special_times.get(cnd, default_times)
+
+        sub = df[(df[condition_col] == cnd) &
+                 (df[time_col].isin(times))]
+
+        if len(sub) == 0:
+            x0 += gap
+            continue
+
+        summ = summarize_cov_by_groups(
+            sub,
+            value_col=value_col,
+            group_cols=[time_col],
+            n_boot=n_boot,
+            seed=seed
+        )
+
+        pos_list = []
+
+        for i, t in enumerate(times):
+            row = summ[summ[time_col] == t]
+            if len(row) == 0:
+                continue
+
+            pos = x0 + i * within
+            pos_list.append(pos)
+
             x_pos.append(pos)
+            heights.append(float(row["cov"].iloc[0]))
+            yerr.append(float(row["cov_sem"].iloc[0]))
+            colors.append(COND_COLOR[cnd])
 
-            if len(row) == 1:
-                heights.append(float(row["cov"].iloc[0]))
-                yerr.append(float(row["cov_sem"].iloc[0]))
-            else:
-                heights.append(np.nan)
-                yerr.append(np.nan)
+        if len(pos_list) > 0:
+            cond_centers.append(np.mean(pos_list))
+            xticklabels.append(COND_LABEL[cnd])
+            x0 = pos_list[-1] + gap
+        else:
+            x0 += gap
 
-            colors.append(COND_COLOR.get(cnd, "0.5"))
+    x_pos = np.array(x_pos)
+    heights = np.array(heights)
+    yerr = np.array(yerr)
 
-        # advance to next group
-        x0 = x0 + within + gap
-
-    x_pos = np.array(x_pos, float)
-    heights = np.array(heights, float)
-    yerr = np.array(yerr, float)
-
+    # ---- draw ----
     if style == "bar":
-        ax.bar(x_pos, heights, color=colors, width=0.75, edgecolor="none", zorder=2)
-    elif style == "point":
-        ax.scatter(x_pos, heights, color=colors, s=30, zorder=3)
+        ax.bar(x_pos, heights, color=colors, width=0.75,
+               edgecolor="none", zorder=2)
     else:
-        raise ValueError("style must be 'bar' or 'point'")
+        ax.scatter(x_pos, heights, color=colors, s=35, zorder=3)
 
-    # black error bars always
     ax.errorbar(
         x_pos, heights, yerr=yerr,
-        fmt="none", ecolor="k", elinewidth=1.5, capsize=3, zorder=4
+        fmt="none", ecolor="k",
+        elinewidth=1.5, capsize=3, zorder=4
     )
 
-    ax.set_ylabel("CoV (A)")
-    ax.set_title("Surface Area variability (CoV): 48 vs 144 hpf")
+    ax.set_ylabel(f"CoV ({'A' if value_col=='Surface Area' else 'V'})")
+    ax.set_title(f"{value_col} variability")
 
-    # one label per condition group
     ax.set_xticks(cond_centers)
     ax.set_xticklabels(xticklabels, rotation=45, ha="right")
 
     sns.despine()
     ax.grid(False)
     plt.tight_layout()
-    return fig, ax, summ
-
-
-# =========================
-# Plot 2: mean Surface Area at 144 with SEM (scaled)
-# =========================
-def plot_surfacearea_mean_144_scaled(
+    return fig, ax
+def plot_mean_144(
     df,
-    value_col="Surface Area",
+    value_col="Surface Area",   # or "Volume"
     time_col="time in hpf",
     condition_col="condition",
     time=144,
-    conditions=("Development", "Regeneration", "4850cut"),
-    fig_size=(3.8, 3.4),
-    style="bar",  # "bar" or "point"
-    scale=1e4,
+    conditions=COND_ORDER,
+    fig_size=(4.5, 3.6),
+    style="bar",
 ):
     sub = df[(df[time_col] == time) & (df[condition_col].isin(conditions))].copy()
     sub[value_col] = pd.to_numeric(sub[value_col], errors="coerce")
 
+    scale = 1e4 if value_col == "Surface Area" else 1.0
+
     rows = []
     for cnd in conditions:
         x = sub.loc[sub[condition_col] == cnd, value_col].to_numpy(dtype=float)
-        x = x[np.isfinite(x)]
-        x = x / scale  # scale here
+        x = x[np.isfinite(x)] / scale
         n = len(x)
-        m = np.nanmean(x) if n > 0 else np.nan
-        sem = (np.nanstd(x, ddof=1) / np.sqrt(n)) if n > 1 else np.nan
-        rows.append((cnd, m, sem, n))
+        if n == 0:
+            continue
+        mean = np.mean(x)
+        sem = np.std(x, ddof=1)/np.sqrt(n) if n > 1 else np.nan
+        rows.append((cnd, mean, sem))
 
-    summ = pd.DataFrame(rows, columns=[condition_col, "mean", "sem", "n"])
+    summ = pd.DataFrame(rows, columns=["condition", "mean", "sem"])
 
     fig, ax = plt.subplots(figsize=fig_size)
 
-    x_pos = np.arange(len(conditions))
-    heights = summ["mean"].to_numpy(float)
-    yerr = summ["sem"].to_numpy(float)
-    colors = [COND_COLOR.get(c, "0.5") for c in conditions]
-    labels = [COND_LABEL.get(c, str(c)) for c in conditions]
+    x_pos = np.arange(len(summ))
+    heights = summ["mean"].to_numpy()
+    yerr = summ["sem"].to_numpy()
+    colors = [COND_COLOR[c] for c in summ["condition"]]
+    labels = [COND_LABEL[c] for c in summ["condition"]]
 
     if style == "bar":
         ax.bar(x_pos, heights, color=colors, width=0.75, edgecolor="none", zorder=2)
-    elif style == "point":
-        ax.scatter(x_pos, heights, color=colors, s=40, zorder=3)
     else:
-        raise ValueError("style must be 'bar' or 'point'")
+        ax.scatter(x_pos, heights, color=colors, s=40, zorder=3)
 
     ax.errorbar(
         x_pos, heights, yerr=yerr,
         fmt="none", ecolor="k", elinewidth=1.5, capsize=3, zorder=4
     )
 
-    ax.set_ylabel(r"A [$\,(100\,\mu m)^2$]")
-    ax.set_title("Surface Area at 144 hpf")
+    if value_col == "Surface Area":
+        ax.set_ylabel(r"A [$\,(100\,\mu m)^2$]")
+    else:
+        ax.set_ylabel("Volume")
+
+    ax.set_title(f"{value_col} at {time} hpf")
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels, rotation=45, ha="right")
 
     sns.despine()
     ax.grid(False)
     plt.tight_layout()
-    return fig, ax, summ
+    return fig, ax
+
 # ============================================================
 # IO + Main
 # ============================================================
@@ -255,20 +259,30 @@ def load_growth_csv(csv_path):
 
 def main():
     set_plot_style_big()
+
     csv_file = os.path.join(scalar_path, "scalarGrowthData_meshBased.csv")
     df = load_growth_csv(csv_file)
-    fig1, ax1, cov_summ = plot_cov_surfacearea_48_144_grouped(
+
+    print("\nAvailable times:")
+    print(sorted(df["time in hpf"].dropna().unique()))
+
+    print("\nAvailable conditions:")
+    print(sorted(df["condition"].dropna().unique()))
+
+    # --- CoV plot ---
+    fig1, ax1 = plot_cov_grouped(
         df,
-        times=(48, 144),
-        conditions=("Development", "Regeneration", "4850cut"),
-        style="bar",   # or "point"
+        value_col="Volume",#"Surface Area",   # or 
+        default_times=(48, 144),    # optional (this is already default)
+        special_times={"7230cut": (72, 144)},  # optional (already default)
+        style="bar",                # or "point"
     )
 
-    fig2, ax2, mean_summ = plot_surfacearea_mean_144_scaled(
+    # --- Mean size plot ---
+    fig2, ax2 = plot_mean_144(
         df,
-        time=144,
-        conditions=("Development", "Regeneration", "4850cut"),
-        style="bar",   # or "point"
+        value_col="Volume",#"Surface Area",   # or 
+        style="bar",
     )
 
     plt.show()
