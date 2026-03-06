@@ -2,13 +2,22 @@ import pandas as pd
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.interpolate import UnivariateSpline
-
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import *
 
+import matplotlib as mpl
+
+mpl.rcParams.update({
+    "svg.fonttype": "none",      # keep text editable in Illustrator
+    "pdf.fonttype": 42,
+    "text.usetex": False,
+    "axes.unicode_minus": False
+})
+
+mpl.rcParams["font.family"] = "sans-serif"
+mpl.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
 
 def getData():
     df_file_path = os.path.join(scalar_path,'scalarGrowthData_meshBased.csv')
@@ -32,58 +41,19 @@ def getData():
     return df
 
 
-
-def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200,s: float = 0):
-    results = {}
-    grouped = df.groupby('condition')
-
-    for condition, group in grouped:
-        if  condition == '4850cut' or condition == '7230cut':
-            continue
-
-        # Calculate mean and std for each time
-        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
-
-        # Create a dense time grid for interpolation
-        dense_t = np.linspace(stats['time in hpf'].min(), stats['time in hpf'].max(), 500)
-
-        
-        condition_fits = {
-            'fitted_values': [],
-            'derivative': [],
-            'relative_derivative': [],
-        }
-        for _ in range(N):
-            # Sample around mean with std
-            sampled_values = np.random.normal(stats['mean'], stats['std']/2)
-            # Fit a UnivariateSpline
-            spline = UnivariateSpline(stats['time in hpf'], sampled_values,w=1/stats['std'], s=s,k=2)
-            fitted_values = spline(dense_t)
-            
-            # Calculate derivatives
-            derivative = spline.derivative()(dense_t)
-            relative_derivative = derivative / fitted_values
-            
-            
-            condition_fits['fitted_values'].append(fitted_values)
-            condition_fits['derivative'].append(derivative)
-            condition_fits['relative_derivative'].append(relative_derivative)
-        condition_fits['time']=dense_t
-        results[condition] = condition_fits
-    
-    return results
-
 from powersmooth.powersmooth import powersmooth_general, upsample_with_mask
 
-def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200, dx: float = 1.0) -> dict:
+def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N_samples: int = 200) -> dict:
     results = {}
     grouped = df.groupby('condition')
 
     for condition, group in grouped:
+
         if condition in {'4850cut', '7230cut'}:
             continue
 
-        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
+        stats = group.groupby('time in hpf')[column].agg(['mean','std']).reset_index()
+
         x = stats['time in hpf'].values
         y_mean = stats['mean'].values
         y_std = stats['std'].values
@@ -94,20 +64,18 @@ def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200, dx: 
             'relative_derivative': [],
         }
 
-        for _ in range(N):
-            y_sample = np.random.normal(y_mean, y_std / 2)
-            x_up, y_up, mask_up = upsample_with_mask(x, y_sample, dx=dx)
-            y_smooth = powersmooth_general(x_up, y_up, weights={2: 5e+2, 3: 1e+3}, mask=mask_up)
+        for _ in range(N_samples):
 
-            # plt.plot(x_up, y_smooth, color='gray', alpha=0.1)
-            # plt.scatter(x, y_sample, color='blue', alpha=0.1)
-            # plt.scatter(x, y_mean, color='red', alpha=0.1)
-            # plt.legend()
-            # plt.title(f'Condition: {condition}')
-            # plt.xlabel('Time [hpf]')
-            # plt.ylabel(column)
-            # plt.show()
-            # break
+            y_sample = np.random.normal(y_mean, y_std/2)
+
+            x_up, y_up, mask_up = upsample_with_mask(x, y_sample, dx=1)
+
+            y_smooth = powersmooth_general(
+                x_up,
+                y_up,
+                weights={2:7e2, 3:1e3},
+                mask=mask_up
+            )
 
             D1 = np.gradient(y_smooth, x_up)
             rel_D1 = D1 / y_smooth
@@ -121,8 +89,55 @@ def fit_and_sample_derivatives(df: pd.DataFrame, column: str, N: int = 200, dx: 
 
     return results
 
+def fit_with_finite_differences(df: pd.DataFrame, column: str, N_samples: int = 500):
 
-def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, ylabel, ymin=0,ymax=None,xmax=None,xmin=None,dy=None,dx=None):
+    results = {}
+    grouped = df.groupby('condition')
+
+    for condition, group in grouped:
+
+        if condition in {'4850cut', '7230cut'}:
+            continue
+
+        stats = group.groupby('time in hpf')[column].agg(['mean','std']).reset_index()
+
+        t = stats['time in hpf'].values
+        y_mean = stats['mean'].values
+        y_std = stats['std'].values
+
+        t_dense = np.linspace(t.min(), t.max(), 400)
+
+        fits = []
+        derivatives = []
+        rel_derivatives = []
+
+        for _ in range(N_samples):
+
+            y_sample = np.random.normal(y_mean, y_std/2)
+
+            y_interp = np.interp(t_dense, t, y_sample)
+
+            d = np.gradient(y_interp, t_dense)
+            rel = d / y_interp
+
+            fits.append(y_interp)
+            derivatives.append(d)
+            rel_derivatives.append(rel)
+
+        results[condition] = {
+            "time": t_dense,
+            "fitted_values": fits,
+            "derivative": derivatives,
+            "relative_derivative": rel_derivatives
+        }
+
+    return results
+
+def plot_fit_with_uncertainty(
+    fit_results_list, colors, labels, title, xlabel, ylabel,
+    ymin=0, ymax=None, xmax=None, xmin=None, dy=None, dx=None,
+    df=None, column=None
+):
     """
     Plot fit results with uncertainty bands using Matplotlib.
 
@@ -141,10 +156,6 @@ def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, y
     ylabel : str
         Y-axis label.
     """
-    plt.rcParams['svg.fonttype'] = 'none'
-    plt.rcParams['font.family'] = ['sans-serif']
-    plt.rcParams['font.sans-serif'] = ['Arial']
-
     fig = plt.figure(figsize=(6, 4))
 
     for fit_results, color, label in zip(fit_results_list, colors, labels):
@@ -156,6 +167,25 @@ def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, y
         )
 
         plt.plot(t_values, fit_mean, color=color, linewidth=2, label=label)
+
+        # plot raw data
+        if df is not None and column is not None:
+
+            cond = label
+            data = df[df["condition"] == cond]
+
+            stats = data.groupby("time in hpf")[column].agg(["mean","std"]).reset_index()
+
+            plt.errorbar(
+                stats["time in hpf"],
+                stats["mean"],
+                yerr=stats["std"],
+                fmt="o",
+                color=color,
+                markersize=5,
+                capsize=3,
+                linestyle="none"
+            )
         plt.fill_between(t_values, fit_lowersig, fit_uppersig, color=color, alpha=0.2)
         #plt.fill_between(t_values, fit_lower2sig, fit_upper2sig, color=color, alpha=0.1)
 
@@ -175,6 +205,9 @@ def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, y
         dx = (xmax - xmin) / 10
     if dy is None:
         dy = (ymax - ymin) / 10
+    
+    ymin, ymax = clean_limits(ymin, ymax, dy)
+    xmin, xmax = clean_limits(xmin, xmax, dx)
     plt.ylim(ymin, ymax)
     plt.xlim(xmin, xmax)
     plt.xticks(np.arange(xmin, xmax, dx), fontsize=16)
@@ -185,6 +218,237 @@ def plot_fit_with_uncertainty(fit_results_list, colors, labels, title, xlabel, y
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C, WhiteKernel
+from scipy.interpolate import PchipInterpolator
+def fit_with_monotonic_pchip(df: pd.DataFrame, column: str, N_samples: int = 500):
+    results = {}
+    grouped = df.groupby('condition')
+
+    for condition, group in grouped:
+        if condition in {'4850cut', '7230cut'}:
+            continue
+
+        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
+
+        x = stats['time in hpf'].values.astype(float)
+        y_mean = stats['mean'].values.astype(float)
+        y_std = stats['std'].values.astype(float)
+
+        x_dense = np.linspace(x.min(), x.max(), 400)
+
+        fitted_values = []
+        derivatives = []
+        relative_derivatives = []
+
+        for _ in range(N_samples):
+            # sample noisy observations
+            y_sample = np.random.normal(y_mean, y_std / 2)
+
+            # enforce monotonicity on sampled support points
+            # this is the key step: once the support points are monotone,
+            # PCHIP preserves monotonicity between them
+            y_sample_mono = np.maximum.accumulate(y_sample)
+
+            interpolator = PchipInterpolator(x, y_sample_mono)
+
+            y_dense = interpolator(x_dense)
+            d_dense = interpolator.derivative()(x_dense)
+            rel_d_dense = d_dense / y_dense
+
+            fitted_values.append(y_dense)
+            derivatives.append(d_dense)
+            relative_derivatives.append(rel_d_dense)
+
+        results[condition] = {
+            'time': x_dense,
+            'fitted_values': fitted_values,
+            'derivative': derivatives,
+            'relative_derivative': relative_derivatives
+        }
+
+    return results
+
+from scipy.optimize import minimize
+from scipy.integrate import cumulative_trapezoid
+
+def softplus(z):
+    return np.logaddexp(0.0, z)
+
+def inv_softplus(y):
+    y = np.maximum(y, 1e-12)
+    return np.log(np.expm1(y))
+
+def build_rbf_basis(x, n_basis=8, width=None):
+    x = np.asarray(x, dtype=float)
+    centers = np.linspace(x.min(), x.max(), n_basis)
+
+    if width is None:
+        if n_basis > 1:
+            spacing = centers[1] - centers[0]
+            width = 1.5 * spacing
+        else:
+            width = x.ptp() if x.ptp() > 0 else 1.0
+
+    Phi = np.exp(-0.5 * ((x[:, None] - centers[None, :]) / width) ** 2)
+
+    # normalize rows so constant weights -> constant latent function
+    Phi_sum = Phi.sum(axis=1, keepdims=True)
+    Phi_sum[Phi_sum == 0] = 1.0
+    Phi = Phi / Phi_sum
+
+    return Phi, centers, width
+
+def fit_monotone_softplus_single(
+    x,
+    y,
+    y_std,
+    x_dense,
+    n_basis=8,
+    smooth_penalty=1e-2
+):
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    y_std = np.asarray(y_std, dtype=float)
+    x_dense = np.asarray(x_dense, dtype=float)
+
+    # avoid division issues
+    y_std = np.where(np.isfinite(y_std) & (y_std > 0), y_std, np.nanmedian(y_std))
+    if not np.isfinite(y_std).all():
+        y_std = np.where(np.isfinite(y_std), y_std, 1.0)
+
+    Phi_x, centers, width = build_rbf_basis(x, n_basis=n_basis)
+    Phi_dense, _, _ = build_rbf_basis(x_dense, n_basis=n_basis, width=width)
+
+    # initialize from average positive slope
+    avg_slope = max((y[-1] - y[0]) / max(x[-1] - x[0], 1e-8), 1e-6)
+    z0 = inv_softplus(avg_slope)
+
+    p0 = np.zeros(n_basis + 1)
+    p0[0] = max(y[0], 1e-8)     # y0
+    p0[1:] = z0                  # latent derivative roughly constant initially
+
+    def predict(params, x_eval_basis):
+        y0 = params[0]
+        w = params[1:]
+
+        latent = x_eval_basis @ w
+        dydt = softplus(latent)
+
+        # integrate derivative to recover y
+        y_eval = y0 + cumulative_trapezoid(dydt, x_dense if x_eval_basis is Phi_dense else x, initial=0.0)
+        return y_eval, dydt
+
+    def objective(params):
+        y0 = params[0]
+        w = params[1:]
+
+        latent_x = Phi_x @ w
+        dydt_x = softplus(latent_x)
+        y_hat = y0 + cumulative_trapezoid(dydt_x, x, initial=0.0)
+
+        resid = (y_hat - y) / y_std
+        data_term = np.sum(resid ** 2)
+
+        # smoothness penalty on latent weights
+        if len(w) >= 3:
+            d2w = np.diff(w, n=2)
+            smooth_term = smooth_penalty * np.sum(d2w ** 2)
+        else:
+            smooth_term = 0.0
+
+        # optional weak penalty against absurdly tiny y0
+        y0_penalty = 1e-6 * (min(0.0, y0) ** 2)
+
+        return data_term + smooth_term + y0_penalty
+
+    res = minimize(
+        objective,
+        p0,
+        method="L-BFGS-B",
+        bounds=[(1e-10, None)] + [(None, None)] * n_basis
+    )
+
+    params_opt = res.x
+    y0 = params_opt[0]
+    w = params_opt[1:]
+
+    latent_dense = Phi_dense @ w
+    dydt_dense = softplus(latent_dense)
+    y_dense = y0 + cumulative_trapezoid(dydt_dense, x_dense, initial=0.0)
+    rel_dydt_dense = dydt_dense / y_dense
+
+    return y_dense, dydt_dense, rel_dydt_dense
+
+def fit_with_monotone_softplus(
+    df: pd.DataFrame,
+    column: str,
+    N_samples: int = 500,
+    n_basis: int = 8,
+    smooth_penalty: float = 1e-2
+):
+    results = {}
+    grouped = df.groupby('condition')
+
+    for condition, group in grouped:
+        if condition in {'4850cut', '7230cut'}:
+            continue
+
+        stats = group.groupby('time in hpf')[column].agg(['mean', 'std']).reset_index()
+
+        x = stats['time in hpf'].values.astype(float)
+        y_mean = stats['mean'].values.astype(float)
+        y_std = stats['std'].values.astype(float)
+
+        # replace missing/zero std values safely
+        finite_pos_std = y_std[np.isfinite(y_std) & (y_std > 0)]
+        fallback_std = np.median(finite_pos_std) if len(finite_pos_std) > 0 else 1.0
+        y_std = np.where(np.isfinite(y_std) & (y_std > 0), y_std, fallback_std)
+
+        x_dense = np.linspace(x.min(), x.max(), 400)
+
+        fitted_values = []
+        derivatives = []
+        relative_derivatives = []
+
+        for _ in range(N_samples):
+            y_sample = np.random.normal(y_mean, y_std / 2.0)
+
+            # keep values positive if needed
+            if np.any(y_sample <= 0):
+                y_sample = np.maximum(y_sample, 1e-8)
+
+            y_fit, d_fit, rel_d_fit = fit_monotone_softplus_single(
+                x=x,
+                y=y_sample,
+                y_std=y_std,
+                x_dense=x_dense,
+                n_basis=n_basis,
+                smooth_penalty=smooth_penalty
+            )
+
+            fitted_values.append(y_fit)
+            derivatives.append(d_fit)
+            relative_derivatives.append(rel_d_fit)
+
+        results[condition] = {
+            'time': x_dense,
+            'fitted_values': fitted_values,
+            'derivative': derivatives,
+            'relative_derivative': relative_derivatives
+        }
+
+    return results
+
+def clean_limits(vmin, vmax, step):
+    vmin = step * np.floor(vmin / step)
+    vmax = step * np.ceil(vmax / step)
+    return vmin, vmax
+
+COLORS = {
+    "Development": "#2278b5",
+    "Regeneration_30_48": "#f57f20",
+    "Regeneration_50_48": "#017c91",
+    "Regeneration_30_72": "#b29dcb"
+}
 
 def fit_with_gp(df: pd.DataFrame, column: str, N_samples: int = 500) -> dict:
     results = {}
@@ -250,123 +514,97 @@ def fit_with_gp(df: pd.DataFrame, column: str, N_samples: int = 500) -> dict:
 
 
 def main():
-    df=getData()
+
+    df = getData()
     print(df.columns)
 
-    # res=fit_and_sample_derivatives(df, 'Volume', N=1000,s=0.4e1)
-    # res=fit_and_sample_derivatives(df, 'Volume', N=1000,dx=1)
-    res = fit_with_gp(df, 'Volume', N_samples=1000)
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['fitted_values']
+    # interpolation / fitting methods
+    methods = {
+        # "MonotonicSoftplus": fit_with_monotone_softplus,
+        "FiniteDifference": fit_with_finite_differences,
+        "PowerSmooth": fit_and_sample_derivatives,
+        "GaussianProcess": fit_with_gp,
+        # "MonotonicPCHIP": fit_with_monotonic_pchip
     }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['fitted_values']
-    }
-    plot_fit_with_uncertainty(
-        fit_results_list=[fit_results_dev, fit_results_reg],
-        colors=['blue', 'orange'],
-        labels=['Development', 'Regeneration'],
-        title='Volume ',
-        xlabel='t [hpf]',
-        ylabel=r'$V \quad [\mu m^3]$',
-        # ymin=0,
-        # xmin=48,
-        # dx=12,
-        # dy=10000,
-    )
 
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['derivative']
+    # variables to analyze
+    variables = {
+        "Volume": {
+            "ylabel_value": r"$V\;[\mu m^3]$",
+            "ylabel_rate": r"$\dot{V}\;[\mu m^3/h]$",
+            "ylabel_rel": r"$\dot{V}/V\;[1/h]$",
+            "dy_rate": 10000
+        },
+        "Surface Area": {
+            "ylabel_value": r"$A\;[\mu m^2]$",
+            "ylabel_rate": r"$\dot{A}\;[\mu m^2/h]$",
+            "ylabel_rel": r"$\dot{A}/A\;[1/h]$",
+            "dy_rate": 1000
+        }
     }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['derivative']
-    }
-    plot_fit_with_uncertainty(
-        fit_results_list=[fit_results_dev, fit_results_reg],
-        colors=['blue', 'orange'],
-        labels=['Development', 'Regeneration'],
-        title='Volume Growth Rate',
-        xlabel='t [hpf]',
-        ylabel=r'$\dot{V} \quad [\mu m^3/h]$',
-        ymin=0,
-        xmin=48,
-        dx=12,
-        dy=10000,
-    )
 
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['relative_derivative']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['relative_derivative']
-    }
-    plot_fit_with_uncertainty(
-        fit_results_list=[fit_results_dev, fit_results_reg],
-        colors=['blue', 'orange'],
-        labels=['Development', 'Regeneration'],
-        title='Relative Volume Growth Rate',
-        xlabel='t [hpf]',
-        ylabel=r'$\dot{V}/V \quad [1/h]$',
-        ymin=0,
-        xmin=48,
-        dx=12,
-        dy=0.02,
-    )
+    for method_name, method_func in methods.items():
 
-    # res=fit_and_sample_derivatives(df, 'Surface Area', N=1000,dx=1)
-    res = fit_with_gp(df, 'Surface Area', N_samples=1000)
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['derivative']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['derivative']
-    }
-    plot_fit_with_uncertainty(
-        fit_results_list=[fit_results_dev, fit_results_reg],
-        colors=['blue', 'orange'],
-        labels=['Development', 'Regeneration'],
-        title='Area Growth Rate',
-        xlabel='t [hpf]',
-        ylabel=r'$\dot{A} \quad [\mu m^2/h]$',
-        ymin=0,
-        xmin=48,
-        dx=12,
-        dy=1000,
-    )
+        print(f"\nRunning method: {method_name}")
 
-    fit_results_dev = {
-        't_values': res['Development']['time'],
-        'fits': res['Development']['relative_derivative']
-    }
-    fit_results_reg = {
-        't_values': res['Regeneration']['time'],
-        'fits': res['Regeneration']['relative_derivative']
-    }
-    plot_fit_with_uncertainty(
-        fit_results_list=[fit_results_dev, fit_results_reg],
-        colors=['blue', 'orange'],
-        labels=['Development', 'Regeneration'],
-        title='Relative Area Growth Rate',
-        xlabel='t [hpf]',
-        ylabel=r'$\dot{A}/A \quad [1/h]$',
-        ymin=0,
-        xmin=48,
-        dx=12,
-        dy=0.02,
-    )
+        for variable, meta in variables.items():
+
+            print(f"  Variable: {variable}")
+
+            res = method_func(df, variable, N_samples=1000)
+
+            dev = res['Development']
+            reg = res['Regeneration']
+
+            # ---------- VALUE ----------
+            plot_fit_with_uncertainty(
+                fit_results_list=[
+                    {"t_values": dev["time"], "fits": dev["fitted_values"]},
+                    {"t_values": reg["time"], "fits": reg["fitted_values"]}
+                ],
+                colors=[COLORS["Development"], COLORS["Regeneration_30_48"]],
+                labels=["Development", "Regeneration"],
+                title=f"{variable} ({method_name})",
+                xlabel="t [hpf]",
+                ylabel=meta["ylabel_value"],
+                df=df,
+                column=variable
+            )
+
+            # ---------- ABSOLUTE RATE ----------
+            plot_fit_with_uncertainty(
+                fit_results_list=[
+                    {"t_values": dev["time"], "fits": dev["derivative"]},
+                    {"t_values": reg["time"], "fits": reg["derivative"]}
+                ],
+                colors=[COLORS["Development"], COLORS["Regeneration_30_48"]],
+                labels=["Development", "Regeneration"],
+                title=f"{variable} Growth Rate ({method_name})",
+                xlabel="t [hpf]",
+                ylabel=meta["ylabel_rate"],
+                ymin=None,
+                xmin=48,
+                dx=12,
+                dy=meta["dy_rate"]
+            )
+
+            # ---------- RELATIVE RATE ----------
+            plot_fit_with_uncertainty(
+                fit_results_list=[
+                    {"t_values": dev["time"], "fits": dev["relative_derivative"]},
+                    {"t_values": reg["time"], "fits": reg["relative_derivative"]}
+                ],
+                colors=[COLORS["Development"], COLORS["Regeneration_30_48"]],
+                labels=["Development", "Regeneration"],
+                title=f"Relative {variable} Growth Rate ({method_name})",
+                xlabel="t [hpf]",
+                ylabel=meta["ylabel_rel"],
+                ymin=None,
+                xmin=48,
+                dx=12,
+                dy=0.02
+            )
 
 
-    
-
-    
-    
 if __name__ == "__main__":
     main()
