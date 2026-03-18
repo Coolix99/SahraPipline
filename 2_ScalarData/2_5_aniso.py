@@ -262,6 +262,107 @@ def plot_anisotropy_loglog(
     plt.tight_layout()
     return fig, ax
 
+def plot_anisotropy_ratio_over_time(
+    df,
+    xcol="L_PD_midline",
+    ycol="L_AP_40line",
+    condition_col="condition",
+    time_col="time in hpf",
+    conditions=("Development", "Regeneration"),
+    fig_size=(3.4, 2.8),
+    seed=0,
+):
+    """
+    Plot L_AP / L_PD over time as percentile box-style plots.
+    """
+
+    rng = np.random.default_rng(seed)
+
+    fig, ax = plt.subplots(figsize=fig_size)
+
+    palette = {
+        "Development": sns.color_palette()[0],
+        "Regeneration": sns.color_palette()[1],
+    }
+
+    # compute ratio
+    df = df.copy()
+    df["anisotropy"] = df[ycol] / df[xcol]
+
+    # valid data
+    mask = (
+        np.isfinite(df["anisotropy"])
+        & np.isfinite(df[time_col])
+        & (df[xcol] > 0)
+        & (df[ycol] > 0)
+    )
+    df = df[mask]
+
+    times = sorted(df[time_col].dropna().unique())
+
+    width = 3.5  # width of boxes in time units
+
+    for cond in conditions:
+        sub = df[df[condition_col] == cond]
+
+        for t in times:
+            vals = sub.loc[sub[time_col] == t, "anisotropy"].to_numpy()
+
+            vals = vals[np.isfinite(vals)]
+            if len(vals) < 3:
+                continue
+
+            q2_3, q15_9, q50, q84_1, q97_7 = np.percentile(
+                vals, [2.3, 15.9, 50, 84.1, 97.7]
+            )
+
+            color = palette.get(cond, "k")
+
+            # --- box (±1σ) ---
+            rect = plt.Rectangle(
+                (t - width / 2, q15_9),
+                width,
+                q84_1 - q15_9,
+                facecolor="white",
+                edgecolor=color,
+                linewidth=1.5,
+                zorder=2,
+            )
+            ax.add_patch(rect)
+
+            # --- median ---
+            ax.plot(
+                [t - width / 2, t + width / 2],
+                [q50, q50],
+                color=color,
+                linewidth=2,
+                zorder=3,
+            )
+
+            # --- whiskers (±2σ) ---
+            ax.plot([t, t], [q2_3, q15_9], color=color, linewidth=1.2)
+            ax.plot([t, t], [q84_1, q97_7], color=color, linewidth=1.2)
+
+            # --- optional: scatter ---
+            jitter = rng.uniform(-0.8, 0.8, size=len(vals))
+            ax.scatter(
+                np.full(len(vals), t) + jitter,
+                vals,
+                s=6,
+                color=color,
+                alpha=0.3,
+                zorder=1,
+            )
+
+    ax.set_xlabel("time [hpf]")
+    ax.set_ylabel(r"$L_{AP} / L_{PD}$")
+    ax.set_title("Anisotropy ratio over time")
+
+    sns.despine()
+    ax.grid(False)
+    plt.tight_layout()
+
+    return fig, ax
 
 # ============================================================
 # IO + Main
@@ -285,6 +386,19 @@ def main():
     csv_file = os.path.join(scalar_path, "scalarGrowthData_meshBased.csv")
     df = load_growth_csv(csv_file)
     print(f"Loaded {len(df)} rows from {csv_file}")
+
+    plot_anisotropy_ratio_over_time(
+        df,
+        xcol="L_PD_midline",
+        ycol="L_AP_40line",
+        condition_col="condition",
+        time_col="time in hpf",
+        conditions=("Development", "Regeneration"),
+        fig_size=(3.4, 2.8),
+        seed=0,
+    )
+
+    plt.show()
 
     # Default: Development + Regeneration
     plot_anisotropy_loglog(
