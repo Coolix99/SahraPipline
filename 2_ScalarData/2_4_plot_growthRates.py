@@ -467,6 +467,7 @@ def fit_with_gp(df: pd.DataFrame, column: str, N_samples: int = 500) -> dict:
         print(np.mean(y_std))
         # Define kernel
         kernel = C(1.0, (1e-3, 1e3)) * RBF(length_scale=20.0, length_scale_bounds=(1, 200))
+        # kernel = C(1.0, (1e-3, 1e3)) * RBF(length_scale=100.0, length_scale_bounds="fixed")
         y_scale = np.mean(y)
         y = y / y_scale
         y_std = y_std / y_scale
@@ -479,6 +480,12 @@ def fit_with_gp(df: pd.DataFrame, column: str, N_samples: int = 500) -> dict:
         )
 
         gp.fit(X, y)
+
+        # Extract fitted kernel
+        kernel_opt = gp.kernel_
+        # Extract RBF length scale
+        length_scale = kernel_opt.k2.length_scale
+        print(f"[{condition}] GP length scale (correlation time): {length_scale:.2f} hpf")
 
         # Dense time grid
         X_dense = np.linspace(X.min(), X.max(), 400).reshape(-1, 1)
@@ -521,8 +528,8 @@ def main():
     # interpolation / fitting methods
     methods = {
         # "MonotonicSoftplus": fit_with_monotone_softplus,
-        "FiniteDifference": fit_with_finite_differences,
-        "PowerSmooth": fit_and_sample_derivatives,
+        # "FiniteDifference": fit_with_finite_differences,
+        # "PowerSmooth": fit_and_sample_derivatives,
         "GaussianProcess": fit_with_gp,
         # "MonotonicPCHIP": fit_with_monotonic_pchip
     }
@@ -535,12 +542,12 @@ def main():
             "ylabel_rel": r"$\dot{V}/V\;[1/h]$",
             "dy_rate": 10000
         },
-        "Surface Area": {
-            "ylabel_value": r"$A\;[\mu m^2]$",
-            "ylabel_rate": r"$\dot{A}\;[\mu m^2/h]$",
-            "ylabel_rel": r"$\dot{A}/A\;[1/h]$",
-            "dy_rate": 1000
-        }
+        # "Surface Area": {
+        #     "ylabel_value": r"$A\;[\mu m^2]$",
+        #     "ylabel_rate": r"$\dot{A}\;[\mu m^2/h]$",
+        #     "ylabel_rel": r"$\dot{A}/A\;[1/h]$",
+        #     "dy_rate": 1000
+        # }
     }
 
     for method_name, method_func in methods.items():

@@ -50,10 +50,10 @@ COND_LABEL = {
 }
 
 COND_COLOR = {
-    "Development": "#2278b5",
-    "Regeneration": "#f57f20",
-    "4850cut": "#017c91",
-    "7230cut": "#b29dcb",
+    "Development": "#2077b5",
+    "Regeneration": "#f57e1f",
+    "4850cut": "#592d10",
+    "7230cut": "#fed1a4",
 }
 
 
@@ -404,8 +404,10 @@ def plot_mean_144(
                         )
     if value_col == "Surface Area":
         ax.set_ylabel(r"A [$\,(100\,\mu m)^2$]")
-    else:
+    elif value_col == "Volume":
         ax.set_ylabel(r"V [$\mu m^3$]")
+    elif value_col == "Mean Thickness":
+        ax.set_ylabel(r"$V/A\;[\mu m]$")
 
     ax.set_title(f"{value_col} at {time} hpf")
     ax.set_xticks(x_pos)
@@ -426,6 +428,9 @@ def load_growth_csv(csv_path):
     df = pd.read_csv(csv_path)
     if "time in hpf" in df.columns:
         df["time in hpf"] = pd.to_numeric(df["time in hpf"], errors="coerce")
+
+    if {"Volume", "Surface Area"}.issubset(df.columns):
+        df["Mean Thickness"] = df["Volume"] / df["Surface Area"]
     return df
 
 
@@ -447,7 +452,7 @@ def main():
     out_dir = os.path.join('./', "plots_cov_mean")
     os.makedirs(out_dir, exist_ok=True)
 
-    for value_col in ["Volume", "Surface Area"]:
+    for value_col in ["Volume", "Surface Area", "Mean Thickness"]:
         fig1, ax1 = plot_cov_grouped(
             df,
             value_col=value_col,
