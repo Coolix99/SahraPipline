@@ -385,8 +385,12 @@ def main():
 
     csv_file = os.path.join(scalar_path, "scalarGrowthData_meshBased.csv")
     df = load_growth_csv(csv_file)
+
     print(f"Loaded {len(df)} rows from {csv_file}")
 
+    # =========================
+    # AP vs PD (original)
+    # =========================
     plot_anisotropy_ratio_over_time(
         df,
         xcol="L_PD_midline",
@@ -400,7 +404,6 @@ def main():
 
     plt.show()
 
-    # Default: Development + Regeneration
     plot_anisotropy_loglog(
         df,
         xcol="L_PD_midline",
@@ -415,7 +418,6 @@ def main():
         seed=0,
     )
 
-    # Panel label example (optional)
     ax = plt.gca()
     ax.text(-0.25, 1.15, "A",
             ha="left", va="top", weight="bold",
@@ -423,11 +425,24 @@ def main():
 
     plt.show()
 
-    # Optional: include other conditions if present
-    # Example:
-    # unique_conds = tuple(sorted(df["condition"].dropna().unique()))
-    # plot_anisotropy_loglog(df, conditions=unique_conds, title="All conditions")
+    # =========================
+    # DV vs PD (NEW)
+    # =========================
+    plot_anisotropy_ratio_over_time(
+        df,
+        xcol="L_PD_midline",
+        ycol="L_DV",
+        condition_col="condition",
+        time_col="time in hpf",
+        conditions=("Development", "Regeneration"),
+        fig_size=(3.4, 2.8),
+        seed=0,
+    )
 
+    plt.gca().set_title("DV/PD anisotropy over time")
 
+    plt.show()
+
+  
 if __name__ == "__main__":
     main()
