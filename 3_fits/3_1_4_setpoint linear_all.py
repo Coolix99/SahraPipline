@@ -62,22 +62,53 @@ def explorative_plotting(df: pd.DataFrame):
     plt.show()
 
 def getData():
+    # -------------------------
     # Base data
+    # -------------------------
     df = pd.read_csv(
         os.path.join(scalar_path, "Fin_measurements.csv"), sep=","
     )[["time in hpf", "condition", "Surface Area"]]
 
-    # Additional mesh-based data
+    # -------------------------
+    # Mesh-based cut data
+    # -------------------------
     df2 = pd.read_csv(
         os.path.join(scalar_path, "scalarGrowthData_meshBased.csv"), sep=","
     )[["time in hpf", "condition", "Surface Area"]]
 
-    # Select only cut conditions from df2
     cut_conditions = ["4850cut", "7230cut"]
     df2 = df2[df2["condition"].isin(cut_conditions)]
 
-    # Concatenate and return
-    df_all = pd.concat([df, df2], ignore_index=True)
+    # -------------------------
+    # SMOC development data
+    # -------------------------
+    df_smoc_dev = pd.read_excel(
+        os.path.join(scalar_path, "Smoc1_Smoc2_dev.xlsx")
+    )[["Time in hpf", "surface_area"]]
+
+    df_smoc_dev = df_smoc_dev.rename(columns={
+        "Time in hpf": "time in hpf",
+        "surface_area": "Surface Area",
+    })
+
+    df_smoc_dev["condition"] = "smoc_dev"
+
+    # -------------------------
+    # SMOC regeneration data
+    # -------------------------
+    df_smoc_reg = pd.read_excel(
+        os.path.join(scalar_path, "Smoc1_Smoc2_reg_final.xlsx")
+    )[["time in hpf", "Surface Area"]]
+
+    df_smoc_reg["condition"] = "smoc_reg"
+
+    # -------------------------
+    # Combine all datasets
+    # -------------------------
+    df_all = pd.concat(
+        [df, df2, df_smoc_dev, df_smoc_reg],
+        ignore_index=True
+    )
 
     return df_all
 
@@ -236,6 +267,8 @@ def prepare_stan_data(
         "Regeneration": "Reg",
         "4850cut": "4850cut",
         "7230cut": "7230cut",
+        "smoc_dev": "smoc_dev",
+        "smoc_reg": "smoc_reg",
     }
 
     data = {}
@@ -292,6 +325,8 @@ def plot_fit_from_csv(
         "Regeneration": "Reg",
         "4850cut": "4850cut",
         "7230cut": "7230cut",
+        "smoc_dev": "smoc_dev",
+        "smoc_reg": "smoc_reg",
     }
 
     t0_map = {
@@ -299,6 +334,8 @@ def plot_fit_from_csv(
         "Reg": 48.0,
         "4850cut": 48.0,
         "7230cut": 72.0,
+        "smoc_dev": 48.0,   
+        "smoc_reg": 48.0,  
     }
 
 
@@ -412,25 +449,25 @@ def plot_fit_from_csv(
 def main():
     df = getData()
     df['Surface Area'] = df['Surface Area'] / 10000
-
-    # explorative_plotting(df)
-    # t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
-    # simulate_prior_predictive_ODE(t_range,df)
+    print(df.head())
+    explorative_plotting(df)
+    t_range = np.linspace(df["time in hpf"].min(), df["time in hpf"].max(), 100)
+    simulate_prior_predictive_ODE(t_range,df)
     
-    # data_dict = prepare_stan_data(df)
+    data_dict = prepare_stan_data(df)
 
-    # model_path = "3_fits/fit_setPoint_linear_addcut.stan"
-    # fit = compile_and_fit_stan_model(model_path, data_dict)
-    # posterior_diagnostics(fit,data_dict)
+    model_path = "3_fits/fit_setPoint_linear_all.stan"
+    fit = compile_and_fit_stan_model(model_path, data_dict)
+    posterior_diagnostics(fit,data_dict)
 
-    plot_fit_from_csv(
-        df,
-        csv_path=os.path.join(
-            scalar_path,
-            "fit_results",
-            "area_sampled_parameter_results_setPoint_linear_addcut.csv",
-        ),
-    )
+    # plot_fit_from_csv(
+    #     df,
+    #     csv_path=os.path.join(
+    #         scalar_path,
+    #         "fit_results",
+    #         "area_sampled_parameter_results_setPoint_linear_addcut.csv",
+    #     ),
+    # )
 
 
 if __name__ == "__main__":
