@@ -91,6 +91,7 @@ parameters {
     real alpha_tilde;
     real beta_tilde;
     real A_end_tilde;
+    real A_end_smocdev_tilde;
 
     real A_0_Dev_tilde;
     real g_0_Dev;
@@ -107,11 +108,15 @@ transformed parameters {
     real alpha = 10^alpha_tilde;
     real beta_ = (alpha / 4) * 10^beta_tilde;
     real A_end = 10^A_end_tilde;
+    real A_end_smocdev = 10^A_end_smocdev_tilde;
 
     real A_0_Dev = 10^A_0_Dev_tilde;
     real A_0_Reg = 10^A_0_Reg_tilde;
     real A_0_4850cut = 10^A_0_4850cut_tilde;
     real A_0_7230cut = 10^A_0_7230cut_tilde;
+
+    real A_0_smoc_Dev = 10^A_0_smoc_Dev_tilde;
+    real A_0_smoc_Reg = 10^A_0_smoc_Reg_tilde;
 }
 
 
@@ -120,30 +125,39 @@ model {
     vector[N_Reg] Ahat_Reg;
     vector[N_4850cut] Ahat_4850cut;
     vector[N_7230cut] Ahat_7230cut;
+    vector[N_smoc_dev] Ahat_smoc_Dev;
+    vector[N_smoc_reg] Ahat_smoc_Reg;
 
     // Priors
     alpha_tilde ~ normal(-0.5, 0.5);
     beta_tilde ~ normal(0, 0.1);
     A_end_tilde ~ normal(1.0, 0.1);
+    A_end_smocdev_tilde ~ normal(0.87, 0.1);
 
     g_0_Dev ~ normal(0, 0.1);
-
+    g_0_smoc_Dev ~ normal(0, 0.1);
 
     A_0_Dev_tilde ~ normal(0.3, 0.15);
     A_0_Reg_tilde ~ normal(0.3, 0.15);
     A_0_4850cut_tilde ~ normal(0.3, 0.15);
     A_0_7230cut_tilde ~ normal(0.75, 0.15);
+    A_0_smoc_Dev_tilde ~ normal(0.3, 0.15);
+    A_0_smoc_Reg_tilde ~ normal(0.3, 0.15);
 
     sigma_Dev ~ normal(0, 2);
     sigma_Reg ~ normal(0, 2);
     sigma_4850cut ~ normal(0, 2);
     sigma_7230cut ~ normal(0, 2);
+    sigma_smoc_Dev ~ normal(0, 2);
+    sigma_smoc_Reg ~ normal(0, 2);
 
     sigma_rel_Dev ~ normal(0, 0.1);
     sigma_rel_Reg ~ normal(0, 0.25);
     sigma_rel_4850cut ~ normal(0, 0.25);
     sigma_rel_7230cut ~ normal(0, 0.25);
-
+    sigma_rel_smoc_Dev ~ normal(0, 0.25);
+    sigma_rel_smoc_Reg ~ normal(0, 0.25);
+    
     // ODE solves
     Ahat_Dev =
         to_vector(A_theor_t0(t_Dev, 47.999, A_0_Dev, g_0_Dev, alpha, beta_, A_end));
@@ -157,41 +171,75 @@ model {
     Ahat_7230cut =
         to_vector(A_theor_t0(t_7230cut, 71.999, A_0_7230cut, 0, alpha, beta_, A_end));
 
+    Ahat_smoc_Dev =
+        to_vector(A_theor_t0(t_smoc_dev, 47.999, A_0_smoc_Dev, g_0_smoc_Dev, alpha, beta_, A_end_smocdev));
+
+    Ahat_smoc_Reg =
+        to_vector(A_theor_t0(t_smoc_reg, 47.999, A_0_smoc_Reg, 0, alpha, beta_, A_end));
+
     // Likelihood
     A_Dev ~ normal(Ahat_Dev, sigma_Dev + sigma_rel_Dev .* Ahat_Dev);
     A_Reg ~ normal(Ahat_Reg, sigma_Reg + sigma_rel_Reg .* Ahat_Reg);
     A_4850cut ~ normal(Ahat_4850cut, sigma_4850cut + sigma_rel_4850cut .* Ahat_4850cut);
     A_7230cut ~ normal(Ahat_7230cut, sigma_7230cut + sigma_rel_7230cut .* Ahat_7230cut);
+    A_smoc_dev ~ normal(Ahat_smoc_Dev, sigma_smoc_Dev + sigma_rel_smoc_Dev .* Ahat_smoc_Dev);
+    A_smoc_reg ~ normal(Ahat_smoc_Reg, sigma_smoc_Reg + sigma_rel_smoc_Reg .* Ahat_smoc_Reg);
+
+
 }
 
 
 generated quantities {
+
     vector[N_ppc_48] A_Dev_ppc;
     vector[N_ppc_48] A_Reg_ppc;
     vector[N_ppc_48] A_4850cut_ppc;
+    vector[N_ppc_48] A_smoc_dev_ppc;
+    vector[N_ppc_48] A_smoc_reg_ppc;
+
     vector[N_ppc_72] A_7230cut_ppc;
 
-    vector[N_ppc_48] Ahat_48;
-    vector[N_ppc_72] Ahat_72;
+    vector[N_ppc_48] Ahat_Dev_48;
+    vector[N_ppc_48] Ahat_Reg_48;
+    vector[N_ppc_48] Ahat_4850cut_48;
+    vector[N_ppc_48] Ahat_smoc_dev_48;
+    vector[N_ppc_48] Ahat_smoc_reg_48;
 
-    Ahat_48 =
+    vector[N_ppc_72] Ahat_7230cut_72;
+
+    // --- compute trajectories ---
+
+    Ahat_Dev_48 =
         to_vector(A_theor_t0(t_ppc_48, 47.999, A_0_Dev, g_0_Dev, alpha, beta_, A_end));
+    Ahat_Reg_48 =
+        to_vector(A_theor_t0(t_ppc_48, 47.999, A_0_Reg, 0, alpha, beta_, A_end));
+    Ahat_4850cut_48 =
+        to_vector(A_theor_t0(t_ppc_48, 47.999, A_0_4850cut, 0, alpha, beta_, A_end));
+    Ahat_smoc_dev_48 =
+        to_vector(A_theor_t0(t_ppc_48, 47.999, A_0_smoc_Dev, g_0_smoc_Dev, alpha, beta_, A_end_smocdev));
+    Ahat_smoc_reg_48 =
+        to_vector(A_theor_t0(t_ppc_48, 47.999, A_0_smoc_Reg, 0, alpha, beta_, A_end));
+    Ahat_7230cut_72 =
+        to_vector(A_theor_t0(t_ppc_72, 71.999, A_0_7230cut, 0, alpha, beta_, A_end));
 
-    Ahat_72 =
-        to_vector(A_theor_t0(t_ppc_72, 71.999, A_0_7230cut, g_0_7230cut, alpha, beta_, A_end));
 
+    // --- sample PPC ---
     for (i in 1:N_ppc_48) {
         A_Dev_ppc[i] =
-            normal_rng(Ahat_48[i], sigma_Dev + sigma_rel_Dev * Ahat_48[i]);
+            normal_rng(Ahat_Dev_48[i], sigma_Dev + sigma_rel_Dev * Ahat_Dev_48[i]);
         A_Reg_ppc[i] =
-            normal_rng(Ahat_48[i], sigma_Reg + sigma_rel_Reg * Ahat_48[i]);
+            normal_rng(Ahat_Reg_48[i], sigma_Reg + sigma_rel_Reg * Ahat_Reg_48[i]);
         A_4850cut_ppc[i] =
-            normal_rng(Ahat_48[i], sigma_4850cut + sigma_rel_4850cut * Ahat_48[i]);
+            normal_rng(Ahat_4850cut_48[i], sigma_4850cut + sigma_rel_4850cut * Ahat_4850cut_48[i]);
+        A_smoc_dev_ppc[i] =
+            normal_rng(Ahat_smoc_dev_48[i], sigma_smoc_Dev + sigma_rel_smoc_Dev * Ahat_smoc_dev_48[i]);
+        A_smoc_reg_ppc[i] =
+            normal_rng(Ahat_smoc_reg_48[i], sigma_smoc_Reg + sigma_rel_smoc_Reg * Ahat_smoc_reg_48[i]);
     }
 
     for (i in 1:N_ppc_72) {
         A_7230cut_ppc[i] =
-            normal_rng(Ahat_72[i], sigma_7230cut + sigma_rel_7230cut * Ahat_72[i]);
+            normal_rng(Ahat_7230cut_72[i], sigma_7230cut + sigma_rel_7230cut * Ahat_7230cut_72[i]);
     }
 }
 
