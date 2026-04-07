@@ -16,15 +16,15 @@ from config import scalar_path  # noqa: E402
 # Styling
 # ============================================================
 
-def set_plot_style():
-    sns.set_theme(style="ticks")
-    plt.rcParams.update({
-        "axes.titlesize": 10,
-        "axes.labelsize": 10,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-        "legend.fontsize": 8,
-    })
+# def set_plot_style():
+#     sns.set_theme(style="ticks")
+#     plt.rcParams.update({
+#         "axes.titlesize": 10,
+#         "axes.labelsize": 10,
+#         "xtick.labelsize": 8,
+#         "ytick.labelsize": 8,
+#         "legend.fontsize": 8,
+#     })
 
 
 # ============================================================
@@ -262,6 +262,8 @@ def plot_anisotropy_loglog(
     plt.tight_layout()
     return fig, ax
 
+from scipy.stats import mannwhitneyu
+
 def plot_anisotropy_ratio_over_time(
     df,
     xcol="L_PD_midline",
@@ -269,27 +271,24 @@ def plot_anisotropy_ratio_over_time(
     condition_col="condition",
     time_col="time in hpf",
     conditions=("Development", "Regeneration"),
-    fig_size=(3.4, 2.8),
-    seed=0,
+    fig_size=(7, 5),
+    ylim=None,
+    yticks=None,
+    ylabel=r"$L_{AP} / L_{PD}$",
 ):
-    """
-    Plot L_AP / L_PD over time as percentile box-style plots.
-    """
-
-    rng = np.random.default_rng(seed)
 
     fig, ax = plt.subplots(figsize=fig_size)
 
-    palette = {
-        "Development": sns.color_palette()[0],
-        "Regeneration": sns.color_palette()[1],
+    colors = {
+        "Development": "#2278b5",
+        "Regeneration": "#f57f20",
     }
 
-    # compute ratio
+    # --- compute ratio ---
     df = df.copy()
     df["anisotropy"] = df[ycol] / df[xcol]
 
-    # valid data
+    # --- clean data ---
     mask = (
         np.isfinite(df["anisotropy"])
         & np.isfinite(df[time_col])
@@ -298,72 +297,149 @@ def plot_anisotropy_ratio_over_time(
     )
     df = df[mask]
 
-    times = sorted(df[time_col].dropna().unique())
+    all_ns = {cond: [] for cond in conditions}
 
-    width = 3.5  # width of boxes in time units
+    stats_dict = {}
 
+    # ----------- PLOT DATA -----------
     for cond in conditions:
         sub = df[df[condition_col] == cond]
 
-        for t in times:
-            vals = sub.loc[sub[time_col] == t, "anisotropy"].to_numpy()
+        stats = (
+            sub.groupby(time_col)["anisotropy"]
+            .agg(["mean", "std", "count"])
+            .reset_index()
+        )
 
-            vals = vals[np.isfinite(vals)]
-            if len(vals) < 3:
-                continue
+        stats_dict[cond] = stats
 
-            q2_3, q15_9, q50, q84_1, q97_7 = np.percentile(
-                vals, [2.3, 15.9, 50, 84.1, 97.7]
-            )
+        t = stats[time_col].values
+        mean = stats["mean"].values
+        std = stats["std"].values
+        counts = stats["count"].values
 
-            color = palette.get(cond, "k")
+        # --- print n ---
+        for ti, ni in zip(t, counts):
+            all_ns[cond].append(ni)
+            print(f"{cond} | t={ti}: n={ni}")
 
-            # --- box (±1σ) ---
-            rect = plt.Rectangle(
-                (t - width / 2, q15_9),
-                width,
-                q84_1 - q15_9,
-                facecolor="white",
-                edgecolor=color,
-                linewidth=1.5,
-                zorder=2,
-            )
-            ax.add_patch(rect)
+        # --- shaded std ---
+        ax.fill_between(
+            t,
+            mean - std,
+            mean + std,
+            color=colors[cond],
+            alpha=0.2,
+            linewidth=0
+        )
 
-            # --- median ---
-            ax.plot(
-                [t - width / 2, t + width / 2],
-                [q50, q50],
-                color=color,
-                linewidth=2,
-                zorder=3,
-            )
+        # --- line ---
+        ax.plot(
+            t,
+            mean,
+            color=colors[cond],
+            linewidth=2,
+            zorder=2
+        )
 
-            # --- whiskers (±2σ) ---
-            ax.plot([t, t], [q2_3, q15_9], color=color, linewidth=1.2)
-            ax.plot([t, t], [q84_1, q97_7], color=color, linewidth=1.2)
+        # --- points ---
+        ax.scatter(
+            t,
+            mean,
+            color=colors[cond],
+            edgecolor="white",
+            linewidth=1.0,
+            s=120,
+            zorder=3,
+            label=cond
+        )
 
-            # --- optional: scatter ---
-            jitter = rng.uniform(-0.8, 0.8, size=len(vals))
-            ax.scatter(
-                np.full(len(vals), t) + jitter,
-                vals,
-                s=6,
-                color=color,
-                alpha=0.3,
-                zorder=1,
-            )
+    # ----------- SIGNIFICANCE TESTS -----------
+    cond1, cond2 = conditions
+    df1 = df[df[condition_col] == cond1]
+    df2 = df[df[condition_col] == cond2]
 
-    ax.set_xlabel("time [hpf]")
-    ax.set_ylabel(r"$L_{AP} / L_{PD}$")
-    ax.set_title("Anisotropy ratio over time")
+    common_times = sorted(
+        set(df1[time_col]).intersection(df2[time_col])
+    )
 
-    sns.despine()
+    def p_to_stars(p):
+        if p <= 0.001:
+            return "***"
+        elif p <= 0.01:
+            return "**"
+        elif p <= 0.05:
+            return "*"
+        else:
+            return ""
+
+    for t_val in common_times:
+        d1 = df1[df1[time_col] == t_val]["anisotropy"].values
+        d2 = df2[df2[time_col] == t_val]["anisotropy"].values
+
+        if len(d1) > 0 and len(d2) > 0:
+            _, p = mannwhitneyu(d1, d2, alternative="two-sided")
+            stars = p_to_stars(p)
+
+            if stars:
+                m1 = np.mean(d1)
+                m2 = np.mean(d2)
+                y = max(m1, m2)
+
+                for i, _ in enumerate(stars):
+                    ax.text(
+                        t_val,
+                        y + 0.05 + i * 0.04,
+                        "*",
+                        ha="center",
+                        va="bottom",
+                        fontsize=18,
+                        color="black"
+                    )
+
+        # ----------- AXES -----------
+    ax.set_xlabel("Developmental time [hpf]", fontsize=20)
+    ax.set_ylabel(ylabel, fontsize=20)
+
+    xticks = [48, 60, 72, 84, 96, 108, 120, 132, 144]
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(xticks, rotation=45, fontsize=16) # type: ignore
+
+    # --- Y axis control ---
+    if yticks is not None:
+        ax.set_yticks(yticks)
+        ax.tick_params(axis='y', labelsize=16)
+    else:
+        ax.tick_params(axis='y', labelsize=16)
+
+    if ylim is not None:
+        ax.set_ylim(*ylim)
+    else:
+        ax.set_ylim(0.5, 1.6)  # default fallback
+
+    # --- styling ---
     ax.grid(False)
-    plt.tight_layout()
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    if yticks is not None:
+        ax.spines["left"].set_bounds(yticks[0], yticks[-1])
+    xmin, xmax = ax.get_xlim()
+    ax.spines["bottom"].set_bounds(xmin, xticks[-1])
+
+    plt.subplots_adjust(
+        left=0.15,
+        right=0.97,
+        bottom=0.2025,
+        top=0.979
+    )
+
+    # ----------- PRINT TOTAL N -----------
+    print("\n--- Total sample sizes ---")
+    for cond in conditions:
+        print(f"{cond}: total n = {sum(all_ns[cond])}")
 
     return fig, ax
-
 # ============================================================
 # IO + Main
 # ============================================================
@@ -381,7 +457,7 @@ def load_growth_csv(csv_path):
 
 
 def main():
-    set_plot_style()
+    # set_plot_style()
 
     csv_file = os.path.join(scalar_path, "scalarGrowthData_meshBased.csv")
     df = load_growth_csv(csv_file)
@@ -398,8 +474,8 @@ def main():
         condition_col="condition",
         time_col="time in hpf",
         conditions=("Development", "Regeneration"),
-        fig_size=(3.4, 2.8),
-        seed=0,
+        ylim=(0.0, 1.4),
+        yticks=np.arange(0.0, 1.41, 0.2)
     )
 
     plt.show()
@@ -415,7 +491,6 @@ def main():
         title="Growth anisotropy: AP vs PD (log-log)",
         fig_size=(3.4, 2.8),
         n_boot=2000,
-        seed=0,
     )
 
     ax = plt.gca()
@@ -434,12 +509,12 @@ def main():
         ycol="L_DV",
         condition_col="condition",
         time_col="time in hpf",
+        ylabel=r"$L_{DV} / L_{PD}$",
         conditions=("Development", "Regeneration"),
-        fig_size=(3.4, 2.8),
-        seed=0,
+        ylim=(0.0, 0.7),
+        yticks=np.arange(0.0, 0.71, 0.1)
     )
 
-    plt.gca().set_title("DV/PD anisotropy over time")
 
     plt.show()
 
