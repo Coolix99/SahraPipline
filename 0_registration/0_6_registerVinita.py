@@ -118,6 +118,9 @@ def register_finmask_special(skip_existing=False):
         ims_files = [file for file in os.listdir(time_folder_path) if file.endswith('.ims')]
         for ims_file in ims_files:
             print(ims_file)
+            if not( time_hpf==96 and ims_file=='control2.ims'):
+                continue
+            print('ho')
             
             finmasks_folder_path=os.path.join(finmasks_path,'vinita_smoc12_dev_'+time_folder+"_"+os.path.splitext(ims_file)[0])
             print(finmasks_folder_path)
@@ -139,14 +142,36 @@ def register_finmask_special(skip_existing=False):
             nuclei_and_membrane=im[3,:,:,:] # type: ignore
             bre=im[4,:,:,:] # type: ignore
             mask=getVolthr(nuclei_and_membrane,voxel_size_um)
+            mask_old=im[-1,:,:,:]
+            mask_old_closed=getVolthr(mask_old,voxel_size_um)
+            # ensure boolean
+            mask = mask.astype(bool)
+            mask_old = mask_old.astype(bool)
+            mask_old_closed=mask_old_closed.astype(bool)
 
-            # import napari
-            # viewer = napari.Viewer()
-            # viewer.add_image(nuclei_and_membrane,scale=voxel_size_um)
-            # viewer.add_image(bre,scale=voxel_size_um)
-            # viewer.add_image(mask,scale=voxel_size_um)
-            # napari.run()
-            # continue
+            # count voxels
+            num_voxels_mask = np.sum(mask)
+            num_voxels_mask_old = np.sum(mask_old)
+            num_voxels_mask_old_closed= np.sum(mask_old_closed)
+            # voxel volume (µm^3)
+            voxel_volume = voxel_size_um[0] * voxel_size_um[1] * voxel_size_um[2]
+
+            # total volumes
+            volume_mask = num_voxels_mask * voxel_volume
+            volume_mask_old = num_voxels_mask_old * voxel_volume
+            volume_mask_old_closed = num_voxels_mask_old_closed * voxel_volume
+            print(f"Mask: {num_voxels_mask} voxels → {volume_mask:.2f} µm³")
+            print(f"Mask OLD: {num_voxels_mask_old} voxels → {volume_mask_old:.2f} µm³")
+            print(f"Mask OLD closed: {num_voxels_mask_old_closed} voxels → {volume_mask_old_closed:.2f} µm³")
+            import napari
+            viewer = napari.Viewer()
+            viewer.add_image(nuclei_and_membrane,scale=voxel_size_um)
+            viewer.add_image(bre,scale=voxel_size_um)
+            viewer.add_image(mask,scale=voxel_size_um)
+            viewer.add_image(mask_old,scale=voxel_size_um)
+            viewer.add_image(mask_old_closed,scale=voxel_size_um)
+            napari.run()
+            continue
             img_name='vinita_smoc12_dev_'+time_folder+"_"+os.path.splitext(ims_file)[0]+'.tif'
             finmasks_im_path=os.path.join(finmasks_folder_path,img_name)
             save_array_as_tiff(mask,finmasks_im_path)
@@ -160,7 +185,7 @@ def register_finmask_special(skip_existing=False):
             MetaData_finmasks['condition']='Smoc12_Dev'
             MetaData_finmasks['scales ZYX']=[voxel_size_um[0],voxel_size_um[1],voxel_size_um[2]]
             MetaData_finmasks['time in hpf']=time_hpf
-            MetaData_finmasks['genotype']='Vinita'
+            MetaData_finmasks['experimentalist']='Vinita'
             MetaData_finmasks['genotype']='Smoc12'
             check=get_checksum(finmasks_im_path, algorithm="SHA1")
             MetaData_finmasks['finmasks checksum']=check
