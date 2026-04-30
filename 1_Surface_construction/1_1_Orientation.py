@@ -87,7 +87,7 @@ def orient_session(mask_img,membrane_img,ED_img):
             print('catched')
         viewer.layers.select_previous()
         viewer.layers.select_previous()
-        points_data =points_data+ [
+        points_data =points_data+ [ # type: ignore
         {'coordinate_px': np.array(points[0]), 'name': 'Anterior_pt'},
         {'coordinate_px': np.array(points[1]), 'name': 'Posterior_pt'},
         {'coordinate_px': last_viewer_direction, 'name': 'viewer_direction_DP'}
@@ -107,7 +107,7 @@ def orient_session(mask_img,membrane_img,ED_img):
             line_layer=viewer.add_shapes(line, shape_type='line', edge_color='blue', edge_width=2)
         except:
             print('catched')
-        points_data =points_data+ [
+        points_data =points_data+ [ # type: ignore
         {'coordinate_px': np.array(points[0]), 'name': 'Proximal2_pt'},
         {'coordinate_px': np.array(points[1]), 'name': 'Distal2_pt'},
         {'coordinate_px': last_viewer_direction, 'name': 'viewer_direction_AP'}
@@ -117,11 +117,11 @@ def orient_session(mask_img,membrane_img,ED_img):
     df = pd.DataFrame(points_data)
     
 
-    v1=extract_coordinate(df,'Proximal_pt')-extract_coordinate(df,'Distal_pt')
+    v1=extract_coordinate(df,'Proximal_pt')-extract_coordinate(df,'Distal_pt') # type: ignore
     v1 = v1 / np.linalg.norm(v1)
-    v2=extract_coordinate(df,'Anterior_pt')-extract_coordinate(df,'Posterior_pt')
+    v2=extract_coordinate(df,'Anterior_pt')-extract_coordinate(df,'Posterior_pt') # type: ignore
     #v2 = v2 - np.dot(v1, v2)
-    v3=extract_coordinate(df,'Proximal2_pt')-extract_coordinate(df,'Distal2_pt')
+    v3=extract_coordinate(df,'Proximal2_pt')-extract_coordinate(df,'Distal2_pt') # type: ignore
     n=np.cross(v3,v2)
     n = n / np.linalg.norm(n)
 

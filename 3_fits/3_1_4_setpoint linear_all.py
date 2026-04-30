@@ -268,7 +268,13 @@ def compile_and_fit_stan_model(model_path: str, data_dict: dict):
     model = CmdStanModel(stan_file=model_path)
     fit = model.sample(data=data_dict, chains=4, iter_warmup=3000, iter_sampling=1000, show_progress=True, show_console=False)
     return fit
+import matplotlib as mpl
 
+mpl.rcParams["pdf.fonttype"] = 42      # TrueType (better compatibility)
+mpl.rcParams["ps.fonttype"] = 42
+mpl.rcParams["svg.fonttype"] = "none"  # keep text as text (not paths)
+
+mpl.rcParams["font.family"] = "DejaVu Sans"  # safe default font
 def posterior_diagnostics(fit, data_dict):
     samples = az.from_cmdstanpy(
         posterior=fit,
@@ -501,16 +507,16 @@ def plot_fit_from_csv(
         mean, std = posterior_predictive(stan_key)
 
         # raw scatter
-        ax.scatter(
-            sub["time in hpf"],
-            sub["Surface Area"],
-            color=colors[cond],
-            edgecolor="white",
-            linewidth=1.0,
-            s=80,
-            alpha=0.6,
-            zorder=3,
-        )
+        # ax.scatter(
+        #     sub["time in hpf"],
+        #     sub["Surface Area"],
+        #     color=colors[cond],
+        #     edgecolor="white",
+        #     linewidth=1.0,
+        #     s=80,
+        #     alpha=0.6,
+        #     zorder=3,
+        # )
 
         # fit mean
         ax.plot(
@@ -522,14 +528,14 @@ def plot_fit_from_csv(
         )
 
         # uncertainty
-        ax.fill_between(
-            t_plot,
-            mean - std,
-            mean + std,
-            color=colors[cond],
-            alpha=0.25,
-            linewidth=0,
-        )
+        # ax.fill_between(
+        #     t_plot,
+        #     mean - std,
+        #     mean + std,
+        #     color=colors[cond],
+        #     alpha=0.25,
+        #     linewidth=0,
+        # )
     A_end_mean = post["A_end"].mean()
     A_end_smoc_mean = post["A_end_smocdev"].mean() if "A_end_smocdev" in post.columns else None
     # global A_end
@@ -581,6 +587,19 @@ def plot_fit_from_csv(
         va="top",
         fontsize=14,
     )
+
+    ax.set_xlim(45, 150)
+    ax.set_ylim(0, 15)
+
+    # keep your existing xticks
+    xticks = [48, 60, 72, 84, 96, 108, 120, 132, 144]
+    ax.set_xticks(xticks)
+    ax.set_xticklabels(xticks, rotation=45, fontsize=16) # type: ignore
+
+    # new y ticks
+    yticks = np.arange(0, 15, 2)  # 0,2,...,14
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(yticks, fontsize=16)
 
     ax.set_xlabel("Developmental time [hpf]", fontsize=20)
     ax.set_ylabel("Surface Area", fontsize=20)
@@ -649,7 +668,7 @@ def save_figure(fig, base_path):
 def main():
     base_plot_path = os.path.join(scalar_path, "plots")
     condition_sets = {
-        "all": None,
+        # "all": None,
         # "dev_reg": ["Development", "Regeneration"],
         # "dev_4850": ["Development", "4850cut"],
         # "reg_4850": ["Regeneration", "4850cut"],
@@ -657,7 +676,7 @@ def main():
         # "dev_smocdev": ["Development", "smoc_dev"],
         # "reg_smocreg": ["Regeneration", "smoc_reg"],
         # "smocdev_smocreg": ["smoc_dev", "smoc_reg"],
-        # "all_no_smoc": ["Development", "Regeneration", "4850cut", "7230cut"],
+        "all_no_smoc": ["Development", "Regeneration", "4850cut", "7230cut"],
         # "dev"              : ["Development"],
         # "reg"              : ["Regeneration"],
         # "cut_4850"         : ["4850cut"],
