@@ -157,7 +157,7 @@ df3_out['description'] = 'smoc12_dev_lucas'
 
 
 # --- merge all ---
-df_merged = pd.concat([df1_out, df2_out, df3_out], ignore_index=True)
+df_merged = pd.concat([df1_out, df3_out], ignore_index=True)
 
 
 # --- save ---

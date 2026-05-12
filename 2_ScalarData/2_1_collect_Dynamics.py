@@ -94,9 +94,12 @@ def main():
             MetaData_mem['MetaData_membrane'] = maskMetaData['MetaData_finmasks']
 
         MetaData_mem = MetaData_mem['MetaData_membrane']
-
-        voxel_size = reduce(lambda x, y: x * y, MetaData_mem['scales ZYX'])
-        Volume = np.sum(mask_img > 0) * voxel_size
+        try:
+            zyx= MetaData_mem['scales ZYX']
+        except:
+            zyx=maskMetaData['metaData']['scales ZYX']
+        voxel_size = reduce(lambda x, y: x * y, zyx)
+        Volume = np.sum(mask_img > 0) * voxel_size # type: ignore
 
         # ----------------------------------------------------
         # FlatFin mesh + metadata
@@ -110,17 +113,17 @@ def main():
         MetaData_flat = MetaData_flat['Thickness_MetaData']
         mesh = pv.read(os.path.join(FlatFin_dir, MetaData_flat['Surface file']))
 
-        coord_1 = mesh.point_data['coord_1']
-        coord_2 = mesh.point_data['coord_2']
-        thickness = mesh.point_data['thickness']
+        coord_1 = mesh.point_data['coord_1'] # type: ignore
+        coord_2 = mesh.point_data['coord_2'] # type: ignore
+        thickness = mesh.point_data['thickness'] # type: ignore
 
         # ----------------------------------------------------
         # Volume / surface / integrated thickness
         # ----------------------------------------------------
-        total_surface_area = mesh.area
+        total_surface_area = mesh.area # type: ignore
 
-        cell_areas = mesh.compute_cell_sizes()['Area']
-        faces = mesh.faces.reshape((-1, 4))[:, 1:]
+        cell_areas = mesh.compute_cell_sizes()['Area'] # type: ignore
+        faces = mesh.faces.reshape((-1, 4))[:, 1:] # type: ignore
 
         total_integrated_thickness = 0.0
         for i, cell in enumerate(faces):

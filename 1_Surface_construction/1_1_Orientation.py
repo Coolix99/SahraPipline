@@ -199,11 +199,18 @@ def make_orientation():
         MetaData_Orient['git repo']='Sahrapipline'
         MetaData_Orient['Orient version']=Orient_version
         MetaData_Orient['Orient file']=Orient_file_name
-        MetaData_Orient['scales ZYX']=membraneMetaData['MetaData_membrane']['scales ZYX']
-        MetaData_Orient['condition']=membraneMetaData['MetaData_membrane']['condition']
-        MetaData_Orient['time in hpf']=membraneMetaData['MetaData_membrane']['time in hpf']
-        MetaData_Orient['experimentalist']=membraneMetaData['MetaData_membrane']['experimentalist']
-        MetaData_Orient['genotype']=membraneMetaData['MetaData_membrane']['genotype']
+        try:
+            MetaData_Orient['scales ZYX']=membraneMetaData['MetaData_membrane']['scales ZYX']
+            MetaData_Orient['condition']=membraneMetaData['MetaData_membrane']['condition']
+            MetaData_Orient['time in hpf']=membraneMetaData['MetaData_membrane']['time in hpf']
+            MetaData_Orient['experimentalist']=membraneMetaData['MetaData_membrane']['experimentalist']
+            MetaData_Orient['genotype']=membraneMetaData['MetaData_membrane']['genotype']
+        except:
+            MetaData_Orient['scales ZYX']=maskMetaData['metaData']['scales ZYX']
+            MetaData_Orient['condition']=maskMetaData['metaData']['condition']
+            MetaData_Orient['time in hpf']=maskMetaData['metaData']['time in hpf']
+            MetaData_Orient['experimentalist']=maskMetaData['metaData']['experimentalist']
+            MetaData_Orient['genotype']=maskMetaData['metaData']['genotype']
         check_Orient=get_checksum(Orient_file, algorithm="SHA1")
         MetaData_Orient['output Orient checksum']=check_Orient
         writeJSON(FlatFin_dir_path,'Orient_MetaData',MetaData_Orient)

@@ -426,7 +426,7 @@ def make_Surface():
         
         Surface_file_name=data_name+'_surface.vtk'
         Surface_file=os.path.join(FlatFin_dir_path,Surface_file_name)
-        surface.save(Surface_file)
+        surface.save(Surface_file) # type: ignore
 
         Rip_file_name=data_name+'_Rip.h5'
         Rip_file=os.path.join(FlatFin_dir_path,Rip_file_name)
