@@ -45,8 +45,8 @@ df_excel = df_nuclei[
 # -----------------------------------------------------------------------------
 # Compute derived quantity: Volume / Surface Area
 # -----------------------------------------------------------------------------
-df_mesh['Volume/Surface Area'] = df_mesh['Volume'] / df_mesh['Surface Area']
-df_excel['Volume/Surface Area'] = (
+df_mesh['L_DV'] = df_mesh['Volume'] / df_mesh['Surface Area']
+df_excel['L_DV'] = (
     df_excel['Volume'] / df_excel['Surface Area']
 )
 
@@ -58,7 +58,7 @@ def print_summary(name, d):
     print("-" * len(name))
     print(f"N = {len(d)}")
 
-    for col in ['Volume', 'Surface Area', 'Volume/Surface Area']:
+    for col in ['Volume', 'Surface Area', 'L_DV']:
         if len(d) > 0:
             print(
                 f"{col:20s}: "
@@ -76,7 +76,7 @@ print_summary("Nuclei file", df_excel)
 # -----------------------------------------------------------------------------
 # Prepare plotting
 # -----------------------------------------------------------------------------
-metrics = ['Volume', 'Surface Area', 'Volume/Surface Area']
+metrics = ['Volume', 'Surface Area', 'L_DV']
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 fig.suptitle(
@@ -144,14 +144,14 @@ plt.tight_layout()
 plt.show()
 
 if len(df_mesh) > 0:
-    # Sort by Volume/Surface Area in descending order and take the top 5
+    # Sort by L_DV in descending order and take the top 5
     top5 = (
         df_mesh
-        .sort_values('Volume/Surface Area', ascending=False)
+        .sort_values('L_DV', ascending=False)
         .head(5)
     )
 
-    print("\nTop 5 membrane samples with highest Volume/Surface Area")
+    print("\nTop 5 membrane samples with highest L_DV")
     print("=======================================================")
 
     for rank, (_, row) in enumerate(top5.iterrows(), start=1):
@@ -171,7 +171,7 @@ if len(df_mesh) > 0:
 
         print(f"Volume               : {row['Volume']:.6f}")
         print(f"Surface Area         : {row['Surface Area']:.6f}")
-        print(f"Volume/Surface Area  : {row['Volume/Surface Area']:.6f}")
+        print(f"L_DV  : {row['L_DV']:.6f}")
 
     # Optional: compact table view
     print("\nCompact summary:")
@@ -181,7 +181,7 @@ if len(df_mesh) > 0:
             'experimentalist',
             'Volume',
             'Surface Area',
-            'Volume/Surface Area'
+            'L_DV'
         ] if col in top5.columns
     ]
     print(top5[cols].to_string(index=False))
@@ -191,14 +191,14 @@ else:
 
 
 if len(df_excel) > 0:
-    # Sort by Volume/Surface Area in ascending order and take the top 5 smallest
+    # Sort by L_DV in ascending order and take the top 5 smallest
     bottom5 = (
         df_excel
-        .sort_values('Volume/Surface Area', ascending=True)
+        .sort_values('L_DV', ascending=True)
         .head(5)
     )
 
-    print("\nTop 5 nuclei samples with smallest Volume/Surface Area")
+    print("\nTop 5 nuclei samples with smallest L_DV")
     print("======================================================")
 
     for rank, (_, row) in enumerate(bottom5.iterrows(), start=1):
@@ -221,7 +221,7 @@ if len(df_excel) > 0:
 
         print(f"Volume               : {row['Volume']:.6f}")
         print(f"Surface Area         : {row['Surface Area']:.6f}")
-        print(f"Volume/Surface Area  : {row['Volume/Surface Area']:.6f}")
+        print(f"L_DV  : {row['L_DV']:.6f}")
 
     # Optional compact summary
     print("\nCompact summary:")
@@ -232,7 +232,7 @@ if len(df_excel) > 0:
             'experimentalist',
             'Volume',
             'Surface Area',
-            'Volume/Surface Area'
+            'L_DV'
         ] if col in bottom5.columns
     ]
     print(bottom5[cols].to_string(index=False))

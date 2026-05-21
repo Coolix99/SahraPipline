@@ -1,4 +1,5 @@
 import os
+from flask import json
 import matplotlib.pyplot as plt
 import pandas as pd
 from requests import post
@@ -10,6 +11,7 @@ from cmdstanpy import CmdStanModel
 from bebi103.viz import corner, predictive_regression
 from bokeh.io import output_file, save
 from scipy.integrate import solve_ivp
+from torch import sub
 from utilsScalar import scalar_path
 from bokeh.io import output_file, save
 
@@ -270,7 +272,24 @@ def simulate_prior_predictive_ODE(t_vals, df: pd.DataFrame, n_samples=50):
 
 def compile_and_fit_stan_model(model_path: str, data_dict: dict):
     model = CmdStanModel(stan_file=model_path)
+    import json
+    import numpy as np
+
+    debug_dict = {}
+
+    for k, v in data_dict.items():
+        if isinstance(v, np.ndarray):
+            debug_dict[k] = v.tolist()
+        else:
+            debug_dict[k] = v
+
+    with open("debug_stan.json", "w") as f:
+        json.dump(debug_dict, f, indent=2)
+
     fit = model.sample(data=data_dict, chains=4, iter_warmup=3000, iter_sampling=1000, show_progress=True, show_console=False)
+    print(type(data_dict["t_smoc_dev"]))
+    print(data_dict["t_smoc_dev"][:5])
+    print(debug_dict.keys())
     return fit
 import matplotlib as mpl
 
@@ -311,7 +330,7 @@ def posterior_diagnostics(fit, data_dict):
     # Corner plots
     # -------------------------------------------------
     corner_specs = {
-        "Dev": ["A_end", "A_0_Dev", "g_0_Dev", "alpha", "beta_"],
+        "Dev": ["A_end", "A_0_Dev", "alpha", "beta_"],
         "Reg": ["A_end", "A_0_Reg", "alpha", "beta_"],
         "4850cut": ["A_end", "A_0_4850cut", "alpha", "beta_"],
         "7230cut": ["A_end", "A_0_7230cut", "alpha", "beta_"],
@@ -363,7 +382,7 @@ def posterior_diagnostics(fit, data_dict):
     results_df.to_csv(
         os.path.join(
             fit_results_path,
-            "area_sampled_parameter_results_setPoint_linear_all.csv",
+            "area_sampled_parameter_results_setPoint_linear_all_steadyg.csv",
         ),
         index=False,
     )
@@ -384,8 +403,8 @@ def prepare_stan_data(
         "Regeneration": "Reg",
         "4850cut": "4850cut",
         "7230cut": "7230cut",
-        "smoc_dev": "smoc_Dev",
-        "smoc_reg": "smoc_Reg",
+        "smoc_dev": "smoc_dev",
+        "smoc_reg": "smoc_reg",
     }
 
     data = {}
@@ -396,8 +415,9 @@ def prepare_stan_data(
     for cond, stan_key in cond_map.items():
         sub = df[df["condition"] == cond].sort_values("time in hpf")
 
-        t = sub["time in hpf"].to_numpy()
-        A = sub["Surface Area"].to_numpy()
+        t = sub["time in hpf"].astype(float).to_numpy()
+        A = sub["Surface Area"].astype(float).to_numpy()
+        print(cond, t.dtype, t.shape)
 
         data[f"t_{stan_key}"] = t
         data[f"A_{stan_key}"] = A
@@ -449,8 +469,8 @@ def plot_fit_from_csv(
         "Regeneration": "Reg",
         "4850cut": "4850cut",
         "7230cut": "7230cut",
-        "smoc_dev": "smoc_Dev",
-        "smoc_reg": "smoc_Reg",
+        "smoc_dev": "smoc_dev",
+        "smoc_reg": "smoc_reg",
     }
 
     t0_map = {
@@ -458,8 +478,8 @@ def plot_fit_from_csv(
         "Reg": 48.0,
         "4850cut": 48.0,
         "7230cut": 72.0,
-        "smoc_Dev": 48.0,
-        "smoc_Reg": 48.0,
+        "smoc_dev": 48.0,
+        "smoc_reg": 48.0,
     }
 
     post = pd.read_csv(csv_path)
@@ -476,13 +496,21 @@ def plot_fit_from_csv(
         ppc = []
 
         for _, row in post.iterrows():
-            g0 = row[f"g_0_{stan_key}"] if f"g_0_{stan_key}" in post.columns else 0.0
-            
-            # special A_end for smoc_dev
-            if stan_key == "smoc_Dev":
-                A_end_use = row["A_end_smocdev"]
+            if stan_key in ["Dev", "smoc_Dev"]:
+                if stan_key == "smoc_Dev":
+                    A_end_use = row["A_end_smocdev"]
+                else:
+                    A_end_use = row["A_end"]
+
+                g0 = row["beta_"] * (
+                    A_end_use - row[f"A_0_{stan_key}"]
+                ) / A_end_use
             else:
-                A_end_use = row["A_end"]
+                g0 = 0.0
+                if stan_key == "smoc_Dev":
+                    A_end_use = row["A_end_smocdev"]
+                else:
+                    A_end_use = row["A_end"]
 
             sol = solve_ivp(
                 ode_system,
@@ -511,16 +539,16 @@ def plot_fit_from_csv(
         mean, std = posterior_predictive(stan_key)
 
         # raw scatter
-        # ax.scatter(
-        #     sub["time in hpf"],
-        #     sub["Surface Area"],
-        #     color=colors[cond],
-        #     edgecolor="white",
-        #     linewidth=1.0,
-        #     s=80,
-        #     alpha=0.6,
-        #     zorder=3,
-        # )
+        ax.scatter(
+            sub["time in hpf"],
+            sub["Surface Area"],
+            color=colors[cond],
+            edgecolor="white",
+            linewidth=1.0,
+            s=80,
+            alpha=0.6,
+            zorder=3,
+        )
 
         # fit mean
         ax.plot(
@@ -532,14 +560,14 @@ def plot_fit_from_csv(
         )
 
         # uncertainty
-        # ax.fill_between(
-        #     t_plot,
-        #     mean - std,
-        #     mean + std,
-        #     color=colors[cond],
-        #     alpha=0.25,
-        #     linewidth=0,
-        # )
+        ax.fill_between(
+            t_plot,
+            mean - std,
+            mean + std,
+            color=colors[cond],
+            alpha=0.25,
+            linewidth=0,
+        )
     A_end_mean = post["A_end"].mean()
     A_end_smoc_mean = post["A_end_smocdev"].mean() if "A_end_smocdev" in post.columns else None
     # global A_end
@@ -672,21 +700,21 @@ def save_figure(fig, base_path):
 def main():
     base_plot_path = os.path.join(scalar_path, "plots")
     condition_sets = {
-        # "all": None,
-        # "dev_reg": ["Development", "Regeneration"],
-        # "dev_4850": ["Development", "4850cut"],
-        # "reg_4850": ["Regeneration", "4850cut"],
-        # "dev_7230": ["Development", "7230cut"],
-        # "dev_smocdev": ["Development", "smoc_dev"],
-        # "reg_smocreg": ["Regeneration", "smoc_reg"],
-        # "smocdev_smocreg": ["smoc_dev", "smoc_reg"],
+        "all": None,
+        "dev_reg": ["Development", "Regeneration"],
+        "dev_4850": ["Development", "4850cut"],
+        "reg_4850": ["Regeneration", "4850cut"],
+        "dev_7230": ["Development", "7230cut"],
+        "dev_smocdev": ["Development", "smoc_dev"],
+        "reg_smocreg": ["Regeneration", "smoc_reg"],
+        "smocdev_smocreg": ["smoc_dev", "smoc_reg"],
         "all_no_smoc": ["Development", "Regeneration", "4850cut", "7230cut"],
-        # "dev"              : ["Development"],
-        # "reg"              : ["Regeneration"],
-        # "cut_4850"         : ["4850cut"],
-        # "cut_7230"         : ["7230cut"],
-        # "smoc_dev_only"    : ["smoc_dev"],
-        # "smoc_reg_only"    : ["smoc_reg"],
+        "dev"              : ["Development"],
+        "reg"              : ["Regeneration"],
+        "cut_4850"         : ["4850cut"],
+        "cut_7230"         : ["7230cut"],
+        "smoc_dev_only"    : ["smoc_dev"],
+        "smoc_reg_only"    : ["smoc_reg"],
     }
     df = getData()
     df['Surface Area'] = df['Surface Area'] / 10000
@@ -709,13 +737,13 @@ def main():
     
     data_dict = prepare_stan_data(df)
     
-    # model_path = "3_fits/fit_setPoint_linear_all.stan"
+    # model_path = "3_fits/fit_setPoint_linear_all_steadyg.stan"
     # fit = compile_and_fit_stan_model(model_path, data_dict)
     # posterior_diagnostics(fit,data_dict)
     csv_path = os.path.join(
         scalar_path,
         "fit_results",
-        "area_sampled_parameter_results_setPoint_linear_all.csv",
+        "area_sampled_parameter_results_setPoint_linear_all_steadyg.csv",
     )
     # ----------- FIT PLOTS -----------
     for name, conds in condition_sets.items():
@@ -729,7 +757,7 @@ def main():
 
         save_figure(
             fig,
-            os.path.join(base_plot_path, "fit", name, "plot"),
+            os.path.join(base_plot_path, "fit2", name, "plot"),
         )
 
 
