@@ -384,8 +384,8 @@ def prepare_stan_data(
         "Regeneration": "Reg",
         "4850cut": "4850cut",
         "7230cut": "7230cut",
-        "smoc_dev": "smoc_Dev",
-        "smoc_reg": "smoc_Reg",
+        "smoc_dev": "smoc_dev",
+        "smoc_reg": "smoc_reg",
     }
 
     data = {}
@@ -449,8 +449,8 @@ def plot_fit_from_csv(
         "Regeneration": "Reg",
         "4850cut": "4850cut",
         "7230cut": "7230cut",
-        "smoc_dev": "smoc_Dev",
-        "smoc_reg": "smoc_Reg",
+        "smoc_dev": "smoc_dev",
+        "smoc_reg": "smoc_reg",
     }
 
     t0_map = {
@@ -458,8 +458,8 @@ def plot_fit_from_csv(
         "Reg": 48.0,
         "4850cut": 48.0,
         "7230cut": 72.0,
-        "smoc_Dev": 48.0,
-        "smoc_Reg": 48.0,
+        "smoc_dev": 48.0,
+        "smoc_reg": 48.0,
     }
 
     post = pd.read_csv(csv_path)
@@ -479,7 +479,7 @@ def plot_fit_from_csv(
             g0 = row[f"g_0_{stan_key}"] if f"g_0_{stan_key}" in post.columns else 0.0
             
             # special A_end for smoc_dev
-            if stan_key == "smoc_Dev":
+            if stan_key == "smoc_dev":
                 A_end_use = row["A_end_smocdev"]
             else:
                 A_end_use = row["A_end"]

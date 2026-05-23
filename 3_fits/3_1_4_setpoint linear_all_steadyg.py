@@ -496,8 +496,8 @@ def plot_fit_from_csv(
         ppc = []
 
         for _, row in post.iterrows():
-            if stan_key in ["Dev", "smoc_Dev"]:
-                if stan_key == "smoc_Dev":
+            if stan_key in ["Dev", "smoc_dev"]:
+                if stan_key == "smoc_dev":
                     A_end_use = row["A_end_smocdev"]
                 else:
                     A_end_use = row["A_end"]
@@ -507,7 +507,7 @@ def plot_fit_from_csv(
                 ) / A_end_use
             else:
                 g0 = 0.0
-                if stan_key == "smoc_Dev":
+                if stan_key == "smoc_dev":
                     A_end_use = row["A_end_smocdev"]
                 else:
                     A_end_use = row["A_end"]
@@ -757,7 +757,7 @@ def main():
 
         save_figure(
             fig,
-            os.path.join(base_plot_path, "fit2", name, "plot"),
+            os.path.join(base_plot_path, "fit", name, "plot"),
         )
 
 
