@@ -182,7 +182,7 @@ def getData():
     # Mesh-based cut data
     # -------------------------
     df2 = pd.read_csv(
-        os.path.join(scalar_path, "scalarGrowthData_meshBased.csv"), sep=","
+        os.path.join(scalar_path, "membrane_Data.csv"), sep=","#scalarGrowthData_meshBased
     )[["time in hpf", "condition", "Surface Area"]]
 
     cut_conditions = ["Development","Regeneration","4850cut", "7230cut"]
@@ -741,7 +741,7 @@ def main():
     
     model_path = "3_fits/fit_setPoint_linear_all_steadyg.stan"
     fit = compile_and_fit_stan_model(model_path, data_dict)
-    # posterior_diagnostics(fit,data_dict)
+    posterior_diagnostics(fit,data_dict)
     csv_path = os.path.join(
         scalar_path,
         "fit_results",
