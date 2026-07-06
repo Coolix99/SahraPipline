@@ -441,10 +441,12 @@ def prepare_stan_data(
     data["N_ppc_72"] = len(t_ppc_72)
 
     return data
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.integrate import solve_ivp
+
 def plot_fit_from_csv(
     df: pd.DataFrame,
     csv_path: str,
@@ -737,8 +739,8 @@ def main():
     
     data_dict = prepare_stan_data(df)
     
-    # model_path = "3_fits/fit_setPoint_linear_all_steadyg.stan"
-    # fit = compile_and_fit_stan_model(model_path, data_dict)
+    model_path = "3_fits/fit_setPoint_linear_all_steadyg.stan"
+    fit = compile_and_fit_stan_model(model_path, data_dict)
     # posterior_diagnostics(fit,data_dict)
     csv_path = os.path.join(
         scalar_path,
