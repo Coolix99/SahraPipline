@@ -169,59 +169,187 @@ def explorative_plotting(
     #plt.show()
     return fig
 
+def normalize_is_control(value):
+    if pd.isna(value):
+        return None
+
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        if value == 1:
+            return True
+        if value == 0:
+            return False
+
+    value = str(value).strip().lower()
+
+    if value in {"true", "t", "yes", "y", "1"}:
+        return True
+    if value in {"false", "f", "no", "n", "0"}:
+        return False
+
+    raise ValueError(f"Cannot interpret Is control value: {value!r}")
+
+
+def normalize_smoc_condition(value):
+    if pd.isna(value):
+        return None
+
+    value = str(value).strip().lower()
+
+    dev_values = {
+        "smoc12_dev",
+        "smoc_dev",
+        "development",
+        "dev",
+    }
+    reg_values = {
+        "smoc12_reg",
+        "smoc_reg",
+        "regeneration",
+        "reg",
+    }
+
+    if value in dev_values:
+        return "smoc_dev"
+    if value in reg_values:
+        return "smoc_reg"
+
+    raise ValueError(f"Unknown SMOC condition value: {value!r}")
+
+
+def assign_smoc_conditions(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    if "condition" not in df.columns:
+        df["condition"] = pd.NA
+
+    if "Is control" not in df.columns:
+        df["Is control"] = pd.NA
+
+    resolved_conditions = []
+
+    for index, row in df.iterrows():
+        condition_from_name = normalize_smoc_condition(row["condition"])
+        is_control = normalize_is_control(row["Is control"])
+
+        condition_from_control = None
+        if is_control is True:
+            condition_from_control = "smoc_dev"
+        elif is_control is False:
+            condition_from_control = "smoc_reg"
+
+        if (
+            condition_from_name is not None
+            and condition_from_control is not None
+            and condition_from_name != condition_from_control
+        ):
+            mask_folder = row.get("Mask Folder", "<unknown>")
+
+            raise ValueError(
+                "Inconsistent SMOC condition information:\n"
+                f"  row: {index}\n"
+                f"  Mask Folder: {mask_folder}\n"
+                f"  condition: {row['condition']!r} "
+                f"-> {condition_from_name}\n"
+                f"  Is control: {row['Is control']!r} "
+                f"-> {condition_from_control}"
+            )
+
+        resolved_condition = (
+            condition_from_name
+            if condition_from_name is not None
+            else condition_from_control
+        )
+
+        if resolved_condition is None:
+            mask_folder = row.get("Mask Folder", "<unknown>")
+
+            raise ValueError(
+                "Cannot determine SMOC condition:\n"
+                f"  row: {index}\n"
+                f"  Mask Folder: {mask_folder}\n"
+                f"  condition: {row['condition']!r}\n"
+                f"  Is control: {row['Is control']!r}"
+            )
+
+        resolved_conditions.append(resolved_condition)
+
+    df["condition"] = resolved_conditions
+    return df
+
 
 def getData():
-    # -------------------------
-    # Base data
-    # -------------------------
-    # df = pd.read_csv(
-    #     os.path.join(scalar_path, "Fin_measurements.csv"), sep=","
-    # )[["time in hpf", "condition", "Surface Area"]]
-
-    # -------------------------
-    # Mesh-based cut data
-    # -------------------------
-    df2 = pd.read_csv(
-        os.path.join(scalar_path, "membrane_Data.csv"), sep=","#scalarGrowthData_meshBased
-    )[["time in hpf", "condition", "Surface Area"]]
-
-    cut_conditions = ["Development","Regeneration","4850cut", "7230cut"]
-    df2 = df2[df2["condition"].isin(cut_conditions)]
-
-    # -------------------------
-    # SMOC development data
-    # -------------------------
-    df_smoc_dev = pd.read_excel(
-        os.path.join(scalar_path, "Smoc1_Smoc2_dev.xlsx")
-    )[["Time in hpf", "surface_area"]]
-
-    df_smoc_dev = df_smoc_dev.rename(columns={
-        "Time in hpf": "time in hpf",
-        "surface_area": "Surface Area",
-    })
-
-    df_smoc_dev["condition"] = "smoc_dev"
-
-    # -------------------------
-    # SMOC regeneration data
-    # -------------------------
-    df_smoc_reg = pd.read_excel(
-        os.path.join(scalar_path, "Smoc1_Smoc2_reg_final.xlsx")
-    )[["time in hpf", "Surface Area"]]
-
-    df_smoc_reg["condition"] = "smoc_reg"
-
-    # -------------------------
-    # Combine all datasets
-    # -------------------------
-    # df_all = pd.concat(
-    #     [df, df2, df_smoc_dev, df_smoc_reg],
-    #     ignore_index=True
-    # )
-    df_all = pd.concat(
-        [df2, df_smoc_dev, df_smoc_reg],
-        ignore_index=True
+    df_wt = pd.read_csv(
+        os.path.join(scalar_path, "WT_scalars.csv")
     )
+
+    required_wt_columns = {
+        "time in hpf",
+        "condition",
+        "Surface Area",
+    }
+    missing_wt_columns = required_wt_columns.difference(df_wt.columns)
+
+    if missing_wt_columns:
+        raise KeyError(
+            f"WT_scalars.csv is missing columns: "
+            f"{sorted(missing_wt_columns)}"
+        )
+
+    cut_conditions = [
+        "Development",
+        "Regeneration",
+        "4850cut",
+        "7230cut",
+    ]
+
+    df_wt = df_wt.loc[
+        df_wt["condition"].isin(cut_conditions),
+        ["time in hpf", "condition", "Surface Area"],
+    ].copy()
+
+    df_smoc = pd.read_csv(
+        os.path.join(scalar_path, "Smoc12_scalars.csv")
+    )
+
+    required_smoc_columns = {
+        "time in hpf",
+        "Surface Area",
+    }
+    missing_smoc_columns = required_smoc_columns.difference(
+        df_smoc.columns
+    )
+
+    if missing_smoc_columns:
+        raise KeyError(
+            f"Smoc12_scalars.csv is missing columns: "
+            f"{sorted(missing_smoc_columns)}"
+        )
+
+    df_smoc = assign_smoc_conditions(df_smoc)
+
+    df_smoc = df_smoc[
+        ["time in hpf", "condition", "Surface Area"]
+    ].copy()
+
+    df_all = pd.concat(
+        [df_wt, df_smoc],
+        ignore_index=True,
+    )
+
+    df_all["time in hpf"] = pd.to_numeric(
+        df_all["time in hpf"],
+        errors="raise",
+    )
+    df_all["Surface Area"] = pd.to_numeric(
+        df_all["Surface Area"],
+        errors="raise",
+    )
+
+    print("\nLoaded conditions:")
+    print(df_all.groupby("condition").size())
 
     return df_all
 

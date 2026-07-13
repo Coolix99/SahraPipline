@@ -136,38 +136,38 @@ def register_finmask_special(skip_existing=True):
             print(im.shape) # type: ignore
             print(voxel_size_um)
             
-            nuclei_and_membrane=im[3,:,:,:] # type: ignore
-            bre=im[4,:,:,:] # type: ignore
-            mask_old=im[-1,:,:,:] # type: ignore
-            mask=getVolthr(mask_old,voxel_size_um)
+            nuclei_and_membrane=im[-1,:,:,:] # type: ignore
+            bre=im[0,:,:,:] # type: ignore
+            
+            mask=getVolthr(nuclei_and_membrane,voxel_size_um)
         
             # Minimal napari viewer for BRE, nuclei/membrane, and fin mask
-            viewer = napari.Viewer()
+            # viewer = napari.Viewer()
 
-            viewer.add_image(
-                nuclei_and_membrane,
-                name="Nuclei + membrane",
-                scale=voxel_size_um,
-                colormap="gray",
-            )
+            # viewer.add_image(
+            #     nuclei_and_membrane,
+            #     name="Nuclei + membrane",
+            #     scale=voxel_size_um,
+            #     colormap="gray",
+            # )
 
-            viewer.add_image(
-                bre,
-                name="BRE",
-                scale=voxel_size_um,
-                colormap="magenta",
-                blending="additive",
-            )
+            # viewer.add_image(
+            #     bre,
+            #     name="BRE",
+            #     scale=voxel_size_um,
+            #     colormap="magenta",
+            #     blending="additive",
+            # )
 
-            viewer.add_labels(
-                mask.astype(np.uint8),
-                name="Fin mask",
-                scale=voxel_size_um,
-                opacity=0.4,
-            )
+            # viewer.add_labels(
+            #     mask.astype(np.uint8),
+            #     name="Fin mask",
+            #     scale=voxel_size_um,
+            #     opacity=0.4,
+            # )
 
-            napari.run()
-            raise
+            # napari.run()
+            # raise
 
             img_name='vinita_smoc12_dev_'+time_folder+"_"+os.path.splitext(ims_file)[0]+'.tif'
             finmasks_im_path=os.path.join(finmasks_folder_path,img_name)
@@ -188,24 +188,24 @@ def register_finmask_special(skip_existing=True):
             MetaData_finmasks['finmasks checksum']=check
             writeJSON(finmasks_folder_path,'MetaData_finmasks',MetaData_finmasks)
 
-            #nucmem
-            nucmem_im_path=os.path.join(nucmem_folder_path,img_name)
-            save_array_as_tiff(nuclei_and_membrane,nucmem_im_path)
+            # #nuc
+            # nucmem_im_path=os.path.join(nucmem_folder_path,img_name)
+            # save_array_as_tiff(nuclei_and_membrane,nucmem_im_path)
 
-            MetaData_nucmem={}
-            repo = git.Repo(gitPath,search_parent_directories=True)
-            sha = repo.head.object.hexsha
-            MetaData_nucmem['git hash']=sha
-            MetaData_nucmem['git repo']='Sahrapipline'
-            MetaData_nucmem['nucmem file']=img_name
-            MetaData_nucmem['condition']='Smoc12_Dev'
-            MetaData_nucmem['scales ZYX']=[voxel_size_um[0],voxel_size_um[1],voxel_size_um[2]]
-            MetaData_nucmem['time in hpf']=time_hpf
-            MetaData_nucmem['genotype']='Vinita'
-            MetaData_nucmem['genotype']='Smoc12'
-            check=get_checksum(nucmem_im_path, algorithm="SHA1")
-            MetaData_nucmem['nucmem checksum']=check
-            writeJSON(nucmem_folder_path,'MetaData_nucmem',MetaData_nucmem)
+            # MetaData_nucmem={}
+            # repo = git.Repo(gitPath,search_parent_directories=True)
+            # sha = repo.head.object.hexsha
+            # MetaData_nucmem['git hash']=sha
+            # MetaData_nucmem['git repo']='Sahrapipline'
+            # MetaData_nucmem['nucmem file']=img_name
+            # MetaData_nucmem['condition']='Smoc12_Dev'
+            # MetaData_nucmem['scales ZYX']=[voxel_size_um[0],voxel_size_um[1],voxel_size_um[2]]
+            # MetaData_nucmem['time in hpf']=time_hpf
+            # MetaData_nucmem['genotype']='Vinita'
+            # MetaData_nucmem['genotype']='Smoc12'
+            # check=get_checksum(nucmem_im_path, algorithm="SHA1")
+            # MetaData_nucmem['nucmem checksum']=check
+            # writeJSON(nucmem_folder_path,'MetaData_nucmem',MetaData_nucmem)
 
             #bre
             bre_im_path=os.path.join(bre_folder_path,img_name)
