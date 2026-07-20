@@ -20,7 +20,8 @@ mpl.rcParams["font.family"] = "sans-serif"
 mpl.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
 
 def getData():
-    df_file_path = os.path.join(scalar_path,'scalarGrowthData_meshBased.csv')
+    # df_file_path = os.path.join(scalar_path,'scalarGrowthData_meshBased.csv')
+    df_file_path = os.path.join(scalar_path,'WT_scalars.csv')
 
     # Load the DataFrame from the HDF5 file
     df = pd.read_csv(df_file_path,sep=',')
@@ -524,10 +525,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.stats import mannwhitneyu
 
-import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
-from scipy.stats import mannwhitneyu
+
 
 
 def p_to_stars(p):

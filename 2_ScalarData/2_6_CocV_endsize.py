@@ -1,29 +1,40 @@
 import os
 import sys
+
+from itertools import combinations
+from scipy.stats import ttest_ind
+import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
-import matplotlib as mpl
-
 from matplotlib.ticker import MultipleLocator
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from config import scalar_path
 
-
-# =========================
-# Global style / export
-# =========================
 mpl.rcParams.update({
-    "svg.fonttype": "none",        # keep text editable in Illustrator
+    "svg.fonttype": "none",
     "pdf.fonttype": 42,
     "text.usetex": False,
-    "axes.unicode_minus": False
+    "axes.unicode_minus": False,
+    "font.family": "sans-serif",
+    "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
 })
 
-mpl.rcParams["font.family"] = "sans-serif"
-mpl.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
+COND_ORDER = ["Development", "Regeneration", "4850cut", "7230cut"]
+COND_LABEL = {
+    "Development": "Development",
+    "Regeneration": "Regeneration 30%",
+    "4850cut": "Regeneration 50%",
+    "7230cut": "Late Amputation 30%",
+}
+COND_COLOR = {
+    "Development": "#2077b5",
+    "Regeneration": "#f57e1f",
+    "4850cut": "#592d10",
+    "7230cut": "#fed1a4",
+}
 
 
 def set_plot_style_big():
@@ -37,42 +48,14 @@ def set_plot_style_big():
     })
 
 
-# =========================
-# Colors / labels
-# =========================
-COND_ORDER = ["Development", "Regeneration", "4850cut", "7230cut"]
-
-COND_LABEL = {
-    "Development": "Development",
-    "Regeneration": "Regeneration 30%",
-    "4850cut": "Regeneration 50%",
-    "7230cut": "Late Amputation 30%",
-}
-
-COND_COLOR = {
-    "Development": "#2077b5",
-    "Regeneration": "#f57e1f",
-    "4850cut": "#592d10",
-    "7230cut": "#fed1a4",
-}
-
-
-# =========================
-# Helpers
-# =========================
 def clean_limits(vmin, vmax, step):
-    vmin = step * np.floor(vmin / step)
-    vmax = step * np.ceil(vmax / step)
-    return vmin, vmax
+    return step * np.floor(vmin / step), step * np.ceil(vmax / step)
 
 
 def set_clean_yaxis(ax, ymin=None, ymax=None, step=None):
-    cur_ymin, cur_ymax = ax.get_ylim()
-
-    if ymin is None:
-        ymin = cur_ymin
-    if ymax is None:
-        ymax = cur_ymax
+    current_ymin, current_ymax = ax.get_ylim()
+    ymin = current_ymin if ymin is None else ymin
+    ymax = current_ymax if ymax is None else ymax
 
     if step is None:
         span = ymax - ymin
@@ -80,10 +63,10 @@ def set_clean_yaxis(ax, ymin=None, ymax=None, step=None):
             step = 1.0
         else:
             rough = span / 5.0
-            p = 10 ** np.floor(np.log10(rough))
-            for m in [1, 2, 5, 10]:
-                if m * p >= rough:
-                    step = m * p
+            power = 10 ** np.floor(np.log10(rough))
+            for multiplier in (1, 2, 5, 10):
+                if multiplier * power >= rough:
+                    step = multiplier * power
                     break
 
     ymin, ymax = clean_limits(ymin, ymax, step)
@@ -91,53 +74,21 @@ def set_clean_yaxis(ax, ymin=None, ymax=None, step=None):
     ax.yaxis.set_major_locator(MultipleLocator(step))
 
 
-def set_clean_xaxis(ax, xmin=None, xmax=None, step=None):
-    cur_xmin, cur_xmax = ax.get_xlim()
-
-    if xmin is None:
-        xmin = cur_xmin
-    if xmax is None:
-        xmax = cur_xmax
-
-    if step is None:
-        span = xmax - xmin
-        if span <= 0:
-            step = 1.0
-        else:
-            rough = span / 5.0
-            p = 10 ** np.floor(np.log10(rough))
-            for m in [1, 2, 5, 10]:
-                if m * p >= rough:
-                    step = m * p
-                    break
-
-    xmin, xmax = clean_limits(xmin, xmax, step)
-    ax.set_xlim(xmin, xmax)
-    ax.xaxis.set_major_locator(MultipleLocator(step))
-
-
 def save_figure(fig, filename_base, dpi=300):
-    """
-    Save figure as SVG, PDF, and PNG.
-
-    filename_base should NOT include extension.
-    """
     fig.savefig(f"{filename_base}.svg", format="svg", bbox_inches="tight")
     fig.savefig(f"{filename_base}.pdf", format="pdf", bbox_inches="tight")
     fig.savefig(f"{filename_base}.png", format="png", dpi=dpi, bbox_inches="tight")
 
-# =========================
-# CoV + bootstrap SEM
-# =========================
+
 def cov(x):
     x = np.asarray(x, dtype=float)
     x = x[np.isfinite(x)]
     if len(x) < 2:
         return np.nan
-    m = np.mean(x)
-    if m == 0:
+    mean = np.mean(x)
+    if mean == 0:
         return np.nan
-    return np.std(x, ddof=1) / m
+    return np.std(x, ddof=1) / mean
 
 
 def bootstrap_cov_sem(x, n_boot=5000, seed=0):
@@ -148,41 +99,31 @@ def bootstrap_cov_sem(x, n_boot=5000, seed=0):
         return cov(x), np.nan
 
     rng = np.random.default_rng(seed)
-    boots = np.empty(n_boot, dtype=float)
-    idx = np.arange(n)
-
+    indices = np.arange(n)
+    boot_cov = np.empty(n_boot, dtype=float)
     for i in range(n_boot):
-        samp = rng.choice(idx, size=n, replace=True)
-        boots[i] = cov(x[samp])
-
-    return cov(x), np.nanstd(boots, ddof=1)
+        sample = rng.choice(indices, size=n, replace=True)
+        boot_cov[i] = cov(x[sample])
+    return cov(x), np.nanstd(boot_cov, ddof=1)
 
 
 def summarize_cov_by_groups(df, value_col, group_cols, n_boot=5000, seed=0):
     rows = []
-    for key, g in df.groupby(group_cols, dropna=False):
-        if isinstance(key, tuple):
-            key_tuple = key
-        else:
-            key_tuple = (key,)
-
-        x = g[value_col].to_numpy(dtype=float)
-        c, c_sem = bootstrap_cov_sem(x, n_boot=n_boot, seed=seed)
-        rows.append(key_tuple + (c, c_sem, len(g)))
-
+    for key, group in df.groupby(group_cols, dropna=False):
+        key_tuple = key if isinstance(key, tuple) else (key,)
+        values = group[value_col].to_numpy(dtype=float)
+        cov_value, cov_sem = bootstrap_cov_sem(values, n_boot=n_boot, seed=seed)
+        rows.append(key_tuple + (cov_value, cov_sem, len(group)))
     return pd.DataFrame(rows, columns=[*group_cols, "cov", "cov_sem", "n"])
 
 
-# =========================
-# Plot CoV grouped
-# =========================
 def plot_cov_grouped(
     df,
     value_col="Surface Area",
     time_col="time in hpf",
     condition_col="condition",
     default_times=(48, 144),
-    special_times={"7230cut": (72, 144)},
+    special_times=None,
     conditions=COND_ORDER,
     n_boot=5000,
     seed=0,
@@ -191,283 +132,378 @@ def plot_cov_grouped(
     gap=0.8,
     within=0.9,
 ):
+    special_times = {"7230cut": (72, 144)} if special_times is None else special_times
     df = df.copy()
     df[value_col] = pd.to_numeric(df[value_col], errors="coerce")
-
     if fig_size is None:
         fig_size = (5.6, 3.2) if style == "point" else (5.0, 3.6)
 
     fig, ax = plt.subplots(figsize=fig_size)
-
     x_pos, heights, yerr, colors = [], [], [], []
-    cond_centers, xticklabels = [], []
+    condition_centers, tick_labels = [], []
+    x_start = 0.0
 
-    x0 = 0.0
-
-    for cnd in conditions:
-        times = special_times.get(cnd, default_times)
-
-        sub = df[(df[condition_col] == cnd) & (df[time_col].isin(times))]
-        if len(sub) == 0:
-            x0 += gap
+    for condition in conditions:
+        times = special_times.get(condition, default_times)
+        subset = df[
+            (df[condition_col] == condition) & (df[time_col].isin(times))
+        ]
+        if subset.empty:
+            x_start += gap
             continue
 
-        summ = summarize_cov_by_groups(
-            sub,
+        summary = summarize_cov_by_groups(
+            subset,
             value_col=value_col,
             group_cols=[time_col],
             n_boot=n_boot,
-            seed=seed
+            seed=seed,
         )
-
-        pos_list = []
-
-        for i, t in enumerate(times):
-            row = summ[summ[time_col] == t]
-            if len(row) == 0:
+        condition_positions = []
+        for i, time in enumerate(times):
+            row = summary[summary[time_col] == time]
+            if row.empty:
                 continue
-
-            pos = x0 + i * within
-            pos_list.append(pos)
-
-            x_pos.append(pos)
+            position = x_start + i * within
+            condition_positions.append(position)
+            x_pos.append(position)
             heights.append(float(row["cov"].iloc[0]))
             yerr.append(float(row["cov_sem"].iloc[0]))
-            colors.append(COND_COLOR[cnd])
+            colors.append(COND_COLOR[condition])
 
-        if len(pos_list) > 0:
-            cond_centers.append(np.mean(pos_list))
-            xticklabels.append(COND_LABEL[cnd])
-            x0 = pos_list[-1] + gap
+        if condition_positions:
+            condition_centers.append(np.mean(condition_positions))
+            tick_labels.append(COND_LABEL[condition])
+            x_start = condition_positions[-1] + gap
         else:
-            x0 += gap
+            x_start += gap
 
-    x_pos = np.array(x_pos)
-    heights = np.array(heights)
-    yerr = np.array(yerr)
+    x_pos = np.asarray(x_pos)
+    heights = np.asarray(heights)
+    yerr = np.asarray(yerr)
 
     if style == "bar":
         ax.bar(
-            x_pos, heights,
+            x_pos,
+            heights,
             color=colors,
             width=0.75,
             edgecolor="none",
-            zorder=2
+            zorder=2,
         )
     else:
-        ax.scatter(
-            x_pos, heights,
-            color=colors,
-            s=35,
-            zorder=3
-        )
+        ax.scatter(x_pos, heights, color=colors, s=35, zorder=3)
 
     ax.errorbar(
-        x_pos, heights, yerr=yerr,
+        x_pos,
+        heights,
+        yerr=yerr,
         fmt="none",
         ecolor="k",
         elinewidth=1.2,
         capsize=3,
-        zorder=4
+        zorder=4,
     )
-
-    ax.set_ylabel(f"CoV ({'A' if value_col == 'Surface Area' else 'V'})")
+    symbol = "A" if value_col == "Surface Area" else "V"
+    ax.set_ylabel(f"CoV ({symbol})")
     ax.set_title(f"{value_col} variability")
-
-    ax.set_xticks(cond_centers)
-    ax.set_xticklabels(xticklabels, rotation=45, ha="right")
-
+    ax.set_xticks(condition_centers)
+    ax.set_xticklabels(tick_labels, rotation=45, ha="right")
     set_clean_yaxis(ax, ymin=0)
-
     sns.despine()
     ax.grid(False)
     fig.tight_layout()
     return fig, ax
 
 
-# =========================
-# Plot mean at one time
-# =========================
-def plot_mean_144(
+def summarize_final_size(df, value_col, condition_col, conditions):
+    rows = []
+    for condition in conditions:
+        values = df.loc[df[condition_col] == condition, value_col].to_numpy(dtype=float)
+        values = values[np.isfinite(values)]
+        if len(values) == 0:
+            continue
+        mean = np.mean(values)
+        sem = np.std(values, ddof=1) / np.sqrt(len(values)) if len(values) > 1 else np.nan
+        rows.append((condition, mean, sem, len(values)))
+    return pd.DataFrame(rows, columns=["condition", "mean", "sem", "n"])
+
+
+def plot_final_size(
     df,
     value_col="Surface Area",
     time_col="time in hpf",
     condition_col="condition",
-    time=144,
+    final_time=144,
     conditions=COND_ORDER,
-    fig_size=(3.8, 3.8),
-    style="bar",
-    seed=0,
+    fig_size=(5.0, 3.6),
+    condition_spacing=1.7,
 ):
-    sub = df[(df[time_col] == time) & (df[condition_col].isin(conditions))].copy()
-    sub[value_col] = pd.to_numeric(sub[value_col], errors="coerce")
+    subset = df[
+        (df[time_col] == final_time) & (df[condition_col].isin(conditions))
+    ].copy()
+    subset[value_col] = pd.to_numeric(subset[value_col], errors="coerce")
 
     scale = 1e4 if value_col == "Surface Area" else 1.0
+    subset[value_col] = subset[value_col] / scale
+    summary = summarize_final_size(subset, value_col, condition_col, conditions)
 
-    rows = []
-    raw = {}
-
-    for cnd in conditions:
-        x = sub.loc[sub[condition_col] == cnd, value_col].to_numpy(dtype=float)
-        x = x[np.isfinite(x)] / scale
-        if len(x) == 0:
-            continue
-
-        mean = np.mean(x)
-        sem = np.std(x, ddof=1) / np.sqrt(len(x)) if len(x) > 1 else np.nan
-        rows.append((cnd, mean, sem))
-        raw[cnd] = x
-
-    summ = pd.DataFrame(rows, columns=["condition", "mean", "sem"])
+    x_pos = np.arange(len(summary)) * condition_spacing
+    heights = summary["mean"].to_numpy()
+    yerr = summary["sem"].to_numpy()
+    colors = [COND_COLOR[condition] for condition in summary["condition"]]
+    labels = [COND_LABEL[condition] for condition in summary["condition"]]
 
     fig, ax = plt.subplots(figsize=fig_size)
+    ax.bar(
+        x_pos,
+        heights,
+        color=colors,
+        width=0.75,
+        edgecolor="none",
+        zorder=2,
+    )
+    ax.errorbar(
+        x_pos,
+        heights,
+        yerr=yerr,
+        fmt="none",
+        ecolor="k",
+        elinewidth=1.2,
+        capsize=3,
+        zorder=4,
+    )
 
-    x_pos = np.arange(len(summ))
-    heights = summ["mean"].to_numpy()
-    yerr = summ["sem"].to_numpy()
-    colors = [COND_COLOR[c] for c in summ["condition"]]
-    labels = [COND_LABEL[c] for c in summ["condition"]]
-
-    if style == "bar":
-        ax.bar(
-            x_pos, heights,
-            color=colors,
-            width=0.75,
-            edgecolor="none",
-            zorder=2
-        )
-        ax.errorbar(
-            x_pos, heights, yerr=yerr,
-            fmt="none",
-            ecolor="k",
-            elinewidth=1.2,
-            capsize=3,
-            zorder=4
-        )
-
-    else:
-        rng = np.random.default_rng(seed)
-
-        box_width = 0.34
-        cap_width = 0.14
-
-        for i, cnd in enumerate(summ["condition"]):
-            x = raw[cnd]
-            color = COND_COLOR[cnd]
-
-            q2_3, q15_9, q50, q84_1, q97_7 = np.percentile(
-                x, [2.3, 15.9, 50.0, 84.1, 97.7]
-            )
-
-            # individual data points
-            jitter = rng.uniform(-0.10, 0.10, size=len(x))
-            
-
-            # box: +/- 1 sigma percentiles
-            rect = plt.Rectangle(
-                (x_pos[i] - box_width / 2, q15_9),
-                box_width,
-                q84_1 - q15_9,
-                facecolor="white",
-                edgecolor=color,
-                linewidth=1.5,
-                zorder=0
-            )
-            ax.add_patch(rect)
-
-            # median line
-            ax.plot(
-                [x_pos[i] - box_width / 2, x_pos[i] + box_width / 2],
-                [q50, q50],
-                color=color,
-                linewidth=2.0,
-                zorder=4
-            )
-
-            # whiskers: +/- 2 sigma percentiles
-            ax.plot([x_pos[i], x_pos[i]], [q2_3, q15_9], color=color, linewidth=1.5, zorder=3)
-            ax.plot([x_pos[i], x_pos[i]], [q84_1, q97_7], color=color, linewidth=1.5, zorder=3)
-
-            # whisker caps
-            ax.plot([x_pos[i] - cap_width / 2, x_pos[i] + cap_width / 2], [q2_3, q2_3],
-                    color=color, linewidth=1.5, zorder=3)
-            ax.plot([x_pos[i] - cap_width / 2, x_pos[i] + cap_width / 2], [q97_7, q97_7],
-                    color=color, linewidth=1.5, zorder=3)
-            ax.scatter(
-                    np.full(len(x), x_pos[i]) + jitter,
-                    x,
-                    s=24,
-                    color=color,
-                    edgecolors="none",
-                    zorder=2,
-                    alpha=0.6
-                        )
     if value_col == "Surface Area":
         ax.set_ylabel(r"A [$\,(100\,\mu m)^2$]")
-    elif value_col == "Volume":
+    else:
         ax.set_ylabel(r"V [$\mu m^3$]")
-    elif value_col == "Mean Thickness":
-        ax.set_ylabel(r"$V/A\;[\mu m]$")
-
-    ax.set_title(f"{value_col} at {time} hpf")
+    ax.set_title(f"{value_col} at {final_time} hpf")
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels, rotation=45, ha="right")
-
     set_clean_yaxis(ax, ymin=0)
-
     sns.despine()
     ax.grid(False)
     fig.tight_layout()
     return fig, ax
 
 
-# =========================
-# IO
-# =========================
 def load_growth_csv(csv_path):
     df = pd.read_csv(csv_path)
     if "time in hpf" in df.columns:
         df["time in hpf"] = pd.to_numeric(df["time in hpf"], errors="coerce")
-
     if {"Volume", "Surface Area"}.issubset(df.columns):
         df["Mean Thickness"] = df["Volume"] / df["Surface Area"]
     return df
 
+def significance_stars(p_value):
+    if not np.isfinite(p_value):
+        return "n/a"
+    if p_value < 0.0001:
+        return "****"
+    if p_value < 0.001:
+        return "***"
+    if p_value < 0.01:
+        return "**"
+    if p_value < 0.05:
+        return "*"
+    return "ns"
 
-# =========================
-# Main
-# =========================
+
+def holm_adjust(p_values):
+    p_values = np.asarray(p_values, dtype=float)
+    adjusted = np.full(len(p_values), np.nan)
+    valid = np.flatnonzero(np.isfinite(p_values))
+    if len(valid) == 0:
+        return adjusted
+
+    order = valid[np.argsort(p_values[valid])]
+    running_max = 0.0
+    m = len(order)
+    for rank, index in enumerate(order):
+        corrected = min((m - rank) * p_values[index], 1.0)
+        running_max = max(running_max, corrected)
+        adjusted[index] = running_max
+    return adjusted
+
+
+def permutation_test_cov_decrease(early, final, n_perm=10000, seed=0):
+    early = np.asarray(early, dtype=float)
+    final = np.asarray(final, dtype=float)
+    early = early[np.isfinite(early)]
+    final = final[np.isfinite(final)]
+
+    if len(early) < 2 or len(final) < 2:
+        return np.nan, np.nan
+
+    observed = cov(early) - cov(final)
+    pooled = np.concatenate([early, final])
+    n_early = len(early)
+    rng = np.random.default_rng(seed)
+    null_differences = []
+
+    for _ in range(n_perm):
+        shuffled = rng.permutation(pooled)
+        difference = cov(shuffled[:n_early]) - cov(shuffled[n_early:])
+        if np.isfinite(difference):
+            null_differences.append(difference)
+
+    if not null_differences:
+        return observed, np.nan
+
+    null_differences = np.asarray(null_differences)
+    p_value = (
+        np.sum(null_differences >= observed) + 1
+    ) / (len(null_differences) + 1)
+    return observed, p_value
+
+
+def report_bar_statistics(
+    df,
+    value_cols=("Volume", "Surface Area"),
+    time_col="time in hpf",
+    condition_col="condition",
+    default_times=(48, 144),
+    special_times=None,
+    final_time=144,
+    conditions=COND_ORDER,
+    n_perm=10000,
+    seed=0,
+):
+    special_times = {"7230cut": (72, 144)} if special_times is None else special_times
+
+    print("\n" + "=" * 78)
+    print("BAR SAMPLE SIZES AND STATISTICAL TESTS")
+    print("=" * 78)
+
+    for value_col in value_cols:
+        data = df.copy()
+        data[value_col] = pd.to_numeric(data[value_col], errors="coerce")
+
+        print(f"\n{value_col.upper()}")
+        print("-" * 78)
+        print("CoV bars and one-sided tests for a decrease")
+
+        for condition in conditions:
+            early_time, late_time = special_times.get(condition, default_times)
+
+            early = data.loc[
+                (data[condition_col] == condition)
+                & (data[time_col] == early_time),
+                value_col,
+            ].dropna().to_numpy()
+
+            late = data.loc[
+                (data[condition_col] == condition)
+                & (data[time_col] == late_time),
+                value_col,
+            ].dropna().to_numpy()
+
+            if len(early) == 0 and len(late) == 0:
+                continue
+
+            difference, p_value = permutation_test_cov_decrease(
+                early,
+                late,
+                n_perm=n_perm,
+                seed=seed,
+            )
+
+            early_cov = cov(early)
+            late_cov = cov(late)
+            label = COND_LABEL.get(condition, condition)
+
+            print(
+                f"  {label:<24} "
+                f"{early_time:>3} hpf: n={len(early):<3} CoV={early_cov:.4f} | "
+                f"{late_time:>3} hpf: n={len(late):<3} CoV={late_cov:.4f} | "
+                f"decrease={difference:.4f}, "
+                f"p={p_value:.4g} ({significance_stars(p_value)})"
+            )
+
+        print(f"\nFinal-size bars at {final_time} hpf")
+        final_groups = {}
+
+        for condition in conditions:
+            values = data.loc[
+                (data[condition_col] == condition)
+                & (data[time_col] == final_time),
+                value_col,
+            ].dropna().to_numpy()
+
+            if len(values) == 0:
+                continue
+
+            final_groups[condition] = values
+            label = COND_LABEL.get(condition, condition)
+            print(f"  {label:<24} n={len(values)}")
+
+        comparisons = []
+        for first, second in combinations(final_groups, 2):
+            result = ttest_ind(
+                final_groups[first],
+                final_groups[second],
+                equal_var=False,
+                nan_policy="omit",
+            )
+            comparisons.append((first, second, float(result.pvalue)))
+
+        if comparisons:
+            adjusted = holm_adjust([item[2] for item in comparisons])
+
+            print("\nPairwise final-size tests: Welch t-test, Holm-adjusted")
+            for (first, second, raw_p), adjusted_p in zip(
+                comparisons,
+                adjusted,
+            ):
+                first_label = COND_LABEL.get(first, first)
+                second_label = COND_LABEL.get(second, second)
+
+                print(
+                    f"  {first_label:<24} vs {second_label:<24} "
+                    f"p={raw_p:.4g}, "
+                    f"p_holm={adjusted_p:.4g} "
+                    f"({significance_stars(adjusted_p)})"
+                )
+        else:
+            print("  Not enough groups for pairwise testing.")
+
+    print(
+        "\nSignificance: ns >= 0.05, * < 0.05, ** < 0.01, "
+        "*** < 0.001, **** < 0.0001"
+    )
+    print("=" * 78)
+
 def main():
     set_plot_style_big()
-
-    csv_file = os.path.join(scalar_path, "scalarGrowthData_meshBased.csv")
+    csv_file = os.path.join(scalar_path, "WT_scalars.csv")
     df = load_growth_csv(csv_file)
-
+    report_bar_statistics(df)
     print("\nAvailable times:")
     print(sorted(df["time in hpf"].dropna().unique()))
-
     print("\nAvailable conditions:")
     print(sorted(df["condition"].dropna().unique()))
 
-    out_dir = os.path.join('./', "plots_cov_mean")
+    out_dir = os.path.join(".", "plots_cov_mean")
     os.makedirs(out_dir, exist_ok=True)
 
-    for value_col in ["Volume", "Surface Area", "Mean Thickness"]:
-        fig1, ax1 = plot_cov_grouped(
+    for value_col in ("Volume", "Surface Area"):
+        cov_fig, _ = plot_cov_grouped(
             df,
             value_col=value_col,
             default_times=(48, 144),
             special_times={"7230cut": (72, 144)},
             style="bar",
         )
-        save_figure(fig1, os.path.join(out_dir, f"cov_{value_col.replace(' ', '_')}"))
+        safe_name = value_col.replace(" ", "_")
+        save_figure(cov_fig, os.path.join(out_dir, f"cov_{safe_name}"))
 
-        fig2, ax2 = plot_mean_144(
+        final_fig, _ = plot_final_size(
             df,
             value_col=value_col,
-            style="point",
+            final_time=144,
         )
-        save_figure(fig2, os.path.join(out_dir, f"mean144_{value_col.replace(' ', '_')}"))
+        save_figure(final_fig, os.path.join(out_dir, f"final_size_{safe_name}"))
 
     plt.show()
 
