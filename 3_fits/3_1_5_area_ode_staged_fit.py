@@ -152,13 +152,13 @@ def assign_smoc_conditions(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_data() -> pd.DataFrame:
-    wt_path = Path(scalar_path) / "WT_scalars.csv"
+    wt_path = Path(scalar_path) / "membrane_dynamics_FINAL_200726_updated.csv"
     smoc_path = Path(scalar_path) / "Smoc12_scalars.csv"
     df_wt = pd.read_csv(wt_path)
     required_wt = {"time in hpf", "condition", "Surface Area"}
     missing_wt = required_wt.difference(df_wt.columns)
     if missing_wt:
-        raise KeyError(f"WT_scalars.csv is missing columns: {sorted(missing_wt)}")
+        raise KeyError(f"membrane_dynamics_FINAL_200726_updated.csv is missing columns: {sorted(missing_wt)}")
     df_wt = df_wt.loc[
         df_wt["condition"].isin(WT_CONDITIONS),
         ["time in hpf", "condition", "Surface Area"],

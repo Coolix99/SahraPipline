@@ -476,7 +476,7 @@ def report_bar_statistics(
 
 def main():
     set_plot_style_big()
-    csv_file = os.path.join(scalar_path, "WT_scalars.csv")
+    csv_file = os.path.join(scalar_path, "membrane_dynamics_FINAL_200726_updated.csv")
     df = load_growth_csv(csv_file)
     report_bar_statistics(df)
     print("\nAvailable times:")
