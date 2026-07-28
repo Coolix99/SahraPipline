@@ -153,38 +153,95 @@ def assign_smoc_conditions(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_data() -> pd.DataFrame:
     wt_path = Path(scalar_path) / "membrane_dynamics_FINAL_200726_updated.csv"
-    smoc_path = Path(scalar_path) / "Smoc12_scalars.csv"
+    smoc_path = Path(scalar_path) / "Lucas_Vinita_smoc_merged_updated.csv"
+
+    # Load WT data
     df_wt = pd.read_csv(wt_path)
+
     required_wt = {"time in hpf", "condition", "Surface Area"}
     missing_wt = required_wt.difference(df_wt.columns)
     if missing_wt:
-        raise KeyError(f"membrane_dynamics_FINAL_200726_updated.csv is missing columns: {sorted(missing_wt)}")
+        raise KeyError(
+            "membrane_dynamics_FINAL_200726_updated.csv "
+            f"is missing columns: {sorted(missing_wt)}"
+        )
+
     df_wt = df_wt.loc[
         df_wt["condition"].isin(WT_CONDITIONS),
         ["time in hpf", "condition", "Surface Area"],
     ].copy()
 
+    # Load SMOC data
     df_smoc = pd.read_csv(smoc_path)
-    required_smoc = {"time in hpf", "Surface Area"}
+
+    required_smoc = {"time in hpf", "condition", "Surface Area"}
     missing_smoc = required_smoc.difference(df_smoc.columns)
     if missing_smoc:
-        raise KeyError(f"Smoc12_scalars.csv is missing columns: {sorted(missing_smoc)}")
-    df_smoc = assign_smoc_conditions(df_smoc)
-    df_smoc = df_smoc[["time in hpf", "condition", "Surface Area"]].copy()
+        raise KeyError(
+            "Lucas_Vinita_smoc_merged_updated.csv "
+            f"is missing columns: {sorted(missing_smoc)}"
+        )
 
+    # New CSV condition names:
+    # Development_Smoc  -> smoc_dev
+    # Regeneration_Smoc -> smoc_reg
+    smoc_condition_map = {
+        "development_smoc": "smoc_dev",
+        "regeneration_smoc": "smoc_reg",
+    }
+
+    normalized_smoc_conditions = (
+        df_smoc["condition"]
+        .astype("string")
+        .str.strip()
+        .str.lower()
+    )
+
+    df_smoc["condition"] = normalized_smoc_conditions.map(smoc_condition_map)
+
+    unknown_smoc = sorted(
+        normalized_smoc_conditions[df_smoc["condition"].isna()]
+        .dropna()
+        .unique()
+        .tolist()
+    )
+    if unknown_smoc:
+        raise ValueError(
+            f"Unknown SMOC condition values in CSV: {unknown_smoc}"
+        )
+
+    df_smoc = df_smoc[
+        ["time in hpf", "condition", "Surface Area"]
+    ].copy()
+
+    # Combine and validate
     df = pd.concat([df_wt, df_smoc], ignore_index=True)
-    df["time in hpf"] = pd.to_numeric(df["time in hpf"], errors="raise")
-    df["Surface Area"] = pd.to_numeric(df["Surface Area"], errors="raise") / 10000.0
-    if df[["time in hpf", "Surface Area"]].isna().any().any():
-        raise ValueError("The input data contain missing time or surface-area values.")
 
-    missing_conditions = set(STAN_KEYS).difference(df["condition"].unique())
+    df["time in hpf"] = pd.to_numeric(
+        df["time in hpf"], errors="raise"
+    )
+    df["Surface Area"] = (
+        pd.to_numeric(df["Surface Area"], errors="raise") / 10000.0
+    )
+
+    if df[["time in hpf", "Surface Area"]].isna().any().any():
+        raise ValueError(
+            "The input data contain missing time or surface-area values."
+        )
+
+    missing_conditions = set(STAN_KEYS).difference(
+        df["condition"].unique()
+    )
     if missing_conditions:
-        raise ValueError(f"No observations found for conditions: {sorted(missing_conditions)}")
+        raise ValueError(
+            f"No observations found for conditions: "
+            f"{sorted(missing_conditions)}"
+        )
+
     print("\nLoaded conditions:")
     print(df.groupby("condition").size())
-    return df
 
+    return df
 
 def ode_system(t, y, alpha, beta_, A_end):
     A, g = y
@@ -256,7 +313,7 @@ def explorative_plotting(df: pd.DataFrame, conditions_to_plot=None):
     ax.set_xlabel("Developmental time [hpf]", fontsize=20)
     ax.set_ylabel("Surface Area", fontsize=20)
     ax.set_xticks(xticks)
-    ax.set_xticklabels(xticks, rotation=45, fontsize=16)
+    ax.set_xticklabels(xticks, rotation=45, fontsize=16) # type: ignore
     ax.tick_params(axis="y", labelsize=16)
     ax.grid(False)
     ax.spines["top"].set_visible(False)
@@ -317,7 +374,7 @@ def plot_prior_predictive(df: pd.DataFrame, condition: str, n_samples=300, seed=
     ax.set_xlim(45, 150)
     ax.set_ylim(0, 15)
     ax.set_xticks(xticks)
-    ax.set_xticklabels(xticks, rotation=45, fontsize=16)
+    ax.set_xticklabels(xticks, rotation=45, fontsize=16) # type: ignore
     ax.set_yticks(np.arange(0, 15, 2))
     ax.set_yticklabels(np.arange(0, 15, 2), fontsize=16)
     ax.set_xlabel("Developmental time [hpf]", fontsize=20)
@@ -417,7 +474,7 @@ def fit_stan_stage(
         diagnosis = fit.diagnose()
     except RuntimeError as error:
         diagnosis = f"CmdStan diagnose failed: {error}"
-    (stage_dir / "diagnose.txt").write_text(diagnosis, encoding="utf-8")
+    (stage_dir / "diagnose.txt").write_text(diagnosis, encoding="utf-8") # type: ignore
     return fit
 
 
@@ -528,8 +585,8 @@ def fixed_stats_from_summary(
         raise KeyError(f"Summary is missing parameters: {sorted(missing)}")
     return {
         parameter: {
-            "mean": float(indexed.loc[parameter, "mean"]),
-            "std": float(indexed.loc[parameter, "std"]),
+            "mean": float(indexed.loc[parameter, "mean"]), # type: ignore
+            "std": float(indexed.loc[parameter, "std"]), # type: ignore
         }
         for parameter in parameters
     }
@@ -566,9 +623,9 @@ def save_posterior_and_diagnostics(
     ppc_dir.mkdir(parents=True, exist_ok=True)
     for name, parameters in specs["corners"].items():
         output_file(str(corner_dir / f"corner_{name}_linear.html"))
-        bokeh_save(corner(samples, parameters=parameters, xtick_label_orientation=np.pi / 4))
+        bokeh_save(corner(samples, parameters=parameters, xtick_label_orientation=np.pi / 4)) # type: ignore
     for name, (ppc_var, t_ppc_key, t_key, area_key) in specs["regression"].items():
-        values = samples.posterior_predictive[ppc_var]
+        values = samples.posterior_predictive[ppc_var] # type: ignore
         value_dim = next(dim for dim in values.dims if dim not in {"chain", "draw"})
         stacked = values.stack(sample=("chain", "draw")).transpose("sample", value_dim).values
         observed = np.column_stack((np.asarray(data[t_key]), np.asarray(data[area_key])))
@@ -698,7 +755,7 @@ def plot_fit(
     ax.set_xlim(45, 150)
     ax.set_ylim(0, 15)
     ax.set_xticks(xticks)
-    ax.set_xticklabels(xticks, rotation=45, fontsize=16)
+    ax.set_xticklabels(xticks, rotation=45, fontsize=16) # type: ignore
     ax.set_yticks(np.arange(0, 15, 2))
     ax.set_yticklabels(np.arange(0, 15, 2), fontsize=16)
     x0 = xticks[-1] - 40
